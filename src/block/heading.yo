@@ -1,0 +1,82 @@
+// markdown_yo — ATX heading rule
+//
+// Matches: # H1 ... ###### H6
+// Closing hashes are optional and stripped.
+
+{ BlockState } :: import "./state.yo";
+{ is_space } :: import "../common/utils.yo";
+
+// Parse inline content for heading and emit to renderer
+// For now, emit as plain escaped text. Will be replaced with full inline parser.
+_parse_heading_inline :: (fn(state: *(BlockState), start: i32, end: i32) -> unit)(
+  state.*.renderer.*.text(start, end)
+);
+
+block_heading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+  (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
+  (ts : i32) = state.*.t_shift.get_unchecked(usize(start_line));
+  (em : i32) = state.*.e_marks.get_unchecked(usize(start_line));
+  (pos : i32) = (bm + ts);
+
+  // Must not be indented >3 spaces
+  if((state.*.s_count.get_unchecked(usize(start_line)) >= i32(4)), { return false; });
+
+  // Must start with #
+  if((pos >= em), { return false; });
+  (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+  if((ch != i32(0x23)), { return false; });
+
+  // Count # characters (1..6)
+  (level : i32) = i32(1);
+  pos = (pos + i32(1));
+  while (((pos < em) && (i32((state.*.src_ptr &+ usize(pos)).*) == i32(0x23))) && (level < i32(6))), {
+    level = (level + i32(1));
+    pos = (pos + i32(1));
+  };
+
+  // Must be followed by space or end of line
+  if((pos < em), {
+    (next : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+    if(!(is_space(next)), { return false; });
+  });
+
+  if(silent, { return true; });
+
+  // Skip leading spaces after #'s
+  while ((pos < em) && is_space(i32((state.*.src_ptr &+ usize(pos)).*))) , {
+    pos = (pos + i32(1));
+  };
+
+  // Strip trailing #'s and spaces
+  (content_end : i32) = em;
+  // Skip trailing spaces
+  while ((content_end > pos) && is_space(i32((state.*.src_ptr &+ usize((content_end - i32(1)))).*))) , {
+    content_end = (content_end - i32(1));
+  };
+  // Strip trailing #'s
+  (tmp : i32) = content_end;
+  while ((tmp > pos) && (i32((state.*.src_ptr &+ usize((tmp - i32(1)))).*) == i32(0x23))), {
+    tmp = (tmp - i32(1));
+  };
+  // Trailing #'s must be preceded by space (or be entire content)
+  if(((tmp > pos) && is_space(i32((state.*.src_ptr &+ usize((tmp - i32(1)))).*))) , {
+    content_end = tmp;
+    // Trim trailing spaces before the #'s
+    while ((content_end > pos) && is_space(i32((state.*.src_ptr &+ usize((content_end - i32(1)))).*))) , {
+      content_end = (content_end - i32(1));
+    };
+  });
+
+  // Emit heading open, inline content, heading close
+  state.*.renderer.*.open_heading(level);
+  // Parse inline content between pos and content_end
+  if((content_end > pos), {
+    _parse_heading_inline(state, pos, content_end);
+  });
+  state.*.renderer.*.close_heading(level);
+
+  state.*.line = (start_line + i32(1));
+  true
+});
+
+export block_heading;

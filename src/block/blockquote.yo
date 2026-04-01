@@ -1,0 +1,94 @@
+// markdown_yo — Blockquote rule
+//
+// Matches: > prefixed lines
+// Returns bq_end line number (> start_line if matched, 0 if no match).
+// The caller (parser.yo) handles recursive block_tokenize call.
+
+{ BlockState } :: import "./state.yo";
+{ is_space } :: import "../common/utils.yo";
+{ ParentType } :: import "../types.yo";
+
+// Scan blockquote lines and adjust state arrays.
+// Returns bq_end (the line AFTER the blockquote), or -1 if no match.
+// If silent, returns 1 on match, -1 on no match (does not modify state).
+block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> i32)({
+  (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
+  (ts : i32) = state.*.t_shift.get_unchecked(usize(start_line));
+  (em : i32) = state.*.e_marks.get_unchecked(usize(start_line));
+  (pos : i32) = (bm + ts);
+
+  // Must not be indented >3 spaces
+  if((state.*.s_count.get_unchecked(usize(start_line)) >= i32(4)), { return i32(-1); });
+
+  // Check >
+  if((pos >= em), { return i32(-1); });
+  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x3E)), { return i32(-1); });
+
+  if(silent, { return i32(1); });
+
+  // Find all lines belonging to this blockquote
+  (next_line : i32) = start_line;
+  (last_line_empty : bool) = false;
+  (bq_end : i32) = start_line;
+
+  (scanning : bool) = true;
+  while ((next_line < end_line) && scanning), {
+    (nbm : i32) = state.*.b_marks.get_unchecked(usize(next_line));
+    (nts : i32) = state.*.t_shift.get_unchecked(usize(next_line));
+    (nem : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+    (npos : i32) = (nbm + nts);
+    (nsc : i32) = state.*.s_count.get_unchecked(usize(next_line));
+
+    (is_bq_line : bool) = false;
+
+    if((((npos < nem) && (i32((state.*.src_ptr &+ usize(npos)).*) == i32(0x3E))) && (nsc < i32(4))), {
+      is_bq_line = true;
+    });
+
+    if(is_bq_line, {
+      last_line_empty = false;
+      bq_end = (next_line + i32(1));
+
+      // Adjust line markers: skip > and optional space after it
+      (adj_pos : i32) = (npos + i32(1));
+      (space_after : i32) = i32(0);
+      if(((adj_pos < nem) && is_space(i32((state.*.src_ptr &+ usize(adj_pos)).*))) , {
+        space_after = i32(1);
+        adj_pos = (adj_pos + i32(1));
+      });
+
+      // Update state arrays for this line
+      (old_bs : i32) = state.*.bs_count.get_unchecked(usize(next_line));
+
+      (indent : i32) = ((nts + i32(1)) + space_after);
+      state.*.t_shift.set(usize(next_line), (adj_pos - nbm));
+      state.*.s_count.set(usize(next_line), (nsc - indent));
+      state.*.bs_count.set(usize(next_line), (old_bs + indent));
+
+      next_line = (next_line + i32(1));
+    }, {
+      // Non-blockquote line
+      if(state.*.is_empty(next_line), {
+        if(last_line_empty, {
+          scanning = false;
+        }, {
+          last_line_empty = true;
+          bq_end = (next_line + i32(1));
+          next_line = (next_line + i32(1));
+        });
+      }, {
+        // Lazy continuation
+        if((i32(state.*.parent_type) == i32(ParentType.Paragraph)), {
+          bq_end = (next_line + i32(1));
+          next_line = (next_line + i32(1));
+        }, {
+          scanning = false;
+        });
+      });
+    });
+  };
+
+  bq_end
+});
+
+export block_blockquote;

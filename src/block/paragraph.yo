@@ -1,0 +1,85 @@
+// markdown_yo — Paragraph rule (fallback)
+//
+// The paragraph rule is the fallback rule that matches any non-empty line.
+// It collects consecutive lines until an empty line, EOF, or a terminator rule.
+
+{ BlockState } :: import "./state.yo";
+{ is_space } :: import "../common/utils.yo";
+{ ParentType } :: import "../types.yo";
+
+// Forward declare terminator checkers (these call other block rules in silent mode)
+{ _try_block_terminate } :: import "./terminators.yo";
+
+// Parse inline content across multiple lines for paragraph
+// For now: emit text for each line (will be replaced with full inline parser)
+_parse_paragraph_inline :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> unit)({
+  (line : i32) = start_line;
+  while (line < end_line), {
+    (bm : i32) = state.*.b_marks.get_unchecked(usize(line));
+    (ts : i32) = state.*.t_shift.get_unchecked(usize(line));
+    (em : i32) = state.*.e_marks.get_unchecked(usize(line));
+    (content_start : i32) = (bm + ts);
+
+    // Trim trailing spaces
+    (content_end : i32) = em;
+    while ((content_end > content_start) && is_space(i32((state.*.src_ptr &+ usize((content_end - i32(1)))).*))) , {
+      content_end = (content_end - i32(1));
+    };
+
+    if((content_end > content_start), {
+      if((line > start_line), {
+        state.*.renderer.*.byte(u8(0x0A));
+      });
+      state.*.renderer.*.text(content_start, content_end);
+    });
+
+    line = (line + i32(1));
+  };
+});
+
+block_paragraph :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+  (old_parent_type : ParentType) = state.*.parent_type;
+  state.*.parent_type = .Paragraph;
+
+  (next_line : i32) = (start_line + i32(1));
+
+  // Jump line-by-line until empty line or EOF
+  (searching : bool) = true;
+  while (((next_line < end_line) && !(state.*.is_empty(next_line))) && searching), {
+    // Lazy continuation for deeply indented lines
+    if((state.*.s_count.get_unchecked(usize(next_line)) > i32(3)), {
+      next_line = (next_line + i32(1));
+    }, {
+      // Blockquote quirk
+      if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+        next_line = (next_line + i32(1));
+      }, {
+        // Check if any terminator rule matches
+        if(_try_block_terminate(state, next_line, end_line), {
+          searching = false;
+        }, {
+          next_line = (next_line + i32(1));
+        });
+      });
+    });
+  };
+
+  if(silent, {
+    state.*.parent_type = old_parent_type;
+    return true;
+  });
+
+  // Emit paragraph: open, inline content, close
+  state.*.renderer.*.open_paragraph();
+
+  // Parse inline content across lines
+  _parse_paragraph_inline(state, start_line, next_line);
+
+  state.*.renderer.*.close_paragraph();
+
+  state.*.line = next_line;
+  state.*.parent_type = old_parent_type;
+  true
+});
+
+export block_paragraph;

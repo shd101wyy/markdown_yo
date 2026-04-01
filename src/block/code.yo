@@ -1,0 +1,72 @@
+// markdown_yo — Indented code block
+//
+// Matches: lines indented by 4+ spaces (not inside a list with deeper indent)
+
+{ BlockState } :: import "./state.yo";
+
+block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+  // Must be indented by 4+
+  if((state.*.s_count.get_unchecked(usize(start_line)) < i32(4)), {
+    return false;
+  });
+
+  if(silent, { return true; });
+
+  (last : i32) = start_line;
+  (next_line : i32) = start_line;
+
+  while (next_line < end_line), {
+    if(state.*.is_empty(next_line), {
+      next_line = (next_line + i32(1));
+    }, {
+      if((state.*.s_count.get_unchecked(usize(next_line)) >= i32(4)), {
+        last = next_line;
+        next_line = (next_line + i32(1));
+      }, {
+        // Not indented enough — stop
+        next_line = end_line;
+      });
+    });
+  };
+
+  // Emit code block: lines from start_line to last (inclusive)
+  // Build content from lines, stripping 4-space indent
+  state.*.renderer.*.lit("<pre><code>");
+
+  (line : i32) = start_line;
+  while (line <= last), {
+    (bm : i32) = state.*.b_marks.get_unchecked(usize(line));
+    (em : i32) = state.*.e_marks.get_unchecked(usize(line));
+
+    if(state.*.is_empty(line), {
+      // Empty line — just emit newline
+      state.*.renderer.*.byte(u8(0x0A));
+    }, {
+      // Compute content start: skip 4 spaces of indent
+      (ts : i32) = state.*.t_shift.get_unchecked(usize(line));
+      (sc : i32) = state.*.s_count.get_unchecked(usize(line));
+      (content_start : i32) = (bm + ts);
+
+      // If indent > 4, need to emit extra spaces
+      (extra_indent : i32) = (sc - i32(4));
+      if((extra_indent > i32(0)), {
+        (si : i32) = i32(0);
+        while (si < extra_indent), {
+          state.*.renderer.*.byte(u8(0x20));
+          si = (si + i32(1));
+        };
+      });
+
+      state.*.renderer.*.escaped(content_start, em);
+      state.*.renderer.*.byte(u8(0x0A));
+    });
+
+    line = (line + i32(1));
+  };
+
+  state.*.renderer.*.lit("</code></pre>\n");
+  state.*.line = (last + i32(1));
+  true
+});
+
+export block_code;

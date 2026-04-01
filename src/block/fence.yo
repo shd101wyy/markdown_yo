@@ -1,0 +1,139 @@
+// markdown_yo — Fenced code block
+//
+// Matches: ``` or ~~~ (3+ chars), optional info string on opening line
+
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
+{ BlockState } :: import "./state.yo";
+{ is_space } :: import "../common/utils.yo";
+
+block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+  (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
+  (ts : i32) = state.*.t_shift.get_unchecked(usize(start_line));
+  (em : i32) = state.*.e_marks.get_unchecked(usize(start_line));
+  (pos : i32) = (bm + ts);
+
+  // Must not be indented >3 spaces
+  if((state.*.s_count.get_unchecked(usize(start_line)) >= i32(4)), { return false; });
+
+  if((pos >= em), { return false; });
+
+  (marker : u8) = (state.*.src_ptr &+ usize(pos)).*;
+
+  // Must be ` or ~
+  if(((marker != u8(0x60)) && (marker != u8(0x7E))), { return false; });
+
+  // Count marker chars
+  (marker_count : i32) = i32(0);
+  (p : i32) = pos;
+  while ((p < em) && ((state.*.src_ptr &+ usize(p)).* == marker)), {
+    marker_count = (marker_count + i32(1));
+    p = (p + i32(1));
+  };
+
+  if((marker_count < i32(3)), { return false; });
+
+  // Info string (the part after the markers)
+  // For backtick fences, info string must not contain backticks
+  (info_start : i32) = p;
+  if((marker == u8(0x60)), {
+    (check : i32) = p;
+    while (check < em), {
+      if(((state.*.src_ptr &+ usize(check)).* == u8(0x60)), {
+        return false;
+      });
+      check = (check + i32(1));
+    };
+  });
+
+  // Skip leading spaces in info string
+  while ((info_start < em) && is_space(i32((state.*.src_ptr &+ usize(info_start)).*))) , {
+    info_start = (info_start + i32(1));
+  };
+
+  // Find end of first word (language name) — split on space
+  (lang_start : i32) = info_start;
+  (lang_end : i32) = info_start;
+  while ((lang_end < em) && !(is_space(i32((state.*.src_ptr &+ usize(lang_end)).*)))), {
+    lang_end = (lang_end + i32(1));
+  };
+
+  if(silent, { return true; });
+
+  // Find closing fence
+  (next_line : i32) = (start_line + i32(1));
+  (found_close : bool) = false;
+
+  while ((next_line < end_line) && !(found_close)), {
+    (nbm : i32) = state.*.b_marks.get_unchecked(usize(next_line));
+    (nts : i32) = state.*.t_shift.get_unchecked(usize(next_line));
+    (nem : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+    (npos : i32) = (nbm + nts);
+
+    // Closing fence: same marker, >= count, nothing else
+    if((state.*.s_count.get_unchecked(usize(next_line)) < i32(4)), {
+      if((npos < nem), {
+        (nch : u8) = (state.*.src_ptr &+ usize(npos)).*;
+        if((nch == marker), {
+          (nc : i32) = i32(0);
+          (np : i32) = npos;
+          while ((np < nem) && ((state.*.src_ptr &+ usize(np)).* == marker)), {
+            nc = (nc + i32(1));
+            np = (np + i32(1));
+          };
+
+          if((nc >= marker_count), {
+            // Check rest of line is spaces only
+            np = state.*.skip_spaces(np);
+            if((np >= nem), {
+              found_close = true;
+            });
+          });
+        });
+      });
+    });
+
+    if(!(found_close), {
+      next_line = (next_line + i32(1));
+    });
+  };
+
+  // Content is from line after opening to line before closing (or end)
+  (content_first_line : i32) = (start_line + i32(1));
+  (content_last_line : i32) = cond(
+    found_close => next_line,
+    true => end_line
+  );
+
+  // Build content: each line with indent stripped (up to opening indent)
+  // Use renderer.fence which takes content range and lang range
+  // For now, build content range in source
+  (content_start : i32) = cond(
+    (content_first_line < content_last_line) => state.*.b_marks.get_unchecked(usize(content_first_line)),
+    true => i32(0)
+  );
+  (content_end : i32) = cond(
+    (content_last_line > content_first_line) => {
+      // End at the end of the last content line (including newline)
+      (last_content_line : i32) = (content_last_line - i32(1));
+      (last_em : i32) = state.*.e_marks.get_unchecked(usize(last_content_line));
+      // Include the newline after the last line if present
+      cond(
+        ((last_em < state.*.src_len) && (i32((state.*.src_ptr &+ usize(last_em)).*) == i32(0x0A))) =>
+          (last_em + i32(1)),
+        true => last_em
+      )
+    },
+    true => i32(0)
+  );
+
+  state.*.renderer.*.fence(content_start, content_end, lang_start, lang_end);
+
+  state.*.line = cond(
+    found_close => (next_line + i32(1)),
+    true => end_line
+  );
+  true
+});
+
+export block_fence;

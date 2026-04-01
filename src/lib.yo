@@ -1,6 +1,6 @@
-// Library root module
+// markdown_yo — Public library API
 
-add :: (fn(a: i32, b: i32) -> i32)(
-  (a + b)
-);
-export add;
+{ markdown_to_html } :: import "./parser.yo";
+{ Options, default_options, commonmark_options } :: import "./types.yo";
+
+export markdown_to_html, Options, default_options, commonmark_options;

@@ -1,0 +1,214 @@
+// markdown_yo — Block parser state
+//
+// Tracks line positions, indentation, and nesting for block-level parsing.
+// Line markers are precomputed once for O(1) line access.
+
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
+{ HashMap } :: import "std/collections/hash_map";
+{ Options, ParentType, Reference, Env } :: import "../types.yo";
+{ HtmlRenderer } :: import "../renderer.yo";
+{ is_space } :: import "../common/utils.yo";
+
+BlockState :: struct(
+  src : String,            // normalized source
+  src_ptr : *(u8),         // raw pointer for fast byte access
+  src_len : i32,           // total byte length
+
+  // Line markers (precomputed)
+  b_marks : ArrayList(i32),   // byte position of line start
+  e_marks : ArrayList(i32),   // byte position of line end (before newline)
+  t_shift : ArrayList(i32),   // first non-space offset from b_marks
+  s_count : ArrayList(i32),   // indentation (spaces, tabs expanded to 4)
+  bs_count : ArrayList(i32),  // blockquote compensation
+
+  line : i32,                 // current line being parsed
+  line_max : i32,             // total number of lines
+
+  blk_indent : i32,           // current block indent level
+  tight : bool,               // tight list mode (suppress <p>)
+  dd_indent : i32,            // definition list indent
+  list_indent : i32,          // current list indent
+
+  parent_type : ParentType,
+  level : i32,                // nesting level
+
+  env : *(Env),               // link references
+  renderer : *(HtmlRenderer), // for direct SAX-style calls
+  options : *(Options)
+);
+
+impl(BlockState,
+  // Create a new BlockState and precompute line markers.
+  new : (fn(src: String, env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> Self)({
+    (bytes : ArrayList(u8)) = src.as_bytes();
+    (len : i32) = i32(bytes.len());
+
+    (b_marks : ArrayList(i32)) = ArrayList(i32).new();
+    (e_marks : ArrayList(i32)) = ArrayList(i32).new();
+    (t_shift : ArrayList(i32)) = ArrayList(i32).new();
+    (s_count : ArrayList(i32)) = ArrayList(i32).new();
+    (bs_count : ArrayList(i32)) = ArrayList(i32).new();
+
+    (src_p : *(u8)) = match(bytes.ptr(),
+      .Some(p) => p,
+      .None => *(u8)("")
+    );
+
+    // Precompute line markers in a single pass
+    (pos : i32) = i32(0);
+    (indent : i32) = i32(0);
+    (offset : i32) = i32(0);
+    (line_start : i32) = i32(0);
+    (indent_found : bool) = false;
+
+    while (pos < len), {
+      (ch : u8) = (src_p &+ usize(pos)).*;
+
+      cond(
+        (ch == u8(0x0A)) => {
+          // End of line
+          _ := b_marks.push(line_start);
+          _ := e_marks.push(pos);
+          if(!(indent_found), {
+            _ := t_shift.push((pos - line_start));
+            _ := s_count.push(i32(0));
+          }, {
+            _ := t_shift.push(offset);
+            _ := s_count.push(indent);
+          });
+          _ := bs_count.push(i32(0));
+
+          // Reset for next line
+          line_start = (pos + i32(1));
+          indent = i32(0);
+          offset = i32(0);
+          indent_found = false;
+          pos = (pos + i32(1));
+        },
+
+        true => {
+          if(!(indent_found), {
+            cond(
+              (ch == u8(0x20)) => {
+                indent = (indent + i32(1));
+                offset = (offset + i32(1));
+              },
+              (ch == u8(0x09)) => {
+                indent = (indent + (i32(4) - (indent % i32(4))));
+                offset = (offset + i32(1));
+              },
+              true => {
+                indent_found = true;
+              }
+            );
+          });
+          pos = (pos + i32(1));
+        }
+      );
+    };
+
+    // Handle last line (may not end with newline)
+    _ := b_marks.push(line_start);
+    _ := e_marks.push(len);
+    if(!(indent_found), {
+      _ := t_shift.push((len - line_start));
+      _ := s_count.push(i32(0));
+    }, {
+      _ := t_shift.push(offset);
+      _ := s_count.push(indent);
+    });
+    _ := bs_count.push(i32(0));
+
+    (line_count : i32) = i32(b_marks.len());
+
+    Self(
+      src: src,
+      src_ptr: src_p,
+      src_len: len,
+      b_marks: b_marks,
+      e_marks: e_marks,
+      t_shift: t_shift,
+      s_count: s_count,
+      bs_count: bs_count,
+      line: i32(0),
+      line_max: line_count,
+      blk_indent: i32(0),
+      tight: false,
+      dd_indent: i32(-1),
+      list_indent: i32(-1),
+      parent_type: .Root,
+      level: i32(0),
+      env: env,
+      renderer: renderer,
+      options: options
+    )
+  }),
+
+  // Check if a line is empty (only whitespace)
+  is_empty : (fn(self: *(Self), line: i32) -> bool)({
+    (bm : i32) = self.*.b_marks.get_unchecked(usize(line));
+    (ts : i32) = self.*.t_shift.get_unchecked(usize(line));
+    ((bm + ts) >= self.*.e_marks.get_unchecked(usize(line)))
+  }),
+
+  // Skip whitespace from position `from` on line `line`, return new position
+  skip_spaces : (fn(self: *(Self), pos: i32) -> i32)({
+    (p : i32) = pos;
+    while (p < self.*.src_len), {
+      (ch : u8) = (self.*.src_ptr &+ usize(p)).*;
+      if(!(is_space(i32(ch))), {
+        return p;
+      });
+      p = (p + i32(1));
+    };
+    p
+  }),
+
+  // Skip spaces backwards from `pos` to `min`
+  skip_spaces_back : (fn(self: *(Self), pos: i32, min: i32) -> i32)({
+    (p : i32) = (pos - i32(1));
+    while (p >= min), {
+      (ch : u8) = (self.*.src_ptr &+ usize(p)).*;
+      if(!(is_space(i32(ch))), {
+        return (p + i32(1));
+      });
+      p = (p - i32(1));
+    };
+    min
+  }),
+
+  // Skip char `code` starting at `pos`
+  skip_chars : (fn(self: *(Self), pos: i32, code: u8) -> i32)({
+    (p : i32) = pos;
+    while (p < self.*.src_len), {
+      if(((self.*.src_ptr &+ usize(p)).* != code), {
+        return p;
+      });
+      p = (p + i32(1));
+    };
+    p
+  }),
+
+  // Skip char backwards
+  skip_chars_back : (fn(self: *(Self), pos: i32, code: u8, min: i32) -> i32)({
+    (p : i32) = (pos - i32(1));
+    while (p >= min), {
+      if(((self.*.src_ptr &+ usize(p)).* != code), {
+        return (p + i32(1));
+      });
+      p = (p - i32(1));
+    };
+    min
+  }),
+
+  // Get byte at position
+  char_at : (fn(self: *(Self), pos: i32) -> i32)(
+    cond(
+      ((pos < i32(0)) || (pos >= self.*.src_len)) => i32(-1),
+      true => i32((self.*.src_ptr &+ usize(pos)).*)
+    )
+  )
+);
+
+export BlockState;

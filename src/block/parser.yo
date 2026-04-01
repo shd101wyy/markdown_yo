@@ -1,0 +1,132 @@
+// markdown_yo — Block parser
+//
+// Dispatches block-level rules in markdown-it order.
+// Each rule either matches and advances state.line, or returns false.
+// SAX-style: rules call renderer directly for block open/close events.
+
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
+{ Options, ParentType } :: import "../types.yo";
+{ HtmlRenderer } :: import "../renderer.yo";
+{ BlockState } :: import "./state.yo";
+{ is_space } :: import "../common/utils.yo";
+
+// Forward declarations of block rules
+{ block_heading } :: import "./heading.yo";
+{ block_lheading } :: import "./lheading.yo";
+{ block_code } :: import "./code.yo";
+{ block_fence } :: import "./fence.yo";
+{ block_hr } :: import "./hr.yo";
+{ block_blockquote } :: import "./blockquote.yo";
+{ block_list } :: import "./list.yo";
+{ block_html } :: import "./html_block.yo";
+{ block_table } :: import "./table.yo";
+{ block_reference } :: import "./reference.yo";
+{ block_paragraph } :: import "./paragraph.yo";
+
+// Main block tokenize function.
+// Parses lines [start_line, end_line) and calls renderer directly.
+block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> unit)({
+  (line : i32) = start_line;
+  (max_nesting : i32) = state.*.options.*.max_nesting;
+
+  while (line < end_line), {
+    state.*.line = line;
+
+    // Skip empty lines
+    if(state.*.is_empty(line), {
+      line = (line + i32(1));
+    }, {
+      // Check nesting depth
+      if((state.*.level >= max_nesting), {
+        // Too deep — treat as paragraph
+        state.*.line = (line + i32(1));
+        line = state.*.line;
+      }, {
+        // Try each block rule in order
+        (matched : bool) = false;
+
+        // 1. Table (GFM)
+        if((!(matched) && state.*.options.*.enable_table), {
+          matched = block_table(state, line, end_line, false);
+        });
+
+        // 2. Code (indented)
+        if(!(matched), {
+          matched = block_code(state, line, end_line, false);
+        });
+
+        // 3. Fence (``` / ~~~)
+        if(!(matched), {
+          matched = block_fence(state, line, end_line, false);
+        });
+
+        // 4. Blockquote — handle recursion here to avoid circular import
+        if(!(matched), {
+          (bq_end : i32) = block_blockquote(state, line, end_line, false);
+          if((bq_end > i32(0)), {
+            (old_line_max : i32) = state.*.line_max;
+            (old_parent_type : ParentType) = state.*.parent_type;
+
+            state.*.renderer.*.open_blockquote();
+            state.*.parent_type = .Blockquote;
+            state.*.line_max = bq_end;
+
+            // Recursive parse of blockquote content
+            recur(state, line, bq_end);
+
+            state.*.renderer.*.close_blockquote();
+            state.*.line_max = old_line_max;
+            state.*.parent_type = old_parent_type;
+            state.*.line = bq_end;
+            matched = true;
+          });
+        });
+
+        // 5. Horizontal rule
+        if(!(matched), {
+          matched = block_hr(state, line, end_line, false);
+        });
+
+        // 6. List
+        if(!(matched), {
+          matched = block_list(state, line, end_line, false);
+        });
+
+        // 7. Reference
+        if(!(matched), {
+          matched = block_reference(state, line, end_line, false);
+        });
+
+        // 8. HTML block
+        if((!(matched) && state.*.options.*.html), {
+          matched = block_html(state, line, end_line, false);
+        });
+
+        // 9. Heading (ATX)
+        if(!(matched), {
+          matched = block_heading(state, line, end_line, false);
+        });
+
+        // 10. Setext heading (lheading)
+        if(!(matched), {
+          matched = block_lheading(state, line, end_line, false);
+        });
+
+        // 11. Paragraph (fallback — always matches)
+        if(!(matched), {
+          matched = block_paragraph(state, line, end_line, false);
+        });
+
+        line = state.*.line;
+      });
+    });
+  };
+});
+
+// Entry point: parse entire source as blocks
+block_parse :: (fn(state: *(BlockState)) -> unit)(
+  block_tokenize(state, i32(0), state.*.line_max)
+);
+
+export block_parse, block_tokenize;

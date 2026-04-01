@@ -1,0 +1,124 @@
+// markdown_yo — Inline parser state
+//
+// Tracks position, delimiters, and inline tokens during inline parsing.
+
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
+{ HashMap } :: import "std/collections/hash_map";
+{ Options, Env, Delimiter, InlineType } :: import "../types.yo";
+{ HtmlRenderer } :: import "../renderer.yo";
+{ is_space } :: import "../common/utils.yo";
+
+// Lightweight inline token — value type, zero RC
+InlineToken :: struct(
+  type_name : InlineType,
+  start : i32,          // byte offset in source
+  end : i32,            // byte offset in source
+  nesting : i32,        // -1, 0, 1
+  level : i32,
+  // Extra fields for links/images
+  info_start : i32,     // href/src start
+  info_end : i32,       // href/src end
+  title_start : i32,    // title start
+  title_end : i32,      // title end
+  markup_char : u8,     // '*', '_', '~', '`'
+  markup_len : u8,      // number of marker chars
+  // String-based content for entities/resolved URLs
+  content : String,
+  // For links/images that need dynamically built href/title
+  href : String,
+  title : String,
+  block : bool,
+  hidden : bool
+);
+
+impl(InlineToken,
+  text : (fn(start: i32, end: i32, level: i32) -> Self)(
+    Self(type_name: .Text, start: start, end: end, nesting: i32(0), level: level,
+         info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
+         markup_char: u8(0), markup_len: u8(0), content: ``, href: ``, title: ``,
+         block: false, hidden: false)
+  ),
+  simple : (fn(type_name: InlineType, nesting: i32, level: i32) -> Self)(
+    Self(type_name: type_name, start: i32(0), end: i32(0), nesting: nesting, level: level,
+         info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
+         markup_char: u8(0), markup_len: u8(0), content: ``, href: ``, title: ``,
+         block: false, hidden: false)
+  )
+);
+
+InlineState :: struct(
+  src : String,            // inline content string (the paragraph text)
+  src_ptr : *(u8),         // raw pointer for fast access
+  pos : i32,               // current position in source
+  pos_max : i32,           // source length
+
+  level : i32,             // nesting level
+  pending_start : i32,     // start of pending text (byte offset)
+  pending_end : i32,       // end of pending text
+
+  tokens : ArrayList(InlineToken),
+  delimiters : ArrayList(Delimiter),
+  prev_delimiters : ArrayList(ArrayList(Delimiter)),
+
+  cache : HashMap(i32, i32),        // backtrack positions
+  backticks : HashMap(i32, i32),    // backtick length → last seen position
+  backticks_scanned : bool,
+
+  link_level : i32,
+
+  env : *(Env),
+  renderer : *(HtmlRenderer),
+  options : *(Options)
+);
+
+impl(InlineState,
+  new : (fn(src: String, env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> Self)({
+    (bytes : ArrayList(u8)) = src.as_bytes();
+    (len : i32) = i32(bytes.len());
+    (src_p : *(u8)) = match(bytes.ptr(),
+      .Some(p) => p,
+      .None => *(u8)("")
+    );
+
+    Self(
+      src: src,
+      src_ptr: src_p,
+      pos: i32(0),
+      pos_max: len,
+      level: i32(0),
+      pending_start: i32(0),
+      pending_end: i32(0),
+      tokens: ArrayList(InlineToken).new(),
+      delimiters: ArrayList(Delimiter).new(),
+      prev_delimiters: ArrayList(ArrayList(Delimiter)).new(),
+      cache: HashMap(i32, i32).new(),
+      backticks: HashMap(i32, i32).new(),
+      backticks_scanned: false,
+      link_level: i32(0),
+      env: env,
+      renderer: renderer,
+      options: options
+    )
+  }),
+
+  // Push pending text as a token if there's any accumulated
+  push_pending : (fn(self: *(Self)) -> unit)({
+    if((self.*.pending_end > self.*.pending_start), {
+      (tok : InlineToken) = InlineToken.text(self.*.pending_start, self.*.pending_end, self.*.level);
+      _ := self.*.tokens.push(tok);
+    });
+    self.*.pending_start = self.*.pos;
+    self.*.pending_end = self.*.pos;
+  }),
+
+  // Get byte at current position (or -1 if at end)
+  char_at : (fn(self: *(Self), pos: i32) -> i32)(
+    cond(
+      ((pos < i32(0)) || (pos >= self.*.pos_max)) => i32(-1),
+      true => i32((self.*.src_ptr &+ usize(pos)).*)
+    )
+  )
+);
+
+export InlineToken, InlineState;

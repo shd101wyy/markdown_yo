@@ -1,7 +1,179 @@
-{ println } :: import "std/fmt";
+// markdown_yo CLI — convert markdown to HTML
+//
+// Usage:
+//   markdown_yo <file>       — render file to stdout
+//   markdown_yo              — read from stdin, render to stdout
+//   markdown_yo -            — read from stdin explicitly
+
+open import "std/string";
+{ println, print } :: import "std/fmt";
+{ ArrayList } :: import "std/collections/array_list";
+{ args } :: import "std/process";
+{ stdin, stdout, stderr, fopen, fclose, fread, fwrite, fputs,
+  fseek, ftell, SEEK_SET, SEEK_END, FILE } :: import "std/libc/stdio";
+{ markdown_to_html } :: import "./parser.yo";
+{ Options, default_options, commonmark_options } :: import "./types.yo";
+
+// Read entire file into a String
+_read_file :: (fn(path: String) -> Option(String))({
+  cstr := path.to_cstr();
+  (fp : ?*(FILE)) = match(cstr.ptr(),
+    .Some(p) => fopen(*(char)(p), *(char)(*(u8)("r"))),
+    .None => .None
+  );
+
+  match(fp,
+    .None => .None,
+    .Some(f) => {
+      _ := fseek(f, int(0), SEEK_END);
+      (size : int) = ftell(f);
+      _ := fseek(f, int(0), SEEK_SET);
+
+      if((size <= int(0)), {
+        _ := fclose(f);
+        return .Some(String.new());
+      });
+
+      buf := ArrayList(u8).with_capacity(usize(size));
+      (i : int) = int(0);
+      while (i < size), {
+        _ := buf.push(u8(0));
+        i = (i + int(1));
+      };
+
+      (n : usize) = match(buf.ptr(),
+        .Some(p) => fread(*(void)(p), usize(1), usize(size), f),
+        .None => usize(0)
+      );
+      _ := fclose(f);
+
+      result := ArrayList(u8).with_capacity(n);
+      (j : usize) = usize(0);
+      while (j < n), {
+        match(buf.get(j),
+          .Some(b) => {
+            _ := result.push(b);
+          },
+          .None => ()
+        );
+        j = (j + usize(1));
+      };
+      .Some(String.from_bytes(result))
+    }
+  )
+});
+
+// Read all of stdin into a String
+_read_stdin :: (fn() -> String)({
+  buf := ArrayList(u8).with_capacity(usize(4096));
+  chunk := ArrayList(u8).with_capacity(usize(4096));
+  (i : usize) = usize(0);
+  while (i < usize(4096)), {
+    _ := chunk.push(u8(0));
+    i = (i + usize(1));
+  };
+
+  while runtime(true), {
+    (n : usize) = match(chunk.ptr(),
+      .Some(p) => fread(*(void)(p), usize(1), usize(4096), stdin),
+      .None => usize(0)
+    );
+    if((n == usize(0)), {
+      return String.from_bytes(buf);
+    });
+    (j : usize) = usize(0);
+    while (j < n), {
+      match(chunk.get(j),
+        .Some(b) => {
+          _ := buf.push(b);
+        },
+        .None => ()
+      );
+      j = (j + usize(1));
+    };
+  };
+  String.from_bytes(buf)
+});
+
+_HELP_TEXT :: "markdown_yo — Fast markdown to HTML converter\n\nUsage:\n  markdown_yo [options] <file>   Render file to stdout\n  cat file.md | markdown_yo -   Read from stdin\n\nOptions:\n  --html            Enable HTML tags in source\n  --typographer     Enable typographic replacements\n  --no-lang-prefix  Remove language prefix from fenced code blocks\n  --commonmark      Use CommonMark preset\n  -h, --help        Show this help\n";
 
 main :: (fn() -> unit)({
-  println("Hello, world!");
+  argv := args();
+
+  // No arguments — show help
+  if((argv.len() <= usize(1)), {
+    _ := fputs(*(char)(*(u8)(_HELP_TEXT)), stdout);
+    return ();
+  });
+
+  // Parse flags
+  (html_enabled : bool) = false;
+  (typographer_enabled : bool) = false;
+  (no_lang_prefix : bool) = false;
+  (use_commonmark : bool) = false;
+  (file_path : Option(String)) = .None;
+  (read_from_stdin : bool) = false;
+
+  (ai : usize) = usize(1);
+  while (ai < argv.len()), {
+    (arg : String) = argv.get(ai).unwrap();
+    cond(
+      ((arg == `--help`) || (arg == `-h`)) => {
+        _ := fputs(*(char)(*(u8)(_HELP_TEXT)), stdout);
+        return ();
+      },
+      (arg == `-`) => { read_from_stdin = true; },
+      (arg == `--html`) => { html_enabled = true; },
+      (arg == `--typographer`) => { typographer_enabled = true; },
+      (arg == `--no-lang-prefix`) => { no_lang_prefix = true; },
+      (arg == `--commonmark`) => { use_commonmark = true; },
+      true => { file_path = .Some(arg); }
+    );
+    ai = (ai + usize(1));
+  };
+
+  (opts : Options) = cond(
+    use_commonmark => commonmark_options(),
+    true => default_options()
+  );
+  if(html_enabled, { opts.html = true; });
+  opts.typographer = typographer_enabled;
+  if(no_lang_prefix, { opts.lang_prefix = ``; });
+
+  match(file_path,
+    .Some(path) => {
+      match(_read_file(path),
+        .Some(content) => {
+          result := markdown_to_html(content, (&opts));
+          cstr := result.to_cstr();
+          match(cstr.ptr(),
+            .Some(p) => {
+              _ := fputs(*(char)(p), stdout);
+            },
+            .None => ()
+          );
+        },
+        .None => {
+          _ := fputs(*(char)(*(u8)("Error: cannot open file\n")), stderr);
+        }
+      );
+    },
+    .None => {
+      if(read_from_stdin, {
+        content := _read_stdin();
+        result := markdown_to_html(content, (&opts));
+        cstr := result.to_cstr();
+        match(cstr.ptr(),
+          .Some(p) => {
+            _ := fputs(*(char)(p), stdout);
+          },
+          .None => ()
+        );
+      }, {
+        _ := fputs(*(char)(*(u8)(_HELP_TEXT)), stdout);
+      });
+    }
+  );
 });
 
 export main;

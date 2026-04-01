@@ -1,0 +1,148 @@
+// markdown_yo — Core types and options
+//
+// Enums and structs used throughout the parser, renderer, and CLI.
+
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
+{ HashMap } :: import "std/collections/hash_map";
+
+// ---------------------------------------------------------------------------
+// Options
+// ---------------------------------------------------------------------------
+
+Options :: struct(
+  html : bool,              // Allow raw HTML tags in markdown source
+  xhtml_out : bool,         // Self-close tags as <br /> vs <br>
+  breaks : bool,            // Convert \n to <br> in paragraphs
+  lang_prefix : String,     // CSS class prefix for fenced code blocks
+  linkify : bool,           // Auto-detect URLs as links
+  typographer : bool,       // Enable typographic replacements & smart quotes
+  enable_table : bool,      // GFM tables
+  enable_strikethrough : bool, // GFM strikethrough
+  max_nesting : i32         // Max nesting depth
+);
+
+default_options :: (fn() -> Options)(
+  Options(
+    html: false,
+    xhtml_out: false,
+    breaks: false,
+    lang_prefix: `language-`,
+    linkify: false,
+    typographer: false,
+    enable_table: true,
+    enable_strikethrough: true,
+    max_nesting: i32(100)
+  )
+);
+
+commonmark_options :: (fn() -> Options)(
+  Options(
+    html: true,
+    xhtml_out: true,
+    breaks: false,
+    lang_prefix: `language-`,
+    linkify: false,
+    typographer: false,
+    enable_table: false,
+    enable_strikethrough: false,
+    max_nesting: i32(20)
+  )
+);
+
+// ---------------------------------------------------------------------------
+// Block-level enums
+// ---------------------------------------------------------------------------
+
+ParentType :: enum(
+  Root,
+  Blockquote,
+  List,
+  Paragraph
+);
+
+TableAlign :: enum(
+  None,
+  Left,
+  Center,
+  Right
+);
+
+// ---------------------------------------------------------------------------
+// Inline token types
+// ---------------------------------------------------------------------------
+
+InlineType :: enum(
+  Text,
+  TextSpecial,
+  Softbreak,
+  Hardbreak,
+  CodeInline,
+  HtmlInline,
+  EmOpen,
+  EmClose,
+  StrongOpen,
+  StrongClose,
+  StrikethroughOpen,
+  StrikethroughClose,
+  LinkOpen,
+  LinkClose,
+  Image,
+  Entity
+);
+
+// ---------------------------------------------------------------------------
+// Link reference
+// ---------------------------------------------------------------------------
+
+Reference :: struct(
+  href : String,
+  title : String
+);
+
+// ---------------------------------------------------------------------------
+// Environment — stores link references discovered during parsing
+// ---------------------------------------------------------------------------
+
+Env :: struct(
+  references : HashMap(String, Reference)
+);
+
+new_env :: (fn() -> Env)(
+  Env(references: HashMap(String, Reference).new())
+);
+
+// ---------------------------------------------------------------------------
+// StringPair — for HTML attributes
+// ---------------------------------------------------------------------------
+
+StringPair :: struct(
+  name : String,
+  value : String
+);
+
+// ---------------------------------------------------------------------------
+// Inline token — lightweight, value-type, no RC overhead
+// ---------------------------------------------------------------------------
+
+// Delimiter for emphasis/strikethrough resolution
+Delimiter :: struct(
+  marker : u8,       // Character code: '*', '_', '~'
+  length : i32,      // Number of consecutive markers
+  token_idx : i32,   // Index into inline tokens array
+  end : i32,         // Resolved end (set by balance_pairs)
+  open : bool,       // Can open emphasis
+  close : bool       // Can close emphasis
+);
+
+// Token metadata (for emphasis post-processing)
+TokenMeta :: struct(
+  delimiters : ArrayList(Delimiter)
+);
+
+export Options, default_options, commonmark_options,
+       ParentType, TableAlign,
+       InlineType,
+       Reference, Env, new_env,
+       StringPair,
+       Delimiter, TokenMeta;

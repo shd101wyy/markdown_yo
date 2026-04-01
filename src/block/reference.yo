@@ -1,0 +1,232 @@
+// markdown_yo — Link reference definition rule
+//
+// Matches: [label]: destination "title"
+// Stores references in env for later use by inline parser.
+
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
+{ BlockState } :: import "./state.yo";
+{ is_space } :: import "../common/utils.yo";
+{ Reference } :: import "../types.yo";
+
+// Normalize a reference label: trim, collapse whitespace, lowercase ASCII
+_normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
+  (result : ArrayList(u8)) = ArrayList(u8).new();
+  (p : i32) = start;
+  (last_was_space : bool) = true;
+
+  while (p < end), {
+    (ch : i32) = i32((src &+ usize(p)).*);
+    if(is_space(ch), {
+      if(!(last_was_space), {
+        _ := result.push(u8(0x20));
+        last_was_space = true;
+      });
+    }, {
+      // Lowercase ASCII
+      (out_ch : i32) = cond(
+        ((ch >= i32(0x41)) && (ch <= i32(0x5A))) => (ch + i32(0x20)),
+        true => ch
+      );
+      _ := result.push(u8(out_ch));
+      last_was_space = false;
+    });
+    p = (p + i32(1));
+  };
+
+  // Trim trailing space
+  if(((result.len() > usize(0)) && (result.get_unchecked((result.len() - usize(1))) == u8(0x20))), {
+    _ := result.pop();
+  });
+
+  String.from_bytes(result)
+});
+
+// Create a String from a byte range
+_slice_to_string :: (fn(src: *(u8), start: i32, end: i32) -> String)({
+  (result : ArrayList(u8)) = ArrayList(u8).new();
+  (p : i32) = start;
+  while (p < end), {
+    _ := result.push((src &+ usize(p)).*);
+    p = (p + i32(1));
+  };
+  String.from_bytes(result)
+});
+
+block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+  (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
+  (ts : i32) = state.*.t_shift.get_unchecked(usize(start_line));
+  (em : i32) = state.*.e_marks.get_unchecked(usize(start_line));
+  (pos : i32) = (bm + ts);
+
+  // Must not be indented >3 spaces
+  if((state.*.s_count.get_unchecked(usize(start_line)) >= i32(4)), { return false; });
+
+  // Must start with [
+  if((pos >= em), { return false; });
+  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x5B)), { return false; });
+
+  // Quick check: line must contain ]:
+  (has_colon : bool) = false;
+  (cp : i32) = (pos + i32(1));
+  while (cp < em), {
+    (ch : i32) = i32((state.*.src_ptr &+ usize(cp)).*);
+    if((((ch == i32(0x5D)) && ((cp + i32(1)) < em)) && (i32((state.*.src_ptr &+ usize((cp + i32(1)))).*) == i32(0x3A))), {
+      has_colon = true;
+      cp = em;
+    });
+    cp = (cp + i32(1));
+  };
+  if(!(has_colon), { return false; });
+
+  // Parse label: [label]
+  pos = (pos + i32(1));
+  (label_start : i32) = pos;
+  (label_end : i32) = pos;
+  (found_label : bool) = false;
+
+  while ((pos < em) && !(found_label)), {
+    (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+    cond(
+      (ch == i32(0x5B)) => { return false; },
+      (ch == i32(0x5D)) => {
+        label_end = pos;
+        found_label = true;
+      },
+      (ch == i32(0x5C)) => { pos = (pos + i32(1)); },
+      true => ()
+    );
+    pos = (pos + i32(1));
+  };
+
+  if(!(found_label), { return false; });
+
+  // Must be followed by :
+  if(((pos >= em) || (i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x3A))), { return false; });
+  pos = (pos + i32(1));
+
+  // Skip spaces after :
+  while ((pos < em) && is_space(i32((state.*.src_ptr &+ usize(pos)).*))) , {
+    pos = (pos + i32(1));
+  };
+
+  // Parse destination
+  (dest_start : i32) = pos;
+  (dest_end : i32) = pos;
+
+  if(((pos < em) && (i32((state.*.src_ptr &+ usize(pos)).*) == i32(0x3C))), {
+    // <url> form
+    pos = (pos + i32(1));
+    dest_start = pos;
+    (found_close : bool) = false;
+    while ((pos < em) && !(found_close)), {
+      (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+      if((ch == i32(0x3E)), {
+        dest_end = pos;
+        found_close = true;
+      }, {
+        if((ch == i32(0x0A)), { return false; });
+      });
+      pos = (pos + i32(1));
+    };
+    if(!(found_close), { return false; });
+  }, {
+    // Bare URL (no spaces, balanced parens)
+    (paren_depth : i32) = i32(0);
+    dest_start = pos;
+    (scanning : bool) = true;
+    while ((pos < em) && scanning), {
+      (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+      cond(
+        is_space(ch) => { scanning = false; },
+        (ch == i32(0x28)) => {
+          paren_depth = (paren_depth + i32(1));
+          if((paren_depth > i32(32)), { return false; });
+          pos = (pos + i32(1));
+        },
+        (ch == i32(0x29)) => {
+          if((paren_depth == i32(0)), {
+            scanning = false;
+          }, {
+            paren_depth = (paren_depth - i32(1));
+            pos = (pos + i32(1));
+          });
+        },
+        true => { pos = (pos + i32(1)); }
+      );
+    };
+    dest_end = pos;
+  });
+
+  if((dest_start == dest_end), { return false; });
+
+  // Skip spaces
+  while ((pos < em) && is_space(i32((state.*.src_ptr &+ usize(pos)).*))) , {
+    pos = (pos + i32(1));
+  };
+
+  // Parse optional title
+  (title_start : i32) = i32(0);
+  (title_end : i32) = i32(0);
+  (has_title : bool) = false;
+
+  if((pos < em), {
+    (title_marker : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+    if(((title_marker == i32(0x22)) || ((title_marker == i32(0x27)) || (title_marker == i32(0x28)))), {
+      (close_marker : i32) = cond(
+        (title_marker == i32(0x28)) => i32(0x29),
+        true => title_marker
+      );
+      pos = (pos + i32(1));
+      title_start = pos;
+
+      (found_title_end : bool) = false;
+      while ((pos < em) && !(found_title_end)), {
+        (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+        if((ch == close_marker), {
+          title_end = pos;
+          found_title_end = true;
+        }, {
+          if((ch == i32(0x5C)), {
+            pos = (pos + i32(1));
+          });
+        });
+        pos = (pos + i32(1));
+      };
+
+      if(found_title_end, {
+        has_title = true;
+      });
+    });
+  });
+
+  // Rest of line must be empty (or we might continue to next line)
+  while ((pos < em) && is_space(i32((state.*.src_ptr &+ usize(pos)).*))) , {
+    pos = (pos + i32(1));
+  };
+
+  if((pos < em), { return false; });
+
+  if(silent, { return true; });
+
+  // Build label string (lowercase, collapsed whitespace)
+  (label_str : String) = _normalize_label(state.*.src_ptr, label_start, label_end);
+
+  // Build destination string
+  (dest_str : String) = _slice_to_string(state.*.src_ptr, dest_start, dest_end);
+
+  // Build title string
+  (title_str : String) = cond(
+    has_title => _slice_to_string(state.*.src_ptr, title_start, title_end),
+    true => `  `
+  );
+
+  // Store reference if not already defined
+  (ref : Reference) = Reference(href: dest_str, title: title_str);
+  state.*.env.*.references.set(label_str, ref);
+
+  state.*.line = (start_line + i32(1));
+  true
+});
+
+export block_reference;

@@ -1,0 +1,233 @@
+// markdown_yo — GFM Table rule
+//
+// Matches: pipe-delimited tables with header separator
+
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
+{ BlockState } :: import "./state.yo";
+{ is_space } :: import "../common/utils.yo";
+{ TableAlign } :: import "../types.yo";
+
+// Parse cells from a table row line and emit td/th tags
+_emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayList(TableAlign)), is_header: bool) -> unit)({
+  (bm : i32) = state.*.b_marks.get_unchecked(usize(line));
+  (ts : i32) = state.*.t_shift.get_unchecked(usize(line));
+  (em : i32) = state.*.e_marks.get_unchecked(usize(line));
+  (pos : i32) = (bm + ts);
+  (col_count : i32) = i32(aligns.*.len());
+
+  // Skip leading pipe
+  if(((pos < em) && (i32((state.*.src_ptr &+ usize(pos)).*) == i32(0x7C))), {
+    pos = (pos + i32(1));
+  });
+
+  (col : i32) = i32(0);
+  while (col < col_count), {
+    // Skip leading spaces
+    while ((pos < em) && is_space(i32((state.*.src_ptr &+ usize(pos)).*))) , {
+      pos = (pos + i32(1));
+    };
+
+    // Find end of cell (pipe or end of line)
+    (cell_start : i32) = pos;
+    (cell_end : i32) = pos;
+    (escaped : bool) = false;
+    (found_pipe : bool) = false;
+
+    while ((pos < em) && !(found_pipe)), {
+      (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+      if(escaped, {
+        escaped = false;
+        pos = (pos + i32(1));
+      }, {
+        if((ch == i32(0x5C)), {
+          escaped = true;
+          pos = (pos + i32(1));
+        }, {
+          if((ch == i32(0x7C)), {
+            cell_end = pos;
+            pos = (pos + i32(1));
+            found_pipe = true;
+          }, {
+            pos = (pos + i32(1));
+          });
+        });
+      });
+    };
+
+    if(!(found_pipe), {
+      cell_end = pos;
+    });
+
+    // Trim trailing spaces
+    while ((cell_end > cell_start) && is_space(i32((state.*.src_ptr &+ usize((cell_end - i32(1)))).*))) , {
+      cell_end = (cell_end - i32(1));
+    };
+
+    (align : TableAlign) = aligns.*.get_unchecked(usize(col));
+
+    if(is_header, {
+      state.*.renderer.*.open_th(align);
+      if((cell_end > cell_start), {
+        state.*.renderer.*.text(cell_start, cell_end);
+      });
+      state.*.renderer.*.close_th();
+    }, {
+      state.*.renderer.*.open_td(align);
+      if((cell_end > cell_start), {
+        state.*.renderer.*.text(cell_start, cell_end);
+      });
+      state.*.renderer.*.close_td();
+    });
+
+    col = (col + i32(1));
+  };
+});
+
+block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+  // Must have at least 2 lines (header + separator)
+  if(((start_line + i32(1)) >= end_line), { return false; });
+
+  // Must not be indented >3 spaces
+  if((state.*.s_count.get_unchecked(usize(start_line)) >= i32(4)), { return false; });
+
+  // First line must contain a pipe
+  (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
+  (ts : i32) = state.*.t_shift.get_unchecked(usize(start_line));
+  (em : i32) = state.*.e_marks.get_unchecked(usize(start_line));
+  (pos : i32) = (bm + ts);
+
+  (has_pipe : bool) = false;
+  (p : i32) = pos;
+  while (p < em), {
+    if((i32((state.*.src_ptr &+ usize(p)).*) == i32(0x7C)), {
+      has_pipe = true;
+      p = em;
+    });
+    p = (p + i32(1));
+  };
+  if(!(has_pipe), { return false; });
+
+  // Second line is separator: must contain only |, -, :, spaces
+  (sep_line : i32) = (start_line + i32(1));
+  (sep_bm : i32) = state.*.b_marks.get_unchecked(usize(sep_line));
+  (sep_ts : i32) = state.*.t_shift.get_unchecked(usize(sep_line));
+  (sep_em : i32) = state.*.e_marks.get_unchecked(usize(sep_line));
+  (sep_pos : i32) = (sep_bm + sep_ts);
+
+  if((state.*.s_count.get_unchecked(usize(sep_line)) >= i32(4)), { return false; });
+
+  // Parse separator line to extract alignment
+  (aligns : ArrayList(TableAlign)) = ArrayList(TableAlign).new();
+  (valid_sep : bool) = true;
+
+  // Skip leading pipe
+  (sp : i32) = sep_pos;
+  if(((sp < sep_em) && (i32((state.*.src_ptr &+ usize(sp)).*) == i32(0x7C))), {
+    sp = (sp + i32(1));
+  });
+
+  // Parse each cell separator
+  (parsing_sep : bool) = true;
+  while (((sp < sep_em) && parsing_sep) && valid_sep), {
+    // Skip spaces
+    while ((sp < sep_em) && is_space(i32((state.*.src_ptr &+ usize(sp)).*))) , {
+      sp = (sp + i32(1));
+    };
+
+    if((sp >= sep_em), { parsing_sep = false; }, {
+      (left_colon : bool) = false;
+      (right_colon : bool) = false;
+
+      // Check leading :
+      if((i32((state.*.src_ptr &+ usize(sp)).*) == i32(0x3A)), {
+        left_colon = true;
+        sp = (sp + i32(1));
+      });
+
+      // Count dashes
+      (dash_count : i32) = i32(0);
+      while ((sp < sep_em) && (i32((state.*.src_ptr &+ usize(sp)).*) == i32(0x2D))), {
+        dash_count = (dash_count + i32(1));
+        sp = (sp + i32(1));
+      };
+
+      if((dash_count == i32(0)), {
+        valid_sep = false;
+      }, {
+        // Check trailing :
+        if(((sp < sep_em) && (i32((state.*.src_ptr &+ usize(sp)).*) == i32(0x3A))), {
+          right_colon = true;
+          sp = (sp + i32(1));
+        });
+
+        // Skip spaces
+        while ((sp < sep_em) && is_space(i32((state.*.src_ptr &+ usize(sp)).*))) , {
+          sp = (sp + i32(1));
+        };
+
+        // Must end with | or end of line
+        if(((sp < sep_em) && (i32((state.*.src_ptr &+ usize(sp)).*) == i32(0x7C))), {
+          sp = (sp + i32(1));
+        }, {
+          if((sp < sep_em), {
+            valid_sep = false;
+          });
+        });
+
+        // Record alignment
+        if(valid_sep, {
+          (align : TableAlign) = cond(
+            (left_colon && right_colon) => .Center,
+            right_colon => .Right,
+            left_colon => .Left,
+            true => .None
+          );
+          _ := aligns.push(align);
+        });
+      });
+    });
+  };
+
+  if((!(valid_sep) || (aligns.len() == usize(0))), { return false; });
+
+  if(silent, { return true; });
+
+  (col_count : i32) = i32(aligns.len());
+
+  // Emit table
+  state.*.renderer.*.open_table();
+
+  // Header row
+  state.*.renderer.*.open_thead();
+  state.*.renderer.*.open_tr();
+
+  // Parse header cells from first line
+  _emit_table_row_cells(state, start_line, (&aligns), true);
+
+  state.*.renderer.*.close_tr();
+  state.*.renderer.*.close_thead();
+
+  // Body rows
+  state.*.renderer.*.open_tbody();
+
+  (row_line : i32) = (start_line + i32(2));
+  while ((row_line < end_line) && !(state.*.is_empty(row_line))), {
+    if((state.*.s_count.get_unchecked(usize(row_line)) >= i32(4)), {
+      row_line = end_line;
+    }, {
+      state.*.renderer.*.open_tr();
+      _emit_table_row_cells(state, row_line, (&aligns), false);
+      state.*.renderer.*.close_tr();
+      row_line = (row_line + i32(1));
+    });
+  };
+
+  state.*.renderer.*.close_tbody();
+  state.*.renderer.*.close_table();
+
+  state.*.line = row_line;
+  true
+});
+
+export block_table;

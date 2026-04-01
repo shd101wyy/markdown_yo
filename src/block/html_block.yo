@@ -1,0 +1,227 @@
+// markdown_yo — HTML block rule
+//
+// Matches: HTML blocks (types 1-7 per CommonMark spec)
+
+{ BlockState } :: import "./state.yo";
+{ is_space } :: import "../common/utils.yo";
+
+// HTML block type 1: <script>, <pre>, <style>, <textarea>
+_is_html_block_type1 :: (fn(src: *(u8), pos: i32, max: i32) -> bool)({
+  // Check for <script, <pre, <style, <textarea (case insensitive)
+  if(((pos + i32(2)) >= max), { return false; });
+  (ch1 : i32) = (i32((src &+ usize((pos + i32(1)))).*) | i32(0x20));
+
+  // <pre
+  if(((ch1 == i32(0x70)) && ((pos + i32(4)) <= max)), {
+    (ch2 : i32) = (i32((src &+ usize((pos + i32(2)))).*) | i32(0x20));
+    (ch3 : i32) = (i32((src &+ usize((pos + i32(3)))).*) | i32(0x20));
+    if(((ch2 == i32(0x72)) && (ch3 == i32(0x65))), {
+      if(((pos + i32(4)) >= max), { return true; });
+      (after : i32) = i32((src &+ usize((pos + i32(4)))).*);
+      if(((after == i32(0x20)) || ((after == i32(0x3E)) || ((after == i32(0x09)) || (after == i32(0x0A))))), {
+        return true;
+      });
+    });
+  });
+
+  // <script
+  if(((ch1 == i32(0x73)) && ((pos + i32(7)) <= max)), {
+    (s : bool) = true;
+    (expected : str) = "script";
+    (ei : i32) = i32(0);
+    (pi : i32) = (pos + i32(1));
+    while ((ei < i32(6)) && s), {
+      (ec : i32) = i32((expected.ptr() &+ usize(ei)).*);
+      (ac : i32) = (i32((src &+ usize(pi)).*) | i32(0x20));
+      if((ec != ac), { s = false; });
+      ei = (ei + i32(1));
+      pi = (pi + i32(1));
+    };
+    if(s, {
+      if(((pos + i32(7)) >= max), { return true; });
+      (after : i32) = i32((src &+ usize((pos + i32(7)))).*);
+      if(((after == i32(0x20)) || ((after == i32(0x3E)) || ((after == i32(0x09)) || (after == i32(0x0A))))), {
+        return true;
+      });
+    });
+  });
+
+  // <style
+  if(((ch1 == i32(0x73)) && ((pos + i32(6)) <= max)), {
+    (s2 : bool) = true;
+    (expected2 : str) = "style";
+    (ei2 : i32) = i32(0);
+    (pi2 : i32) = (pos + i32(1));
+    while ((ei2 < i32(5)) && s2), {
+      (ec2 : i32) = i32((expected2.ptr() &+ usize(ei2)).*);
+      (ac2 : i32) = (i32((src &+ usize(pi2)).*) | i32(0x20));
+      if((ec2 != ac2), { s2 = false; });
+      ei2 = (ei2 + i32(1));
+      pi2 = (pi2 + i32(1));
+    };
+    if(s2, {
+      if(((pos + i32(6)) >= max), { return true; });
+      (after2 : i32) = i32((src &+ usize((pos + i32(6)))).*);
+      if(((after2 == i32(0x20)) || ((after2 == i32(0x3E)) || ((after2 == i32(0x09)) || (after2 == i32(0x0A))))), {
+        return true;
+      });
+    });
+  });
+
+  false
+});
+
+// HTML block type 6: starts with one of the known block-level tag names
+_is_html_block_tag :: (fn(src: *(u8), pos: i32, max: i32) -> bool)({
+  // Simplified: check for common block tags
+  // This checks for <div, <p, <table, <ul, <ol, <h1..h6, <blockquote, etc.
+  if(((pos + i32(2)) >= max), { return false; });
+
+  (ch1 : i32) = (i32((src &+ usize((pos + i32(1)))).*) | i32(0x20));
+
+  // <p or <p>
+  if((ch1 == i32(0x70)), {
+    if(((pos + i32(2)) >= max), { return true; });
+    (after : i32) = i32((src &+ usize((pos + i32(2)))).*);
+    if(((after == i32(0x3E)) || ((after == i32(0x20)) || ((after == i32(0x09)) || (after == i32(0x0A))))), {
+      return true;
+    });
+  });
+
+  // <hr
+  if(((ch1 == i32(0x68)) && ((pos + i32(3)) <= max)), {
+    (ch2 : i32) = (i32((src &+ usize((pos + i32(2)))).*) | i32(0x20));
+    if((ch2 == i32(0x72)), {
+      if(((pos + i32(3)) >= max), { return true; });
+      (after : i32) = i32((src &+ usize((pos + i32(3)))).*);
+      if(((after == i32(0x3E)) || ((after == i32(0x20)) || ((after == i32(0x09)) || ((after == i32(0x0A)) || (after == i32(0x2F)))))), {
+        return true;
+      });
+    });
+  });
+
+  false
+});
+
+block_html :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+  (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
+  (ts : i32) = state.*.t_shift.get_unchecked(usize(start_line));
+  (em : i32) = state.*.e_marks.get_unchecked(usize(start_line));
+  (pos : i32) = (bm + ts);
+
+  // Must not be indented >3 spaces
+  if((state.*.s_count.get_unchecked(usize(start_line)) >= i32(4)), { return false; });
+
+  // Must start with <
+  if((pos >= em), { return false; });
+  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x3C)), { return false; });
+
+  // Detect HTML block type
+  (html_type : i32) = i32(0);
+
+  // Type 1: <script>, <pre>, <style>
+  if(_is_html_block_type1(state.*.src_ptr, pos, em), {
+    html_type = i32(1);
+  });
+
+  // Type 2: <!-- comment -->
+  if(((html_type == i32(0)) && ((pos + i32(4)) <= em)), {
+    if(((i32((state.*.src_ptr &+ usize((pos + i32(1)))).*) == i32(0x21)) && ((i32((state.*.src_ptr &+ usize((pos + i32(2)))).*) == i32(0x2D)) && (i32((state.*.src_ptr &+ usize((pos + i32(3)))).*) == i32(0x2D)))), {
+      html_type = i32(2);
+    });
+  });
+
+  // Type 3: <?processing instruction?>
+  if(((html_type == i32(0)) && ((pos + i32(2)) <= em)), {
+    if((i32((state.*.src_ptr &+ usize((pos + i32(1)))).*) == i32(0x3F)), {
+      html_type = i32(3);
+    });
+  });
+
+  // Type 6: Block-level tag
+  if(((html_type == i32(0)) && _is_html_block_tag(state.*.src_ptr, pos, em)), {
+    html_type = i32(6);
+  });
+
+  // Type 7: <tag without block rules (any open tag, not interrupted paragraph)
+  // Simplified detection
+
+  if((html_type == i32(0)), { return false; });
+
+  if(silent, { return true; });
+
+  // Find end of HTML block
+  (next_line : i32) = (start_line + i32(1));
+
+  cond(
+    // Type 1: ends at </script>, </pre>, </style>
+    (html_type == i32(1)) => {
+      while (next_line < end_line), {
+        (nem : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+        (nbm : i32) = state.*.b_marks.get_unchecked(usize(next_line));
+        // Simple check: look for closing tag in line
+        // For simplicity, scan for </
+        (found : bool) = false;
+        (sp : i32) = nbm;
+        while ((sp < (nem - i32(1))) && !(found)), {
+          if(((i32((state.*.src_ptr &+ usize(sp)).*) == i32(0x3C)) && (i32((state.*.src_ptr &+ usize((sp + i32(1)))).*) == i32(0x2F))), {
+            found = true;
+          });
+          sp = (sp + i32(1));
+        };
+        if(found, {
+          next_line = (next_line + i32(1));
+          next_line = end_line;
+        }, {
+          next_line = (next_line + i32(1));
+        });
+      };
+    },
+    // Type 2: ends at -->
+    (html_type == i32(2)) => {
+      while (next_line < end_line), {
+        (nem : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+        (nbm : i32) = state.*.b_marks.get_unchecked(usize(next_line));
+        (found2 : bool) = false;
+        (sp2 : i32) = nbm;
+        while ((sp2 < (nem - i32(2))) && !(found2)), {
+          if(((i32((state.*.src_ptr &+ usize(sp2)).*) == i32(0x2D)) && ((i32((state.*.src_ptr &+ usize((sp2 + i32(1)))).*) == i32(0x2D)) && (i32((state.*.src_ptr &+ usize((sp2 + i32(2)))).*) == i32(0x3E)))), {
+            found2 = true;
+          });
+          sp2 = (sp2 + i32(1));
+        };
+        if(found2, {
+          next_line = (next_line + i32(1));
+          next_line = end_line;
+        }, {
+          next_line = (next_line + i32(1));
+        });
+      };
+    },
+    // Type 3, 6, 7: ends at empty line
+    true => {
+      while ((next_line < end_line) && !(state.*.is_empty(next_line))), {
+        next_line = (next_line + i32(1));
+      };
+    }
+  );
+
+  // Emit raw HTML block
+  (content_start : i32) = state.*.b_marks.get_unchecked(usize(start_line));
+  (content_end : i32) = cond(
+    (next_line <= end_line) => {
+      (ll : i32) = (next_line - i32(1));
+      cond(
+        (ll >= start_line) => state.*.e_marks.get_unchecked(usize(ll)),
+        true => content_start
+      )
+    },
+    true => content_start
+  );
+
+  state.*.renderer.*.html_block(content_start, content_end);
+  state.*.line = next_line;
+  true
+});
+
+export block_html;

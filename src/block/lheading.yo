@@ -1,0 +1,125 @@
+// markdown_yo — Setext heading rule (lheading)
+//
+// Matches: text followed by === (h1) or --- (h2) underline
+
+{ BlockState } :: import "./state.yo";
+{ is_space } :: import "../common/utils.yo";
+{ ParentType } :: import "../types.yo";
+
+// Check if any terminator rule matches at the given line (silent mode)
+_check_paragraph_terminator :: (fn(state: *(BlockState), line: i32, end_line: i32) -> bool)({
+  // Check s_count < 0 (blockquote quirk)
+  if((state.*.s_count.get_unchecked(usize(line)) < i32(0)), { return true; });
+  false
+});
+
+// Parse inline content across multiple lines for paragraph/lheading
+// For now: emit text for each line, separated by newlines
+_parse_para_inline :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> unit)({
+  (line : i32) = start_line;
+  while (line < end_line), {
+    (bm : i32) = state.*.b_marks.get_unchecked(usize(line));
+    (ts : i32) = state.*.t_shift.get_unchecked(usize(line));
+    (em : i32) = state.*.e_marks.get_unchecked(usize(line));
+    (content_start : i32) = (bm + ts);
+
+    // Trim trailing spaces
+    (content_end : i32) = em;
+    while ((content_end > content_start) && is_space(i32((state.*.src_ptr &+ usize((content_end - i32(1)))).*))) , {
+      content_end = (content_end - i32(1));
+    };
+
+    if((content_end > content_start), {
+      if((line > start_line), {
+        state.*.renderer.*.byte(u8(0x0A));
+      });
+      state.*.renderer.*.text(content_start, content_end);
+    });
+
+    line = (line + i32(1));
+  };
+});
+
+block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+  // Must not be indented >3 spaces
+  if((state.*.s_count.get_unchecked(usize(start_line)) >= i32(4)), { return false; });
+
+  (old_parent_type : ParentType) = state.*.parent_type;
+  state.*.parent_type = .Paragraph;
+
+  // Scan forward looking for === or --- underline
+  (level : i32) = i32(0);
+  (next_line : i32) = (start_line + i32(1));
+
+  (searching : bool) = true;
+  while (((next_line < end_line) && !(state.*.is_empty(next_line))) && searching), {
+    if((state.*.s_count.get_unchecked(usize(next_line)) > i32(3)), {
+      // Lazy continuation
+      next_line = (next_line + i32(1));
+    }, {
+      // Check for underline
+      (found_underline : bool) = false;
+      if((state.*.s_count.get_unchecked(usize(next_line)) >= i32(0)), {
+        (pos : i32) = (state.*.b_marks.get_unchecked(usize(next_line)) + state.*.t_shift.get_unchecked(usize(next_line)));
+        (max : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+
+        if((pos < max), {
+          (marker : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+
+          if(((marker == i32(0x2D)) || (marker == i32(0x3D))), {
+            // Skip marker chars
+            (p : i32) = pos;
+            while ((p < max) && (i32((state.*.src_ptr &+ usize(p)).*) == marker)), {
+              p = (p + i32(1));
+            };
+            // Skip trailing spaces
+            p = state.*.skip_spaces(p);
+
+            if((p >= max), {
+              level = cond(
+                (marker == i32(0x3D)) => i32(1),
+                true => i32(2)
+              );
+              found_underline = true;
+            });
+          });
+        });
+      });
+
+      if(found_underline, {
+        searching = false;
+      }, {
+        // Check terminator rules (silent mode)
+        if((_check_paragraph_terminator(state, next_line, end_line)), {
+          searching = false;
+        }, {
+          next_line = (next_line + i32(1));
+        });
+      });
+    });
+  };
+
+  if((level == i32(0)), {
+    state.*.parent_type = old_parent_type;
+    return false;
+  });
+
+  if(silent, {
+    state.*.parent_type = old_parent_type;
+    return true;
+  });
+
+  // Emit heading
+  state.*.renderer.*.open_heading(level);
+
+  // Parse inline content from start_line to next_line
+  _parse_para_inline(state, start_line, next_line);
+
+  state.*.renderer.*.close_heading(level);
+
+  state.*.line = (next_line + i32(1));
+  state.*.parent_type = old_parent_type;
+  true
+});
+
+export block_lheading;

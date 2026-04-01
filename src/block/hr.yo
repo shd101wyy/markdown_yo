@@ -1,0 +1,48 @@
+// markdown_yo — Horizontal rule
+//
+// Matches: ---, ***, ___ (with optional spaces between chars, 3+ required)
+
+{ BlockState } :: import "./state.yo";
+{ is_space } :: import "../common/utils.yo";
+
+block_hr :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+  (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
+  (ts : i32) = state.*.t_shift.get_unchecked(usize(start_line));
+  (em : i32) = state.*.e_marks.get_unchecked(usize(start_line));
+  (pos : i32) = (bm + ts);
+
+  // Must not be indented >3 spaces
+  if((state.*.s_count.get_unchecked(usize(start_line)) >= i32(4)), { return false; });
+
+  if((pos >= em), { return false; });
+
+  (marker : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+
+  // Must be -, *, or _
+  if(((marker != i32(0x2D)) && ((marker != i32(0x2A)) && (marker != i32(0x5F)))), {
+    return false;
+  });
+
+  // Count markers (skip spaces between)
+  (cnt : i32) = i32(0);
+  (p : i32) = pos;
+  while (p < em), {
+    (ch : i32) = i32((state.*.src_ptr &+ usize(p)).*);
+    cond(
+      (ch == marker) => { cnt = (cnt + i32(1)); },
+      is_space(ch) => (),
+      true => { return false; }
+    );
+    p = (p + i32(1));
+  };
+
+  if((cnt < i32(3)), { return false; });
+
+  if(silent, { return true; });
+
+  state.*.renderer.*.hr();
+  state.*.line = (start_line + i32(1));
+  true
+});
+
+export block_hr;

@@ -1,0 +1,43 @@
+// markdown_yo — Block terminator checks
+//
+// Used by paragraph and lheading to determine if a line starts a new block.
+// Calls other block rules in silent mode.
+
+{ BlockState } :: import "./state.yo";
+{ block_heading } :: import "./heading.yo";
+{ block_fence } :: import "./fence.yo";
+{ block_hr } :: import "./hr.yo";
+{ block_blockquote } :: import "./blockquote.yo";
+{ block_list } :: import "./list.yo";
+{ block_html } :: import "./html_block.yo";
+{ block_table } :: import "./table.yo";
+
+// Check if any terminator rule matches at the given line
+_try_block_terminate :: (fn(state: *(BlockState), line: i32, end_line: i32) -> bool)({
+  // Table
+  if((state.*.options.*.enable_table && block_table(state, line, end_line, true)), {
+    return true;
+  });
+
+  // Fence
+  if(block_fence(state, line, end_line, true), { return true; });
+
+  // Blockquote (returns i32: >0 means match, -1 means no match)
+  if((block_blockquote(state, line, end_line, true) > i32(0)), { return true; });
+
+  // Horizontal rule
+  if(block_hr(state, line, end_line, true), { return true; });
+
+  // List
+  if(block_list(state, line, end_line, true), { return true; });
+
+  // HTML block
+  if((state.*.options.*.html && block_html(state, line, end_line, true)), { return true; });
+
+  // ATX heading
+  if(block_heading(state, line, end_line, true), { return true; });
+
+  false
+});
+
+export _try_block_terminate;

@@ -1,0 +1,409 @@
+// markdown_yo — HTML renderer
+//
+// SAX-style: receives direct calls from block and inline parsers.
+// Writes directly to an ArrayList(u8) output buffer — no intermediate Strings.
+
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
+{ Options, TableAlign } :: import "./types.yo";
+{ escape_html_buf, append_raw_buf, append_lit } :: import "./common/utils.yo";
+
+// Helper: write i32 as decimal ASCII digits to buffer
+_write_i32 :: (fn(buf: *(ArrayList(u8)), n: i32) -> unit)({
+  if((n < i32(0)), {
+    _ := buf.*.push(u8(0x2D)); // '-'
+    recur(buf, (i32(0) - n));
+    return ();
+  });
+  if((n >= i32(10)), {
+    recur(buf, (n / i32(10)));
+  });
+  _ := buf.*.push(u8((i32(0x30) + (n % i32(10)))));
+});
+
+// ============================================================================
+// HtmlRenderer
+// ============================================================================
+
+HtmlRenderer :: struct(
+  buf : ArrayList(u8),    // output buffer
+  img_nest : i32,         // depth inside <img> alt text (suppress HTML tags)
+  options : *(Options),
+  src_ptr : *(u8),        // pointer to source bytes for zero-copy slicing
+  src_len : i32
+);
+
+impl(HtmlRenderer,
+  new : (fn(options: *(Options), src_ptr: *(u8), src_len: i32) -> Self)({
+    // Pre-allocate ~1.5× source size
+    (cap : usize) = (usize(src_len) + (usize(src_len) / usize(2)));
+    Self(
+      buf: ArrayList(u8).with_capacity(cap),
+      img_nest: i32(0),
+      options: options,
+      src_ptr: src_ptr,
+      src_len: src_len
+    )
+  }),
+
+  // Get the rendered output as a String (transfers ownership of buffer)
+  finish : (fn(self: Self) -> String)(
+    String.from_bytes(self.buf)
+  ),
+
+  // -------------------------------------------------------------------
+  // Low-level append helpers
+  // -------------------------------------------------------------------
+
+  // Append literal string
+  lit : (fn(self: *(Self), s: str) -> unit)(
+    append_lit((&self.*.buf), s)
+  ),
+
+  // Append HTML-escaped source bytes [start, end)
+  escaped : (fn(self: *(Self), start: i32, end: i32) -> unit)(
+    escape_html_buf((&self.*.buf), self.*.src_ptr, start, end)
+  ),
+
+  // Append raw source bytes [start, end) (no escaping)
+  raw : (fn(self: *(Self), start: i32, end: i32) -> unit)(
+    append_raw_buf((&self.*.buf), self.*.src_ptr, start, end)
+  ),
+
+  // Append a single byte
+  byte : (fn(self: *(Self), b: u8) -> unit)({
+    _ := self.*.buf.push(b);
+  }),
+
+  // Append a String (for dynamic content like lang_prefix)
+  push_string : (fn(self: *(Self), s: String) -> unit)({
+    (bytes : ArrayList(u8)) = s.as_bytes();
+    match(bytes.ptr(),
+      .Some(p) => self.*.buf.extend_from_ptr(p, bytes.len()),
+      .None => ()
+    );
+  }),
+
+  // Append HTML-escaped content from a String
+  escaped_string : (fn(self: *(Self), s: String) -> unit)({
+    (bytes : ArrayList(u8)) = s.as_bytes();
+    match(bytes.ptr(),
+      .Some(p) => escape_html_buf((&self.*.buf), p, i32(0), i32(bytes.len())),
+      .None => ()
+    );
+  }),
+
+  // -------------------------------------------------------------------
+  // Block-level events
+  // -------------------------------------------------------------------
+
+  open_paragraph : (fn(self: *(Self)) -> unit)(
+    self.*.lit("<p>")
+  ),
+
+  close_paragraph : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</p>\n")
+  ),
+
+  open_heading : (fn(self: *(Self), level: i32) -> unit)(
+    cond(
+      (level == i32(1)) => self.*.lit("<h1>"),
+      (level == i32(2)) => self.*.lit("<h2>"),
+      (level == i32(3)) => self.*.lit("<h3>"),
+      (level == i32(4)) => self.*.lit("<h4>"),
+      (level == i32(5)) => self.*.lit("<h5>"),
+      true => self.*.lit("<h6>")
+    )
+  ),
+
+  close_heading : (fn(self: *(Self), level: i32) -> unit)(
+    cond(
+      (level == i32(1)) => self.*.lit("</h1>\n"),
+      (level == i32(2)) => self.*.lit("</h2>\n"),
+      (level == i32(3)) => self.*.lit("</h3>\n"),
+      (level == i32(4)) => self.*.lit("</h4>\n"),
+      (level == i32(5)) => self.*.lit("</h5>\n"),
+      true => self.*.lit("</h6>\n")
+    )
+  ),
+
+  open_blockquote : (fn(self: *(Self)) -> unit)(
+    self.*.lit("<blockquote>\n")
+  ),
+
+  close_blockquote : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</blockquote>\n")
+  ),
+
+  open_unordered_list : (fn(self: *(Self)) -> unit)(
+    self.*.lit("<ul>\n")
+  ),
+
+  close_unordered_list : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</ul>\n")
+  ),
+
+  open_ordered_list : (fn(self: *(Self), start: i32) -> unit)(
+    if((start == i32(1)), {
+      self.*.lit("<ol>\n");
+    }, {
+      self.*.lit("<ol start=\"");
+      // Write start number as ASCII digits
+      _write_i32((&self.*.buf), start);
+      self.*.lit("\">\n");
+    })
+  ),
+
+  close_ordered_list : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</ol>\n")
+  ),
+
+  open_list_item : (fn(self: *(Self)) -> unit)(
+    self.*.lit("<li>")
+  ),
+
+  open_list_item_with_info : (fn(self: *(Self), info: String) -> unit)({
+    // info is the marker string, e.g. "1." for ordered lists (used by markdown-it)
+    self.*.lit("<li>");
+  }),
+
+  close_list_item : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</li>\n")
+  ),
+
+  hr : (fn(self: *(Self)) -> unit)(
+    cond(
+      self.*.options.*.xhtml_out => self.*.lit("<hr />\n"),
+      true => self.*.lit("<hr>\n")
+    )
+  ),
+
+  // Code block (indented code, 4-space)
+  code_block : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    self.*.lit("<pre><code>");
+    self.*.escaped(start, end);
+    self.*.lit("</code></pre>\n");
+  }),
+
+  // Fenced code block with optional language
+  fence : (fn(self: *(Self), content_start: i32, content_end: i32, lang_start: i32, lang_end: i32) -> unit)({
+    if((lang_start < lang_end), {
+      self.*.lit("<pre><code class=\"");
+      self.*.push_string(self.*.options.*.lang_prefix);
+      self.*.escaped(lang_start, lang_end);
+      self.*.lit("\">");
+    }, {
+      self.*.lit("<pre><code>");
+    });
+    self.*.escaped(content_start, content_end);
+    self.*.lit("</code></pre>\n");
+  }),
+
+  // Raw HTML block
+  html_block : (fn(self: *(Self), start: i32, end: i32) -> unit)(
+    self.*.raw(start, end)
+  ),
+
+  // -------------------------------------------------------------------
+  // Table events
+  // -------------------------------------------------------------------
+
+  open_table : (fn(self: *(Self)) -> unit)(
+    self.*.lit("<table>\n")
+  ),
+
+  close_table : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</table>\n")
+  ),
+
+  open_thead : (fn(self: *(Self)) -> unit)(
+    self.*.lit("<thead>\n")
+  ),
+
+  close_thead : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</thead>\n")
+  ),
+
+  open_tbody : (fn(self: *(Self)) -> unit)(
+    self.*.lit("<tbody>\n")
+  ),
+
+  close_tbody : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</tbody>\n")
+  ),
+
+  open_tr : (fn(self: *(Self)) -> unit)(
+    self.*.lit("<tr>\n")
+  ),
+
+  close_tr : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</tr>\n")
+  ),
+
+  open_th : (fn(self: *(Self), align: TableAlign) -> unit)(
+    match(align,
+      .Left => self.*.lit("<th align=\"left\">"),
+      .Center => self.*.lit("<th align=\"center\">"),
+      .Right => self.*.lit("<th align=\"right\">"),
+      .None => self.*.lit("<th>")
+    )
+  ),
+
+  close_th : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</th>\n")
+  ),
+
+  open_td : (fn(self: *(Self), align: TableAlign) -> unit)(
+    match(align,
+      .Left => self.*.lit("<td align=\"left\">"),
+      .Center => self.*.lit("<td align=\"center\">"),
+      .Right => self.*.lit("<td align=\"right\">"),
+      .None => self.*.lit("<td>")
+    )
+  ),
+
+  close_td : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</td>\n")
+  ),
+
+  // -------------------------------------------------------------------
+  // Inline events
+  // -------------------------------------------------------------------
+
+  text : (fn(self: *(Self), start: i32, end: i32) -> unit)(
+    if((self.*.img_nest > i32(0)), {
+      // Inside img alt — emit plain text (no HTML escaping for alt text)
+      self.*.escaped(start, end);
+    }, {
+      self.*.escaped(start, end);
+    })
+  ),
+
+  text_string : (fn(self: *(Self), s: String) -> unit)(
+    self.*.escaped_string(s)
+  ),
+
+  code_inline : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    if((self.*.img_nest > i32(0)), { return (); });
+    self.*.lit("<code>");
+    self.*.escaped(start, end);
+    self.*.lit("</code>");
+  }),
+
+  open_em : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("<em>");
+    })
+  ),
+
+  close_em : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("</em>");
+    })
+  ),
+
+  open_strong : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("<strong>");
+    })
+  ),
+
+  close_strong : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("</strong>");
+    })
+  ),
+
+  open_strikethrough : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("<s>");
+    })
+  ),
+
+  close_strikethrough : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("</s>");
+    })
+  ),
+
+  // Link open: <a href="..." title="...">
+  open_link : (fn(self: *(Self), href: String, title: String) -> unit)({
+    if((self.*.img_nest > i32(0)), { return (); });
+    self.*.lit("<a href=\"");
+    self.*.escaped_string(href);
+    if((title.bytes_len() > usize(0)), {
+      self.*.lit("\" title=\"");
+      self.*.escaped_string(title);
+    });
+    self.*.lit("\">");
+  }),
+
+  close_link : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("</a>");
+    })
+  ),
+
+  // Image: <img src="..." alt="..." title="...">
+  // After open_image, inline content becomes alt text.
+  // close_image finishes the tag.
+  open_image : (fn(self: *(Self), src: String, title: String) -> unit)({
+    self.*.lit("<img src=\"");
+    self.*.escaped_string(src);
+    self.*.lit("\" alt=\"");
+    self.*.img_nest = (self.*.img_nest + i32(1));
+  }),
+
+  close_image : (fn(self: *(Self), title: String) -> unit)({
+    if((title.bytes_len() > usize(0)), {
+      self.*.lit("\" title=\"");
+      self.*.escaped_string(title);
+    });
+    cond(
+      self.*.options.*.xhtml_out => self.*.lit("\" />"),
+      true => self.*.lit("\">")
+    );
+    self.*.img_nest = (self.*.img_nest - i32(1));
+  }),
+
+  softbreak : (fn(self: *(Self)) -> unit)(
+    cond(
+      (self.*.img_nest > i32(0)) => self.*.lit(" "),
+      self.*.options.*.breaks => cond(
+        self.*.options.*.xhtml_out => self.*.lit("<br />\n"),
+        true => self.*.lit("<br>\n")
+      ),
+      true => self.*.lit("\n")
+    )
+  ),
+
+  hardbreak : (fn(self: *(Self)) -> unit)(
+    cond(
+      (self.*.img_nest > i32(0)) => self.*.lit(" "),
+      self.*.options.*.xhtml_out => self.*.lit("<br />\n"),
+      true => self.*.lit("<br>\n")
+    )
+  ),
+
+  html_inline : (fn(self: *(Self), start: i32, end: i32) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.raw(start, end);
+    })
+  ),
+
+  // Entity: pass through raw entity text (already in correct format)
+  entity : (fn(self: *(Self), start: i32, end: i32) -> unit)(
+    self.*.raw(start, end)
+  ),
+
+  // Newline in tight paragraph (hidden paragraph open/close)
+  hidden_paragraph_open : (fn(self: *(Self)) -> unit)(
+    ()
+  ),
+
+  hidden_paragraph_close : (fn(self: *(Self)) -> unit)(
+    ()
+  )
+);
+
+export HtmlRenderer;

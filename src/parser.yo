@@ -1,0 +1,42 @@
+// markdown_yo — Main parser orchestrator
+//
+// Top-level API: normalize → block parse → HTML output.
+// SAX-style: block parser calls renderer directly, inline parser uses
+// lightweight InlineToken buffer then flushes to renderer.
+
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
+{ Options, Env, new_env } :: import "./types.yo";
+{ HtmlRenderer } :: import "./renderer.yo";
+{ normalize } :: import "./normalize.yo";
+{ BlockState } :: import "./block/state.yo";
+{ block_parse } :: import "./block/parser.yo";
+
+// Convert markdown source to HTML.
+markdown_to_html :: (fn(src: String, options: *(Options)) -> String)({
+  // 1. Normalize line endings
+  (normalized : String) = normalize(src);
+
+  // 2. Create environment for link references
+  (env : Env) = new_env();
+
+  // 3. Get source pointer
+  (src_bytes : ArrayList(u8)) = normalized.as_bytes();
+  (src_len : i32) = i32(src_bytes.len());
+  (src_ptr : *(u8)) = match(src_bytes.ptr(),
+    .Some(p) => p,
+    .None => *(u8)("")
+  );
+
+  // 4. Create renderer with pre-allocated output buffer
+  (renderer : HtmlRenderer) = HtmlRenderer.new(options, src_ptr, src_len);
+
+  // 5. Create block state and parse
+  (state : BlockState) = BlockState.new(normalized, (&env), (&renderer), options);
+  block_parse((&state));
+
+  // 6. Return rendered HTML
+  renderer.finish()
+});
+
+export markdown_to_html;

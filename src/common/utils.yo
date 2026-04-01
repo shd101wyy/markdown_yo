@@ -1,0 +1,227 @@
+// markdown_yo — Common utilities
+//
+// Character classification and string helpers for markdown parsing.
+// Adapted from markdown_it_yo common/utils.yo for SAX-style:
+//   - Functions that take/return str slices where possible
+//   - Pointer-based hot paths
+
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
+
+// ============================================================================
+// Character classification
+// ============================================================================
+
+// Check if byte is markdown space (tab 0x09 or space 0x20)
+is_space :: (fn(code: i32) -> bool)(
+  ((code == i32(0x09)) || (code == i32(0x20)))
+);
+
+// Check if byte is Unicode whitespace (Zs class) or [\t\f\v\r\n]
+is_white_space :: (fn(code: i32) -> bool)(
+  cond(
+    (code == i32(0x20)) => true,
+    ((code >= i32(0x09)) && (code <= i32(0x0D))) => true,
+    (code == i32(0xA0)) => true,
+    (code == i32(0x1680)) => true,
+    ((code >= i32(0x2000)) && (code <= i32(0x200A))) => true,
+    (code == i32(0x202F)) => true,
+    (code == i32(0x205F)) => true,
+    (code == i32(0x3000)) => true,
+    true => false
+  )
+);
+
+// Markdown ASCII punctuation
+is_md_ascii_punct :: (fn(ch: i32) -> bool)(
+  cond(
+    ((ch >= i32(0x21)) && (ch <= i32(0x2F))) => true,
+    ((ch >= i32(0x3A)) && (ch <= i32(0x40))) => true,
+    ((ch >= i32(0x5B)) && (ch <= i32(0x60))) => true,
+    ((ch >= i32(0x7B)) && (ch <= i32(0x7E))) => true,
+    true => false
+  )
+);
+
+// Unicode punctuation check (Pc, Pd, Pe, Pf, Pi, Po, Ps, Sc, Sk, Sm, So)
+is_punct_char :: (fn(ch: i32) -> bool)(
+  cond(
+    // ASCII punctuation (fast path)
+    ((ch >= i32(0x21)) && (ch <= i32(0x2F))) => true,
+    ((ch >= i32(0x3A)) && (ch <= i32(0x40))) => true,
+    ((ch >= i32(0x5B)) && (ch <= i32(0x60))) => true,
+    ((ch >= i32(0x7B)) && (ch <= i32(0x7E))) => true,
+    // Latin-1 Supplement
+    ((ch >= i32(0xA1)) && (ch <= i32(0xA7))) => true,
+    (ch == i32(0xA9)) => true,
+    ((ch >= i32(0xAB)) && (ch <= i32(0xAC))) => true,
+    (ch == i32(0xAE)) => true,
+    ((ch >= i32(0xB0)) && (ch <= i32(0xB1))) => true,
+    (ch == i32(0xB6)) => true,
+    (ch == i32(0xBB)) => true,
+    (ch == i32(0xBF)) => true,
+    (ch == i32(0xD7)) => true,
+    (ch == i32(0xF7)) => true,
+    // General Punctuation
+    ((ch >= i32(0x2010)) && (ch <= i32(0x2027))) => true,
+    ((ch >= i32(0x2030)) && (ch <= i32(0x205E))) => true,
+    // Supplemental Punctuation
+    ((ch >= i32(0x2E00)) && (ch <= i32(0x2E52))) => true,
+    // CJK Symbols
+    ((ch >= i32(0x3001)) && (ch <= i32(0x3003))) => true,
+    ((ch >= i32(0x3008)) && (ch <= i32(0x3011))) => true,
+    ((ch >= i32(0x3014)) && (ch <= i32(0x301F))) => true,
+    (ch == i32(0x3030)) => true,
+    // Fullwidth
+    (ch == i32(0xFF01)) => true,
+    ((ch >= i32(0xFF05)) && (ch <= i32(0xFF0A))) => true,
+    ((ch >= i32(0xFF0C)) && (ch <= i32(0xFF0F))) => true,
+    ((ch >= i32(0xFF1A)) && (ch <= i32(0xFF1B))) => true,
+    ((ch >= i32(0xFF1F)) && (ch <= i32(0xFF20))) => true,
+    ((ch >= i32(0xFF3B)) && (ch <= i32(0xFF3D))) => true,
+    (ch == i32(0xFF3F)) => true,
+    (ch == i32(0xFF5B)) => true,
+    (ch == i32(0xFF5D)) => true,
+    ((ch >= i32(0xFF5F)) && (ch <= i32(0xFF65))) => true,
+    // Currency Symbols
+    ((ch >= i32(0x20A0)) && (ch <= i32(0x20CF))) => true,
+    // Math Symbols
+    ((ch >= i32(0x2200)) && (ch <= i32(0x22FF))) => true,
+    // Misc Symbols
+    ((ch >= i32(0x2300)) && (ch <= i32(0x23FF))) => true,
+    ((ch >= i32(0x2600)) && (ch <= i32(0x26FF))) => true,
+    ((ch >= i32(0x2700)) && (ch <= i32(0x27BF))) => true,
+    // Arrows
+    ((ch >= i32(0x2190)) && (ch <= i32(0x21FF))) => true,
+    // Box Drawing, Block Elements, Geometric Shapes
+    ((ch >= i32(0x2500)) && (ch <= i32(0x25FF))) => true,
+    // Modifier letters
+    ((ch >= i32(0x02C2)) && (ch <= i32(0x02C5))) => true,
+    ((ch >= i32(0x02D2)) && (ch <= i32(0x02DF))) => true,
+    ((ch >= i32(0x02E5)) && (ch <= i32(0x02EB))) => true,
+    (ch == i32(0x02ED)) => true,
+    ((ch >= i32(0x02EF)) && (ch <= i32(0x02FF))) => true,
+    true => false
+  )
+);
+
+// Check if byte is a markdown escape punctuation character
+is_md_punct_byte :: (fn(ch: u8) -> bool)(
+  cond(
+    ((ch >= u8(0x21)) && (ch <= u8(0x2F))) => true,
+    ((ch >= u8(0x3A)) && (ch <= u8(0x40))) => true,
+    ((ch >= u8(0x5B)) && (ch <= u8(0x60))) => true,
+    ((ch >= u8(0x7B)) && (ch <= u8(0x7E))) => true,
+    true => false
+  )
+);
+
+// ============================================================================
+// UTF-8 helpers
+// ============================================================================
+
+// Read a UTF-8 code point starting at src_ptr + offset.
+// Returns (codepoint, byte_length) where byte_length is 1-4.
+// If invalid, returns (0xFFFD, 1).
+read_utf8_codepoint :: (fn(src_ptr: *(u8), offset: i32, src_len: i32) -> i32)({
+  (b0 : i32) = i32((src_ptr &+ usize(offset)).*);
+  if((b0 < i32(0x80)), { return b0; });
+
+  if((((b0 >= i32(0xC0)) && (b0 < i32(0xE0))) && ((offset + i32(1)) < src_len)), {
+    (b1 : i32) = i32((src_ptr &+ usize((offset + i32(1)))).*);
+    return (((b0 - i32(0xC0)) * i32(64)) + (b1 - i32(0x80)));
+  });
+
+  if((((b0 >= i32(0xE0)) && (b0 < i32(0xF0))) && ((offset + i32(2)) < src_len)), {
+    (b1 : i32) = i32((src_ptr &+ usize((offset + i32(1)))).*);
+    (b2 : i32) = i32((src_ptr &+ usize((offset + i32(2)))).*);
+    return ((((b0 - i32(0xE0)) * i32(4096)) + ((b1 - i32(0x80)) * i32(64))) + (b2 - i32(0x80)));
+  });
+
+  if((((b0 >= i32(0xF0)) && (b0 < i32(0xF8))) && ((offset + i32(3)) < src_len)), {
+    (b1 : i32) = i32((src_ptr &+ usize((offset + i32(1)))).*);
+    (b2 : i32) = i32((src_ptr &+ usize((offset + i32(2)))).*);
+    (b3 : i32) = i32((src_ptr &+ usize((offset + i32(3)))).*);
+    return (((((b0 - i32(0xF0)) * i32(262144)) + ((b1 - i32(0x80)) * i32(4096))) + ((b2 - i32(0x80)) * i32(64))) + (b3 - i32(0x80)));
+  });
+
+  i32(0xFFFD)
+});
+
+// Get the byte length of a UTF-8 sequence starting with the given lead byte
+utf8_byte_len :: (fn(lead: u8) -> i32)(
+  cond(
+    (lead < u8(0x80)) => i32(1),
+    (lead < u8(0xC0)) => i32(1),
+    (lead < u8(0xE0)) => i32(2),
+    (lead < u8(0xF0)) => i32(3),
+    true => i32(4)
+  )
+);
+
+// ============================================================================
+// HTML escaping — append-to-buffer variant (zero allocation)
+// ============================================================================
+
+// Escape HTML special chars (&, <, >, ") from src bytes, append to out buffer.
+// Uses run-batch: memcpy safe runs, only stop for special chars.
+escape_html_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i32) -> unit)({
+  (i : i32) = start;
+  (run_start : i32) = start;
+
+  while (i < end), {
+    (ch : u8) = (src_ptr &+ usize(i)).*;
+    cond(
+      (ch == u8(0x26)) => {
+        if((i > run_start), {
+          out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
+        });
+        out.*.extend_from_ptr(*(u8)("&amp;"), usize(5));
+        run_start = (i + i32(1));
+      },
+      (ch == u8(0x3C)) => {
+        if((i > run_start), {
+          out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
+        });
+        out.*.extend_from_ptr(*(u8)("&lt;"), usize(4));
+        run_start = (i + i32(1));
+      },
+      (ch == u8(0x3E)) => {
+        if((i > run_start), {
+          out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
+        });
+        out.*.extend_from_ptr(*(u8)("&gt;"), usize(4));
+        run_start = (i + i32(1));
+      },
+      (ch == u8(0x22)) => {
+        if((i > run_start), {
+          out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
+        });
+        out.*.extend_from_ptr(*(u8)("&quot;"), usize(6));
+        run_start = (i + i32(1));
+      },
+      true => ()
+    );
+    i = (i + i32(1));
+  };
+  // Flush remaining
+  if((end > run_start), {
+    out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((end - run_start)));
+  });
+});
+
+// Append raw bytes from source to buffer (no escaping)
+append_raw_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i32) -> unit)(
+  if((end > start), {
+    out.*.extend_from_ptr((src_ptr &+ usize(start)), usize((end - start)));
+  })
+);
+
+// Append a literal string to the output buffer
+append_lit :: (fn(out: *(ArrayList(u8)), s: str) -> unit)(
+  out.*.extend_from_ptr(s.ptr(), s.len())
+);
+
+export is_space, is_white_space, is_md_ascii_punct, is_punct_char, is_md_punct_byte,
+       read_utf8_codepoint, utf8_byte_len,
+       escape_html_buf, append_raw_buf, append_lit;
