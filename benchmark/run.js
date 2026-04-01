@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// Benchmark harness: compares markdown-it (JS) vs markdown_yo (native).
+// Benchmark harness: compares markdown-it (JS) vs markdown_yo (native + WASM).
 //
 // Usage:
 //   node benchmark/run.js              # Run all benchmarks
 //   node benchmark/run.js --size 1M    # Run only 1M benchmark
 //   node benchmark/run.js --warmup 3 --iterations 10
+//   node benchmark/run.js --no-wasm    # Skip WASM benchmarks
 
 const fs = require('fs');
 const path = require('path');
@@ -20,10 +21,12 @@ const getArg = (name, defaultVal) => {
 const sizeFilter = getArg('--size', null);
 const WARMUP = parseInt(getArg('--warmup', '3'));
 const ITERATIONS = parseInt(getArg('--iterations', '10'));
+const skipWasm = args.includes('--no-wasm');
 
 // Paths
 const samplesDir = path.join(__dirname, 'samples');
 const nativeBin = path.join(__dirname, '..', 'yo-out', 'aarch64-macos', 'bin', 'markdown_yo');
+const wasmJs = path.join(__dirname, '..', 'yo-out', 'wasm32-emscripten', 'bin', 'markdown_yo_wasm.js');
 
 // Generate samples if missing
 if (!fs.existsSync(samplesDir) || fs.readdirSync(samplesDir).length === 0) {
@@ -36,6 +39,13 @@ if (!fs.existsSync(nativeBin)) {
   console.error(`Native binary not found at ${nativeBin}`);
   console.error('Build with: yo build');
   process.exit(1);
+}
+
+// Check WASM binary
+const hasWasm = !skipWasm && fs.existsSync(wasmJs);
+if (!skipWasm && !hasWasm) {
+  console.log('WASM binary not found — skipping WASM benchmarks.');
+  console.log(`Build with: yo build wasm\n`);
 }
 
 // Load markdown-it
@@ -83,13 +93,31 @@ function benchmarkNative(filePath, warmup, iterations) {
   for (let i = 0; i < warmup; i++) {
     execFileSync(nativeBin, [filePath], { stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 100 * 1024 * 1024 });
   }
-  // Measure (includes process startup overhead)
+  // Measure with --repeat to amortize process startup
+  const REPEAT = 20;
   const times = [];
   for (let i = 0; i < iterations; i++) {
     const start = process.hrtime.bigint();
-    execFileSync(nativeBin, [filePath], { stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 100 * 1024 * 1024 });
+    execFileSync(nativeBin, ['--repeat', String(REPEAT), filePath], { stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 100 * 1024 * 1024 });
     const end = process.hrtime.bigint();
-    times.push(Number(end - start) / 1e6); // ms
+    times.push(Number(end - start) / 1e6 / REPEAT); // ms per iteration
+  }
+  return times;
+}
+
+function benchmarkWasm(filePath, warmup, iterations) {
+  // Warmup
+  for (let i = 0; i < warmup; i++) {
+    execFileSync('node', [wasmJs, filePath], { stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 100 * 1024 * 1024 });
+  }
+  // Measure with --repeat to amortize WASM startup
+  const REPEAT = 20;
+  const times = [];
+  for (let i = 0; i < iterations; i++) {
+    const start = process.hrtime.bigint();
+    execFileSync('node', [wasmJs, '--repeat', String(REPEAT), filePath], { stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 100 * 1024 * 1024 });
+    const end = process.hrtime.bigint();
+    times.push(Number(end - start) / 1e6 / REPEAT); // ms per iteration
   }
   return times;
 }
@@ -116,46 +144,56 @@ for (const sample of samples) {
   const sizeKB = (content.length / 1024).toFixed(0);
   const sizeName = sample.replace('sample_', '').replace('.md', '');
 
-  process.stdout.write(`  ${sizeName.padEnd(6)} (${sizeKB} KB): `);
+  process.stdout.write(`  ${sizeName.padEnd(6)} (${sizeKB} KB):\n`);
 
   // JS benchmark
   const jsTimes = benchmarkJS(content, WARMUP, ITERATIONS);
   const jsStats = stats(jsTimes);
+  const jsSpeedup = '1.0';
+  process.stdout.write(`    JS       ${jsStats.median.toFixed(1).padStart(8)} ms  (baseline)\n`);
 
   // Native benchmark
   const nativeTimes = benchmarkNative(filePath, WARMUP, ITERATIONS);
   const nativeStats = stats(nativeTimes);
+  const nativeSpeedup = (jsStats.median / nativeStats.median).toFixed(1);
+  process.stdout.write(`    Native   ${nativeStats.median.toFixed(1).padStart(8)} ms  ${nativeSpeedup}×\n`);
 
-  const speedup = (jsStats.median / nativeStats.median).toFixed(1);
+  // WASM benchmark
+  let wasmStats = null;
+  let wasmSpeedup = null;
+  if (hasWasm) {
+    const wasmTimes = benchmarkWasm(filePath, WARMUP, ITERATIONS);
+    wasmStats = stats(wasmTimes);
+    wasmSpeedup = (jsStats.median / wasmStats.median).toFixed(1);
+    process.stdout.write(`    WASM     ${wasmStats.median.toFixed(1).padStart(8)} ms  ${wasmSpeedup}×\n`);
+  }
 
-  console.log(
-    `JS ${jsStats.median.toFixed(1)}ms  |  Native ${nativeStats.median.toFixed(1)}ms  |  ${speedup}× faster`
-  );
-
-  results.push({ sizeName, sizeKB, jsStats, nativeStats, speedup });
+  results.push({ sizeName, sizeKB, jsStats, nativeStats, wasmStats, nativeSpeedup, wasmSpeedup });
 }
 
 // Summary table
 console.log(`\n${'─'.repeat(72)}`);
 console.log('  Summary (median times):');
 console.log(`${'─'.repeat(72)}`);
-console.log(
-  '  ' +
-  'Size'.padEnd(8) +
-  'markdown-it (JS)'.padEnd(20) +
-  'markdown_yo'.padEnd(20) +
-  'Speedup'
-);
-console.log(`  ${'─'.repeat(56)}`);
+
+const hdr = '  ' + 'Size'.padEnd(8) + 'markdown-it (JS)'.padEnd(20) + 'Native'.padEnd(16) + 'Speedup'.padEnd(10);
+if (hasWasm) {
+  console.log(hdr + 'WASM'.padEnd(16) + 'Speedup');
+} else {
+  console.log(hdr);
+}
+console.log(`  ${'─'.repeat(hasWasm ? 68 : 52)}`);
 
 for (const r of results) {
-  console.log(
-    '  ' +
+  let line = '  ' +
     r.sizeName.padEnd(8) +
     `${r.jsStats.median.toFixed(1)} ms`.padEnd(20) +
-    `${r.nativeStats.median.toFixed(1)} ms`.padEnd(20) +
-    `${r.speedup}×`
-  );
+    `${r.nativeStats.median.toFixed(1)} ms`.padEnd(16) +
+    `${r.nativeSpeedup}×`.padEnd(10);
+  if (hasWasm && r.wasmStats) {
+    line += `${r.wasmStats.median.toFixed(1)} ms`.padEnd(16) + `${r.wasmSpeedup}×`;
+  }
+  console.log(line);
 }
 
 console.log(`${'═'.repeat(72)}\n`);

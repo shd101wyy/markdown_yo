@@ -71,7 +71,7 @@ _read_stdin :: (fn() -> String)({
   String.from_bytes(buf)
 });
 
-_HELP_TEXT :: "markdown_yo — Fast markdown to HTML converter\n\nUsage:\n  markdown_yo [options] <file>   Render file to stdout\n  cat file.md | markdown_yo -   Read from stdin\n\nOptions:\n  --html            Enable HTML tags in source\n  --typographer     Enable typographic replacements\n  --no-lang-prefix  Remove language prefix from fenced code blocks\n  --commonmark      Use CommonMark preset\n  -h, --help        Show this help\n";
+_HELP_TEXT :: "markdown_yo — Fast markdown to HTML converter\n\nUsage:\n  markdown_yo [options] <file>   Render file to stdout\n  cat file.md | markdown_yo -   Read from stdin\n\nOptions:\n  --html            Enable HTML tags in source\n  --typographer     Enable typographic replacements\n  --no-lang-prefix  Remove language prefix from fenced code blocks\n  --commonmark      Use CommonMark preset\n  --repeat N        Run N iterations, output timing to stderr\n  -h, --help        Show this help\n";
 
 main :: (fn() -> unit)({
   argv := args();
@@ -89,6 +89,7 @@ main :: (fn() -> unit)({
   (use_commonmark : bool) = false;
   (file_path : Option(String)) = .None;
   (read_from_stdin : bool) = false;
+  (repeat_count : i32) = i32(1);
 
   (ai : usize) = usize(1);
   while (ai < argv.len()), {
@@ -103,6 +104,13 @@ main :: (fn() -> unit)({
       (arg == `--typographer`) => { typographer_enabled = true; },
       (arg == `--no-lang-prefix`) => { no_lang_prefix = true; },
       (arg == `--commonmark`) => { use_commonmark = true; },
+      (arg == `--repeat`) => {
+        ai = (ai + usize(1));
+        if((ai < argv.len()), {
+          (nstr : String) = argv.get(ai).unwrap();
+          repeat_count = nstr.parse_i32().unwrap_or(i32(1));
+        });
+      },
       true => { file_path = .Some(arg); }
     );
     ai = (ai + usize(1));
@@ -120,14 +128,23 @@ main :: (fn() -> unit)({
     .Some(path) => {
       match(_read_file(path),
         .Some(content) => {
-          result := markdown_to_html(content, (&opts));
-          cstr := result.to_cstr();
-          match(cstr.ptr(),
-            .Some(p) => {
-              _ := fputs(*(char)(p), stdout);
-            },
-            .None => ()
-          );
+          if((repeat_count > i32(1)), {
+            // Benchmark mode: run N iterations silently (for external timing)
+            (ri : i32) = i32(0);
+            while (ri < repeat_count), {
+              result := markdown_to_html(content, (&opts));
+              ri = (ri + i32(1));
+            };
+          }, {
+            result := markdown_to_html(content, (&opts));
+            cstr := result.to_cstr();
+            match(cstr.ptr(),
+              .Some(p) => {
+                _ := fputs(*(char)(p), stdout);
+              },
+              .None => ()
+            );
+          });
         },
         .None => {
           _ := fputs(*(char)(*(u8)("Error: cannot open file\n")), stderr);
@@ -137,14 +154,22 @@ main :: (fn() -> unit)({
     .None => {
       if(read_from_stdin, {
         content := _read_stdin();
-        result := markdown_to_html(content, (&opts));
-        cstr := result.to_cstr();
-        match(cstr.ptr(),
-          .Some(p) => {
-            _ := fputs(*(char)(p), stdout);
-          },
-          .None => ()
-        );
+        if((repeat_count > i32(1)), {
+          (ri : i32) = i32(0);
+          while (ri < repeat_count), {
+            result := markdown_to_html(content, (&opts));
+            ri = (ri + i32(1));
+          };
+        }, {
+          result := markdown_to_html(content, (&opts));
+          cstr := result.to_cstr();
+          match(cstr.ptr(),
+            .Some(p) => {
+              _ := fputs(*(char)(p), stdout);
+            },
+            .None => ()
+          );
+        });
       }, {
         _ := fputs(*(char)(*(u8)(_HELP_TEXT)), stdout);
       });
