@@ -289,21 +289,111 @@ _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
   (last_was_space : bool) = true;
 
   while (p < end), {
-    (ch : i32) = i32((src &+ usize(p)).*);
-    if(is_space(ch), {
+    (b : u8) = (src &+ usize(p)).*;
+    (ch_byte : i32) = i32(b);
+    if((is_space(ch_byte) || (ch_byte == i32(0x0A))), {
       if(!(last_was_space), {
         _ := result.push(u8(0x20));
         last_was_space = true;
       });
+      p = (p + i32(1));
     }, {
-      (out_ch : i32) = cond(
-        ((ch >= i32(0x41)) && (ch <= i32(0x5A))) => (ch + i32(0x20)),
-        true => ch
-      );
-      _ := result.push(u8(out_ch));
       last_was_space = false;
+      // Decode UTF-8 to get codepoint
+      (cp : i32) = i32(0);
+      (bytes_consumed : i32) = i32(1);
+      if((ch_byte < i32(0x80)), {
+        cp = ch_byte;
+      }, if(((ch_byte >= i32(0xC0)) && (ch_byte < i32(0xE0))), {
+        if(((p + i32(1)) < end), {
+          cp = (((ch_byte - i32(0xC0)) * i32(64)) + (i32((src &+ usize((p + i32(1)))).*) - i32(0x80)));
+          bytes_consumed = i32(2);
+        }, { cp = ch_byte; });
+      }, if(((ch_byte >= i32(0xE0)) && (ch_byte < i32(0xF0))), {
+        if(((p + i32(2)) < end), {
+          cp = ((((ch_byte - i32(0xE0)) * i32(4096)) + ((i32((src &+ usize((p + i32(1)))).*) - i32(0x80)) * i32(64))) + (i32((src &+ usize((p + i32(2)))).*) - i32(0x80)));
+          bytes_consumed = i32(3);
+        }, { cp = ch_byte; });
+      }, if(((ch_byte >= i32(0xF0)) && (ch_byte < i32(0xF8))), {
+        if(((p + i32(3)) < end), {
+          cp = (((((ch_byte - i32(0xF0)) * i32(262144)) + ((i32((src &+ usize((p + i32(1)))).*) - i32(0x80)) * i32(4096))) + ((i32((src &+ usize((p + i32(2)))).*) - i32(0x80)) * i32(64))) + (i32((src &+ usize((p + i32(3)))).*) - i32(0x80)));
+          bytes_consumed = i32(4);
+        }, { cp = ch_byte; });
+      }, { cp = ch_byte; }))));
+
+      p = (p + bytes_consumed);
+
+      // Multi-char expansions
+      if((cp == i32(0x130)), {
+        // İ → I + combining dot above (0x49 + 0x0307)
+        _ := result.push(u8(0x49));
+        _ := result.push(u8(0xCC));
+        _ := result.push(u8(0x87));
+      }, if((cp == i32(0xDF)), {
+        _ := result.push(u8(0x53));
+        _ := result.push(u8(0x53));
+      }, if((cp == i32(0x1E9E)), {
+        _ := result.push(u8(0x53));
+        _ := result.push(u8(0x53));
+      }, if((cp == i32(0xFB00)), {
+        _ := result.push(u8(0x46));
+        _ := result.push(u8(0x46));
+      }, if((cp == i32(0xFB01)), {
+        _ := result.push(u8(0x46));
+        _ := result.push(u8(0x49));
+      }, if((cp == i32(0xFB02)), {
+        _ := result.push(u8(0x46));
+        _ := result.push(u8(0x4C));
+      }, if((cp == i32(0xFB03)), {
+        _ := result.push(u8(0x46));
+        _ := result.push(u8(0x46));
+        _ := result.push(u8(0x49));
+      }, if((cp == i32(0xFB04)), {
+        _ := result.push(u8(0x46));
+        _ := result.push(u8(0x46));
+        _ := result.push(u8(0x4C));
+      }, if((cp == i32(0xFB05)), {
+        _ := result.push(u8(0x53));
+        _ := result.push(u8(0x54));
+      }, if((cp == i32(0xFB06)), {
+        _ := result.push(u8(0x53));
+        _ := result.push(u8(0x54));
+      }, {
+        // Single-char case mappings
+        (upper : i32) = cond(
+          ((cp >= i32(0x61)) && (cp <= i32(0x7A))) => (cp - i32(0x20)),
+          ((cp >= i32(0xE0)) && (cp <= i32(0xF6))) => (cp - i32(0x20)),
+          ((cp >= i32(0xF8)) && (cp <= i32(0xFE))) => (cp - i32(0x20)),
+          ((cp >= i32(0x3B1)) && (cp <= i32(0x3C1))) => (cp - i32(0x20)),
+          ((cp >= i32(0x3C3)) && (cp <= i32(0x3C9))) => (cp - i32(0x20)),
+          (cp == i32(0x3C2)) => i32(0x3A3),
+          (cp == i32(0x3D1)) => i32(0x398),
+          (cp == i32(0x3F4)) => i32(0x398),
+          (cp == i32(0x3D5)) => i32(0x3A6),
+          (cp == i32(0x3D6)) => i32(0x3A0),
+          (cp == i32(0x3F5)) => i32(0x395),
+          (cp == i32(0x2126)) => i32(0x3A9),
+          (cp == i32(0x212A)) => i32(0x4B),
+          (cp == i32(0x212B)) => i32(0xC5),
+          true => cp
+        );
+        if((upper < i32(0x80)), {
+          _ := result.push(u8(upper));
+        }, if((upper < i32(0x800)), {
+          _ := result.push(u8((i32(0xC0) + (upper / i32(64)))));
+          _ := result.push(u8((i32(0x80) + (upper % i32(64)))));
+        }, if((upper < i32(0x10000)), {
+          _ := result.push(u8((i32(0xE0) + (upper / i32(4096)))));
+          _ := result.push(u8((i32(0x80) + ((upper / i32(64)) % i32(64)))));
+          _ := result.push(u8((i32(0x80) + (upper % i32(64)))));
+        }, {
+          _ := result.push(u8((i32(0xF0) + (upper / i32(262144)))));
+          _ := result.push(u8((i32(0x80) + ((upper / i32(4096)) % i32(64)))));
+          _ := result.push(u8((i32(0x80) + ((upper / i32(64)) % i32(64)))));
+          _ := result.push(u8((i32(0x80) + (upper % i32(64)))));
+        })));
+      }))))))))));
     });
-    p = (p + i32(1));
   };
   // Trim trailing space
   if(((result._length > usize(0)) && (result.get_unchecked((result._length - usize(1))) == u8(0x20))), {
