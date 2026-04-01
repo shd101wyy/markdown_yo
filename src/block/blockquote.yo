@@ -121,6 +121,12 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
         // Lazy continuation: check terminators (inline to avoid circular import)
         (terminated : bool) = false;
         if(!(terminated), { if(block_fence(state, next_line, end_line, true), { terminated = true; }); });
+        if(!(terminated), {
+          // Self-terminator: check if a new blockquote could start here
+          if(((npos < nem) && ((i32((state.*.src_ptr &+ usize(npos)).*) == i32(0x3E)) && ((nsc - state.*.blk_indent) < i32(4)))), {
+            terminated = true;
+          });
+        });
         if(!(terminated), { if(block_hr(state, next_line, end_line, true), { terminated = true; }); });
         if(!(terminated), { if(block_list(state, next_line, end_line, true), { terminated = true; }); });
         if(!(terminated), { if((state.*.options.*.html && block_html(state, next_line, end_line, true)), { terminated = true; }); });

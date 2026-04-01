@@ -171,10 +171,7 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
       (ch : u8) = (state.*.src_ptr &+ usize(first)).*;
       if((ch == u8(0x09)), {
         col = (col + (i32(4) - ((col + state.*.bs_count.get_unchecked(usize(cl))) % i32(4))));
-        // Only advance past tab if fully consumed
-        if((col <= fence_indent), {
-          first = (first + i32(1));
-        });
+        first = (first + i32(1));
       }, if((ch == u8(0x20)), {
         col = (col + i32(1));
         first = (first + i32(1));
