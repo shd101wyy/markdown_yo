@@ -1,11 +1,21 @@
 // markdown_yo — Inline autolink rule
 //
-// Matches: <http://...>, <https://...>, <email@domain.com>
+// Matches: <protocol:...> (URI autolinks) and <email@domain.com> (email autolinks)
+// URI: scheme must be [a-zA-Z][a-zA-Z0-9+.-]{1,31} followed by ':'
+// Email: validated against CommonMark email pattern
 
 { InlineState, InlineToken } :: import "./state.yo";
 { is_space } :: import "../common/utils.yo";
+open import "std/string";
+open import "std/collections/array_list";
 
-// Check if character is valid in URI scheme
+// Check if character is a letter (a-z, A-Z)
+_is_letter :: (fn(ch: i32) -> bool)(
+  (((ch >= i32(0x41)) && (ch <= i32(0x5A))) ||
+   ((ch >= i32(0x61)) && (ch <= i32(0x7A))))
+);
+
+// Check if character is valid in URI scheme (after first letter)
 _is_scheme_char :: (fn(ch: i32) -> bool)(
   (((ch >= i32(0x41)) && (ch <= i32(0x5A))) ||
   (((ch >= i32(0x61)) && (ch <= i32(0x7A))) ||
@@ -13,19 +23,42 @@ _is_scheme_char :: (fn(ch: i32) -> bool)(
   ((ch == i32(0x2E)) || ((ch == i32(0x2B)) || (ch == i32(0x2D)))))))
 );
 
+// Check if character is valid in email local part: [a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]
+_is_email_local_char :: (fn(ch: i32) -> bool)(
+  (((ch >= i32(0x41)) && (ch <= i32(0x5A))) ||
+  (((ch >= i32(0x61)) && (ch <= i32(0x7A))) ||
+  (((ch >= i32(0x30)) && (ch <= i32(0x39))) ||
+  ((ch == i32(0x2E)) || ((ch == i32(0x21)) || ((ch == i32(0x23)) ||
+  ((ch == i32(0x24)) || ((ch == i32(0x25)) || ((ch == i32(0x26)) ||
+  ((ch == i32(0x27)) || ((ch == i32(0x2A)) || ((ch == i32(0x2B)) ||
+  ((ch == i32(0x2F)) || ((ch == i32(0x3D)) || ((ch == i32(0x3F)) ||
+  ((ch == i32(0x5E)) || ((ch == i32(0x5F)) || ((ch == i32(0x60)) ||
+  ((ch == i32(0x7B)) || ((ch == i32(0x7C)) || ((ch == i32(0x7D)) ||
+  ((ch == i32(0x7E)) || (ch == i32(0x2D)))))))))))))))))))))))
+);
+
+// Check if character is valid in email domain: [a-zA-Z0-9-]
+_is_email_domain_char :: (fn(ch: i32) -> bool)(
+  (((ch >= i32(0x41)) && (ch <= i32(0x5A))) ||
+  (((ch >= i32(0x61)) && (ch <= i32(0x7A))) ||
+  (((ch >= i32(0x30)) && (ch <= i32(0x39))) ||
+  (ch == i32(0x2D)))))
+);
+
 inline_autolink :: (fn(state: *(InlineState)) -> bool)({
   (pos : i32) = state.*.pos;
+  (max : i32) = state.*.pos_max;
   if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x3C)), { return false; });
 
   // Find closing >
   (p : i32) = (pos + i32(1));
   (found_close : bool) = false;
-  while ((p < state.*.pos_max) && !(found_close)), {
+  while ((p < max) && !(found_close)), {
     (ch : i32) = i32((state.*.src_ptr &+ usize(p)).*);
     if((ch == i32(0x3E)), {
       found_close = true;
     }, {
-      if((is_space(ch) || (ch == i32(0x3C))), {
+      if(((ch == i32(0x3C)) || (ch <= i32(0x20))), {
         return false;
       });
       p = (p + i32(1));
@@ -37,47 +70,113 @@ inline_autolink :: (fn(state: *(InlineState)) -> bool)({
   // Content is between < and >
   (content_start : i32) = (pos + i32(1));
   (content_end : i32) = p;
+  (content_len : i32) = (content_end - content_start);
+  if((content_len == i32(0)), { return false; });
 
-  // Check for URI scheme: scheme://...
+  // Check for URI autolink: [a-zA-Z][a-zA-Z0-9+.-]{1,31}:[^ <>]*
   (is_uri : bool) = false;
-  (sp : i32) = content_start;
-  while ((sp < content_end) && _is_scheme_char(i32((state.*.src_ptr &+ usize(sp)).*))) , {
-    sp = (sp + i32(1));
-  };
-
-  // Need at least 2 scheme chars followed by ://
-  if((((sp - content_start) >= i32(2)) && ((sp + i32(2)) < content_end)), {
-    if(((i32((state.*.src_ptr &+ usize(sp)).*) == i32(0x3A)) &&
-       ((i32((state.*.src_ptr &+ usize((sp + i32(1)))).*) == i32(0x2F)) &&
-        (i32((state.*.src_ptr &+ usize((sp + i32(2)))).*) == i32(0x2F)))), {
-      is_uri = true;
+  (first_ch : i32) = i32((state.*.src_ptr &+ usize(content_start)).*);
+  if(_is_letter(first_ch), {
+    (sp : i32) = (content_start + i32(1));
+    while ((sp < content_end) && _is_scheme_char(i32((state.*.src_ptr &+ usize(sp)).*))) , {
+      sp = (sp + i32(1));
+    };
+    (scheme_len : i32) = (sp - content_start);
+    // Scheme must be 2-32 chars, followed by ':'
+    if(((scheme_len >= i32(2)) && ((scheme_len <= i32(32)) && (sp < content_end))), {
+      if((i32((state.*.src_ptr &+ usize(sp)).*) == i32(0x3A)), {
+        // Validate rest has no spaces (already checked above, but also no 0x00-0x20)
+        is_uri = true;
+      });
     });
   });
 
-  // Check for email: contains @ and no spaces
-  (is_email : bool) = false;
+  // Check for email autolink — build mailto href inline if valid
+  (email_href : String) = ``;
   if(!(is_uri), {
+    // Find @ position
+    (at_pos : i32) = i32(-1);
     (ep : i32) = content_start;
-    (has_at : bool) = false;
-    (valid : bool) = true;
-    while ((ep < content_end) && valid), {
-      (ech : i32) = i32((state.*.src_ptr &+ usize(ep)).*);
-      if((ech == i32(0x40)), {
-        has_at = true;
+    while (ep < content_end), {
+      if((i32((state.*.src_ptr &+ usize(ep)).*) == i32(0x40)), {
+        at_pos = ep;
       });
-      if(is_space(ech), { valid = false; });
       ep = (ep + i32(1));
     };
-    if((has_at && valid), {
-      is_email = true;
+
+    if(((at_pos > content_start) && (at_pos < (content_end - i32(1)))), {
+      // Validate local part: [a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+
+      (local_valid : bool) = true;
+      (lp : i32) = content_start;
+      while ((lp < at_pos) && local_valid), {
+        if(!(_is_email_local_char(i32((state.*.src_ptr &+ usize(lp)).*))), {
+          local_valid = false;
+        });
+        lp = (lp + i32(1));
+      };
+
+      // Validate domain
+      (domain_valid : bool) = local_valid;
+      (has_dot : bool) = false;
+      if(domain_valid, {
+        (dp : i32) = (at_pos + i32(1));
+        // Must start with alphanumeric
+        if((!(_is_email_domain_char(i32((state.*.src_ptr &+ usize(dp)).*))) ||
+            (i32((state.*.src_ptr &+ usize(dp)).*) == i32(0x2D))), {
+          domain_valid = false;
+        });
+        while ((dp < content_end) && domain_valid), {
+          (dc : i32) = i32((state.*.src_ptr &+ usize(dp)).*);
+          if((dc == i32(0x2E)), {
+            has_dot = true;
+            // Next char after dot must be alphanumeric (not hyphen)
+            if(((dp + i32(1)) >= content_end), {
+              domain_valid = false;
+            }, {
+              (next : i32) = i32((state.*.src_ptr &+ usize((dp + i32(1)))).*);
+              if((!(_is_email_domain_char(next)) || (next == i32(0x2D))), {
+                domain_valid = false;
+              });
+            });
+          }, {
+            if(!(_is_email_domain_char(dc)), {
+              domain_valid = false;
+            });
+          });
+          dp = (dp + i32(1));
+        };
+        // Last char must not be hyphen
+        if(domain_valid, {
+          (last : i32) = i32((state.*.src_ptr &+ usize((content_end - i32(1)))).*);
+          if((last == i32(0x2D)), {
+            domain_valid = false;
+          });
+        });
+        // If valid email, build mailto: href right here
+        if((domain_valid && has_dot), {
+          (buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize((content_len + i32(7))));
+          buf.extend_from_ptr(*(u8)("mailto:"), usize(7));
+          buf.extend_from_ptr((state.*.src_ptr &+ usize(content_start)), usize(content_len));
+          email_href = String.from_bytes(buf);
+        });
+      });
     });
   });
 
+  (is_email : bool) = (email_href.len() > usize(0));
   if((!(is_uri) && !(is_email)), { return false; });
+
+  // Build the href String for URI autolinks (raw content, no backslash processing)
+  (link_href : String) = email_href;
+  if((is_uri && !(is_email)), {
+    (buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(content_len));
+    buf.extend_from_ptr((state.*.src_ptr &+ usize(content_start)), usize(content_len));
+    link_href = String.from_bytes(buf);
+  });
 
   state.*.push_pending();
 
-  // Emit link open + text + link close
+  // Emit link open
   (tok : InlineToken) = InlineToken(
     type_name: .LinkOpen,
     start: content_start, end: content_end,
@@ -85,7 +184,7 @@ inline_autolink :: (fn(state: *(InlineState)) -> bool)({
     info_start: content_start, info_end: content_end,
     title_start: i32(0), title_end: i32(0),
     markup_char: u8(0x3C), markup_len: u8(0),
-    content: ``, href: ``, title: ``,
+    content: ``, href: link_href, title: ``,
     block: false, hidden: false
   );
   _ := state.*.tokens.push(tok);

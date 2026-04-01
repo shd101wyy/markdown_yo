@@ -40,4 +40,16 @@ _try_block_terminate :: (fn(state: *(BlockState), line: i32, end_line: i32) -> b
   false
 });
 
-export _try_block_terminate;
+// Check if a rule that can terminate a list matches at the given line.
+// These are rules whose alt chains include 'list' in markdown-it:
+// fence, blockquote, hr, html_block, heading
+_try_list_terminate :: (fn(state: *(BlockState), line: i32, end_line: i32) -> bool)({
+  if(block_fence(state, line, end_line, true), { return true; });
+  if((block_blockquote(state, line, end_line, true) > i32(0)), { return true; });
+  if(block_hr(state, line, end_line, true), { return true; });
+  if((state.*.options.*.html && block_html(state, line, end_line, true)), { return true; });
+  if(block_heading(state, line, end_line, true), { return true; });
+  false
+});
+
+export _try_block_terminate, _try_list_terminate;

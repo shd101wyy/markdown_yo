@@ -1,6 +1,7 @@
-// markdown_yo — Link reference definition rule
+// markdown_yo — Link reference definition rule (multiline)
 //
 // Matches: [label]: destination "title"
+// Labels, destinations, and titles can span multiple lines.
 // Stores references in env for later use by inline parser.
 
 open import "std/string";
@@ -8,8 +9,10 @@ open import "std/string";
 { BlockState } :: import "./state.yo";
 { is_space } :: import "../common/utils.yo";
 { Reference } :: import "../types.yo";
+{ _try_block_terminate } :: import "./terminators.yo";
 
 // Normalize a reference label: trim, collapse whitespace, lowercase ASCII
+// Also treats newlines as whitespace (for multiline labels)
 _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
   (result : ArrayList(u8)) = ArrayList(u8).new();
   (p : i32) = start;
@@ -17,7 +20,7 @@ _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
 
   while (p < end), {
     (ch : i32) = i32((src &+ usize(p)).*);
-    if(is_space(ch), {
+    if((is_space(ch) || (ch == i32(0x0A))), {
       if(!(last_was_space), {
         _ := result.push(u8(0x20));
         last_was_space = true;
@@ -42,113 +45,274 @@ _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
   String.from_bytes(result)
 });
 
-// Create a String from a byte range
-_slice_to_string :: (fn(src: *(u8), start: i32, end: i32) -> String)({
+// Unescape a byte range: handle backslash escapes and HTML entity decoding
+// This is a simplified version for reference dests/titles
+_unescape_range :: (fn(src: *(u8), start: i32, end: i32) -> String)({
   (result : ArrayList(u8)) = ArrayList(u8).new();
   (p : i32) = start;
+
   while (p < end), {
-    _ := result.push((src &+ usize(p)).*);
-    p = (p + i32(1));
+    (ch : u8) = (src &+ usize(p)).*;
+    if(((ch == u8(0x5C)) && ((p + i32(1)) < end)), {
+      (next : u8) = (src &+ usize((p + i32(1)))).*;
+      // Check if next is an ASCII punctuation character
+      if((((next >= u8(0x21)) && (next <= u8(0x2F)))
+        || ((next >= u8(0x3A)) && (next <= u8(0x40)))
+        || ((next >= u8(0x5B)) && (next <= u8(0x60)))
+        || ((next >= u8(0x7B)) && (next <= u8(0x7E)))), {
+        _ := result.push(next);
+        p = (p + i32(2));
+      }, {
+        _ := result.push(ch);
+        p = (p + i32(1));
+      });
+    }, {
+      _ := result.push(ch);
+      p = (p + i32(1));
+    });
   };
+
   String.from_bytes(result)
 });
 
 block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+  (src : *(u8)) = state.*.src_ptr;
   (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
   (ts : i32) = state.*.t_shift.get_unchecked(usize(start_line));
   (em : i32) = state.*.e_marks.get_unchecked(usize(start_line));
-  (pos : i32) = (bm + ts);
+  (next_line : i32) = (start_line + i32(1));
+  (end_l : i32) = state.*.line_max;
 
   // Must not be indented >3 spaces
-  if((state.*.s_count.get_unchecked(usize(start_line)) >= i32(4)), { return false; });
+  if(((state.*.s_count.get_unchecked(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return false; });
 
-  // Must start with [
-  if((pos >= em), { return false; });
-  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x5B)), { return false; });
+  (initial_pos : i32) = (bm + ts);
+  if((initial_pos >= em), { return false; });
+  if((i32((src &+ usize(initial_pos)).*) != i32(0x5B)), { return false; });
 
-  // Quick check: line must contain ]:
-  (has_colon : bool) = false;
-  (cp : i32) = (pos + i32(1));
-  while (cp < em), {
-    (ch : i32) = i32((state.*.src_ptr &+ usize(cp)).*);
-    if((((ch == i32(0x5D)) && ((cp + i32(1)) < em)) && (i32((state.*.src_ptr &+ usize((cp + i32(1)))).*) == i32(0x3A))), {
-      has_colon = true;
-      cp = em;
-    });
-    cp = (cp + i32(1));
+  // Build concatenated string buffer (like markdown-it)
+  // Each line is appended as: content from tShift to eMarks + newline
+  (str_buf : ArrayList(u8)) = ArrayList(u8).new();
+  {
+    (p : i32) = initial_pos;
+    (copy_end : i32) = cond(
+      (em < state.*.src_len) => (em + i32(1)),
+      true => em
+    );
+    while (p < copy_end), {
+      _ := str_buf.push((src &+ usize(p)).*);
+      p = (p + i32(1));
+    };
   };
-  if(!(has_colon), { return false; });
 
-  // Parse label: [label]
-  pos = (pos + i32(1));
-  (label_start : i32) = pos;
-  (label_end : i32) = pos;
-  (found_label : bool) = false;
+  (pos : i32) = i32(0);
+  (max : i32) = i32(str_buf.len());
 
-  while ((pos < em) && !(found_label)), {
-    (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+  // Helper: try to get next line and append to str_buf
+  // Returns true if extension succeeded, false otherwise
+  // Inline the getNextLine logic from markdown-it
+  // _try_extend checks: not past end, not empty, lazy continuation / blockquote quirk, terminator rules
+  // On success: appends content to str_buf, updates max, increments next_line
+
+  // ---- Parse label ----
+  pos = i32(1); // skip [
+  (label_end : i32) = i32(-1);
+
+  (label_scan_done : bool) = false;
+  while ((pos < max) && !(label_scan_done)), {
+    (s_ptr : *(u8)) = str_buf.ptr().unwrap_or(src);
+    (ch : i32) = i32((s_ptr &+ usize(pos)).*);
     cond(
       (ch == i32(0x5B)) => { return false; },
       (ch == i32(0x5D)) => {
         label_end = pos;
-        found_label = true;
+        label_scan_done = true;
       },
-      (ch == i32(0x5C)) => { pos = (pos + i32(1)); },
+      (ch == i32(0x0A)) => {
+        // Try to extend to next line
+        if(((next_line < end_l) && !(state.*.is_empty(next_line))), {
+          (is_cont : bool) = false;
+          if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+            is_cont = true;
+          });
+          if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+            is_cont = true;
+          });
+          if((!(is_cont) && _try_block_terminate(state, next_line, end_l)), {
+            // terminated, don't extend
+            ()
+          }, {
+            // Extend: append next line content
+            (nl_bm : i32) = state.*.b_marks.get_unchecked(usize(next_line));
+            (nl_ts : i32) = state.*.t_shift.get_unchecked(usize(next_line));
+            (nl_em : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+            (np : i32) = (nl_bm + nl_ts);
+            (nl_copy_end : i32) = cond(
+              (nl_em < state.*.src_len) => (nl_em + i32(1)),
+              true => nl_em
+            );
+            while (np < nl_copy_end), {
+              _ := str_buf.push((src &+ usize(np)).*);
+              np = (np + i32(1));
+            };
+            max = i32(str_buf.len());
+            next_line = (next_line + i32(1));
+          });
+        });
+      },
+      (ch == i32(0x5C)) => {
+        pos = (pos + i32(1));
+        if((pos < max), {
+          (s2 : *(u8)) = str_buf.ptr().unwrap_or(src);
+          if((i32((s2 &+ usize(pos)).*) == i32(0x0A)), {
+            // Escaped newline: try to extend
+            if(((next_line < end_l) && !(state.*.is_empty(next_line))), {
+              (is_cont2 : bool) = false;
+              if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+                is_cont2 = true;
+              });
+              if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+                is_cont2 = true;
+              });
+              if((!(is_cont2) && _try_block_terminate(state, next_line, end_l)), {
+                ()
+              }, {
+                (nl_bm2 : i32) = state.*.b_marks.get_unchecked(usize(next_line));
+                (nl_ts2 : i32) = state.*.t_shift.get_unchecked(usize(next_line));
+                (nl_em2 : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+                (np2 : i32) = (nl_bm2 + nl_ts2);
+                (nl_ce2 : i32) = cond(
+                  (nl_em2 < state.*.src_len) => (nl_em2 + i32(1)),
+                  true => nl_em2
+                );
+                while (np2 < nl_ce2), {
+                  _ := str_buf.push((src &+ usize(np2)).*);
+                  np2 = (np2 + i32(1));
+                };
+                max = i32(str_buf.len());
+                next_line = (next_line + i32(1));
+              });
+            });
+          });
+        });
+      },
       true => ()
     );
-    pos = (pos + i32(1));
+    if(!(label_scan_done), { pos = (pos + i32(1)); });
   };
 
-  if(!(found_label), { return false; });
+  if((label_end < i32(0)), { return false; });
 
-  // Must be followed by :
-  if(((pos >= em) || (i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x3A))), { return false; });
+  // Check for : after ]
+  (s_ptr : *(u8)) = str_buf.ptr().unwrap_or(src);
+  pos = (label_end + i32(1));
+  if(((pos >= max) || (i32((s_ptr &+ usize(pos)).*) != i32(0x3A))), { return false; });
   pos = (pos + i32(1));
 
-  // Skip spaces after :
-  while ((pos < em) && is_space(i32((state.*.src_ptr &+ usize(pos)).*))) , {
-    pos = (pos + i32(1));
+  // ---- Skip whitespace (including newlines → extend) ----
+  (ws1_done : bool) = false;
+  while ((pos < max) && !(ws1_done)), {
+    s_ptr = str_buf.ptr().unwrap_or(src);
+    (ch : i32) = i32((s_ptr &+ usize(pos)).*);
+    if((ch == i32(0x0A)), {
+      // Try to extend
+      if(((next_line < end_l) && !(state.*.is_empty(next_line))), {
+        (is_cont3 : bool) = false;
+        if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+          is_cont3 = true;
+        });
+        if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+          is_cont3 = true;
+        });
+        if((!(is_cont3) && _try_block_terminate(state, next_line, end_l)), {
+          ws1_done = true;
+        }, {
+          (nl_bm3 : i32) = state.*.b_marks.get_unchecked(usize(next_line));
+          (nl_ts3 : i32) = state.*.t_shift.get_unchecked(usize(next_line));
+          (nl_em3 : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+          (np3 : i32) = (nl_bm3 + nl_ts3);
+          (nl_ce3 : i32) = cond(
+            (nl_em3 < state.*.src_len) => (nl_em3 + i32(1)),
+            true => nl_em3
+          );
+          while (np3 < nl_ce3), {
+            _ := str_buf.push((src &+ usize(np3)).*);
+            np3 = (np3 + i32(1));
+          };
+          max = i32(str_buf.len());
+          next_line = (next_line + i32(1));
+          pos = (pos + i32(1));
+        });
+      }, {
+        ws1_done = true;
+      });
+    }, if(is_space(ch), {
+      pos = (pos + i32(1));
+    }, {
+      ws1_done = true;
+    }));
   };
 
-  // Parse destination
+  // ---- Parse destination ----
+  s_ptr = str_buf.ptr().unwrap_or(src);
   (dest_start : i32) = pos;
   (dest_end : i32) = pos;
+  (dest_ok : bool) = false;
 
-  if(((pos < em) && (i32((state.*.src_ptr &+ usize(pos)).*) == i32(0x3C))), {
-    // <url> form
+  if(((pos < max) && (i32((s_ptr &+ usize(pos)).*) == i32(0x3C))), {
+    // <...> angle bracket form
     pos = (pos + i32(1));
     dest_start = pos;
     (found_close : bool) = false;
-    while ((pos < em) && !(found_close)), {
-      (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
-      if((ch == i32(0x3E)), {
-        dest_end = pos;
-        found_close = true;
-      }, {
-        if((ch == i32(0x0A)), { return false; });
-      });
+    while ((pos < max) && !(found_close)), {
+      s_ptr = str_buf.ptr().unwrap_or(src);
+      (c : i32) = i32((s_ptr &+ usize(pos)).*);
+      cond(
+        (c == i32(0x0A)) => { return false; },
+        (c == i32(0x3C)) => { return false; },
+        (c == i32(0x3E)) => {
+          dest_end = pos;
+          found_close = true;
+        },
+        (c == i32(0x5C)) => {
+          pos = (pos + i32(1));
+          if((pos >= max), { return false; });
+        },
+        true => ()
+      );
       pos = (pos + i32(1));
     };
     if(!(found_close), { return false; });
+    dest_ok = true;
   }, {
-    // Bare URL (no spaces, balanced parens)
-    (paren_depth : i32) = i32(0);
+    // Bare URL (no spaces, balanced parens, reject control chars)
+    (level : i32) = i32(0);
     dest_start = pos;
     (scanning : bool) = true;
-    while ((pos < em) && scanning), {
-      (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+    while ((pos < max) && scanning), {
+      s_ptr = str_buf.ptr().unwrap_or(src);
+      (c : i32) = i32((s_ptr &+ usize(pos)).*);
       cond(
-        is_space(ch) => { scanning = false; },
-        (ch == i32(0x28)) => {
-          paren_depth = (paren_depth + i32(1));
-          if((paren_depth > i32(32)), { return false; });
+        (c == i32(0x20)) => { scanning = false; },
+        ((c < i32(0x20)) || (c == i32(0x7F))) => { scanning = false; },
+        (c == i32(0x5C)) => {
           pos = (pos + i32(1));
-        },
-        (ch == i32(0x29)) => {
-          if((paren_depth == i32(0)), {
+          if(((pos < max) && (i32((str_buf.ptr().unwrap_or(src) &+ usize(pos)).*) == i32(0x20))), {
             scanning = false;
           }, {
-            paren_depth = (paren_depth - i32(1));
+            pos = (pos + i32(1));
+          });
+        },
+        (c == i32(0x28)) => {
+          level = (level + i32(1));
+          if((level > i32(32)), { return false; });
+          pos = (pos + i32(1));
+        },
+        (c == i32(0x29)) => {
+          if((level == i32(0)), {
+            scanning = false;
+          }, {
+            level = (level - i32(1));
             pos = (pos + i32(1));
           });
         },
@@ -156,76 +320,202 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
       );
     };
     dest_end = pos;
+    if((dest_start == dest_end), { return false; });
+    if((level != i32(0)), { return false; });
+    dest_ok = true;
   });
 
-  if((dest_start == dest_end), { return false; });
+  if(!(dest_ok), { return false; });
 
-  // Skip spaces
-  while ((pos < em) && is_space(i32((state.*.src_ptr &+ usize(pos)).*))) , {
-    pos = (pos + i32(1));
+  // Save rollback state
+  (dest_end_pos : i32) = pos;
+  (dest_end_line_no : i32) = next_line;
+
+  // ---- Skip whitespace before title (including newlines → extend) ----
+  (ws_start : i32) = pos;
+  (ws2_done : bool) = false;
+  while ((pos < max) && !(ws2_done)), {
+    s_ptr = str_buf.ptr().unwrap_or(src);
+    (ch : i32) = i32((s_ptr &+ usize(pos)).*);
+    if((ch == i32(0x0A)), {
+      if(((next_line < end_l) && !(state.*.is_empty(next_line))), {
+        (is_cont4 : bool) = false;
+        if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+          is_cont4 = true;
+        });
+        if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+          is_cont4 = true;
+        });
+        if((!(is_cont4) && _try_block_terminate(state, next_line, end_l)), {
+          ws2_done = true;
+        }, {
+          (nl_bm4 : i32) = state.*.b_marks.get_unchecked(usize(next_line));
+          (nl_ts4 : i32) = state.*.t_shift.get_unchecked(usize(next_line));
+          (nl_em4 : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+          (np4 : i32) = (nl_bm4 + nl_ts4);
+          (nl_ce4 : i32) = cond(
+            (nl_em4 < state.*.src_len) => (nl_em4 + i32(1)),
+            true => nl_em4
+          );
+          while (np4 < nl_ce4), {
+            _ := str_buf.push((src &+ usize(np4)).*);
+            np4 = (np4 + i32(1));
+          };
+          max = i32(str_buf.len());
+          next_line = (next_line + i32(1));
+          pos = (pos + i32(1));
+        });
+      }, {
+        ws2_done = true;
+      });
+    }, if(is_space(ch), {
+      pos = (pos + i32(1));
+    }, {
+      ws2_done = true;
+    }));
   };
 
-  // Parse optional title
+  // ---- Parse title (multiline with can_continue) ----
   (title_start : i32) = i32(0);
   (title_end : i32) = i32(0);
   (has_title : bool) = false;
+  (title_marker : i32) = i32(0);
 
-  if((pos < em), {
-    (title_marker : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
-    if(((title_marker == i32(0x22)) || ((title_marker == i32(0x27)) || (title_marker == i32(0x28)))), {
-      (close_marker : i32) = cond(
-        (title_marker == i32(0x28)) => i32(0x29),
-        true => title_marker
+  // Only parse title if at least one whitespace was consumed after destination
+  if(((pos < max) && (pos != ws_start)), {
+    s_ptr = str_buf.ptr().unwrap_or(src);
+    (tm : i32) = i32((s_ptr &+ usize(pos)).*);
+    if(((tm == i32(0x22)) || ((tm == i32(0x27)) || (tm == i32(0x28)))), {
+      title_marker = cond(
+        (tm == i32(0x28)) => i32(0x29),
+        true => tm
       );
       pos = (pos + i32(1));
       title_start = pos;
 
-      (found_title_end : bool) = false;
-      while ((pos < em) && !(found_title_end)), {
-        (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
-        if((ch == close_marker), {
-          title_end = pos;
-          found_title_end = true;
-        }, {
-          if((ch == i32(0x5C)), {
+      // Scan for closing marker (multiline: extend on newline)
+      (title_scan_done : bool) = false;
+      while ((pos < max) && !(title_scan_done)), {
+        s_ptr = str_buf.ptr().unwrap_or(src);
+        (c : i32) = i32((s_ptr &+ usize(pos)).*);
+        cond(
+          (c == title_marker) => {
+            title_end = pos;
+            has_title = true;
+            title_scan_done = true;
             pos = (pos + i32(1));
-          });
-        });
-        pos = (pos + i32(1));
+          },
+          ((c == i32(0x28)) && (title_marker == i32(0x29))) => {
+            // ( inside (...) title is invalid
+            title_scan_done = true;
+          },
+          (c == i32(0x0A)) => {
+            // Try to extend for multiline title
+            if(((next_line < end_l) && !(state.*.is_empty(next_line))), {
+              (is_cont5 : bool) = false;
+              if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+                is_cont5 = true;
+              });
+              if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+                is_cont5 = true;
+              });
+              if((!(is_cont5) && _try_block_terminate(state, next_line, end_l)), {
+                title_scan_done = true;
+              }, {
+                (nl_bm5 : i32) = state.*.b_marks.get_unchecked(usize(next_line));
+                (nl_ts5 : i32) = state.*.t_shift.get_unchecked(usize(next_line));
+                (nl_em5 : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+                (np5 : i32) = (nl_bm5 + nl_ts5);
+                (nl_ce5 : i32) = cond(
+                  (nl_em5 < state.*.src_len) => (nl_em5 + i32(1)),
+                  true => nl_em5
+                );
+                while (np5 < nl_ce5), {
+                  _ := str_buf.push((src &+ usize(np5)).*);
+                  np5 = (np5 + i32(1));
+                };
+                max = i32(str_buf.len());
+                next_line = (next_line + i32(1));
+                pos = (pos + i32(1));
+              });
+            }, {
+              title_scan_done = true;
+            });
+          },
+          (c == i32(0x5C)) => {
+            pos = (pos + i32(1));
+            if((pos < max), { pos = (pos + i32(1)); });
+          },
+          true => { pos = (pos + i32(1)); }
+        );
       };
-
-      if(found_title_end, {
-        has_title = true;
-      });
     });
   });
 
-  // Rest of line must be empty (or we might continue to next line)
-  while ((pos < em) && is_space(i32((state.*.src_ptr &+ usize(pos)).*))) , {
-    pos = (pos + i32(1));
-  };
+  // If no title found at all, rollback pos/nextLine to after destination
+  if(!(has_title), {
+    pos = dest_end_pos;
+    next_line = dest_end_line_no;
+  });
 
-  if((pos < em), { return false; });
+  // ---- Validate: if title, rest of line must be empty ----
+  if(has_title, {
+    // Skip trailing spaces
+    s_ptr = str_buf.ptr().unwrap_or(src);
+    while ((pos < max) && is_space(i32((s_ptr &+ usize(pos)).*))) , {
+      pos = (pos + i32(1));
+    };
+    if(((pos < max) && (i32((s_ptr &+ usize(pos)).*) != i32(0x0A))), {
+      // Garbage after title — rollback to dest-only
+      has_title = false;
+      pos = dest_end_pos;
+      next_line = dest_end_line_no;
+      // Skip trailing spaces after dest
+      s_ptr = str_buf.ptr().unwrap_or(src);
+      while ((pos < max) && is_space(i32((s_ptr &+ usize(pos)).*))) , {
+        pos = (pos + i32(1));
+      };
+    });
+  });
+
+  // If no title (or rolled back), check rest of line after dest is empty
+  if(!(has_title), {
+    s_ptr = str_buf.ptr().unwrap_or(src);
+    while ((pos < max) && is_space(i32((s_ptr &+ usize(pos)).*))) , {
+      pos = (pos + i32(1));
+    };
+  });
+
+  if(((pos < max) && (i32((str_buf.ptr().unwrap_or(src) &+ usize(pos)).*) != i32(0x0A))), {
+    return false;
+  });
+
+  // ---- Build and store reference ----
+  s_ptr = str_buf.ptr().unwrap_or(src);
+  (label_str : String) = _normalize_label(s_ptr, i32(1), label_end);
+  if((label_str.len() == usize(0)), {
+    return false;
+  });
 
   if(silent, { return true; });
 
-  // Build label string (lowercase, collapsed whitespace)
-  (label_str : String) = _normalize_label(state.*.src_ptr, label_start, label_end);
-
-  // Build destination string
-  (dest_str : String) = _slice_to_string(state.*.src_ptr, dest_start, dest_end);
-
-  // Build title string
+  (dest_str : String) = _unescape_range(s_ptr, dest_start, dest_end);
   (title_str : String) = cond(
-    has_title => _slice_to_string(state.*.src_ptr, title_start, title_end),
-    true => `  `
+    has_title => _unescape_range(s_ptr, title_start, title_end),
+    true => ``
   );
 
-  // Store reference if not already defined
-  (ref : Reference) = Reference(href: dest_str, title: title_str);
-  state.*.env.*.references.set(label_str, ref);
+  // Store reference only if not already defined (first definition wins)
+  (existing : Option(Reference)) = state.*.env.*.references.get(label_str);
+  match(existing,
+    .Some(_) => (),
+    .None => {
+      (ref : Reference) = Reference(href: dest_str, title: title_str);
+      state.*.env.*.references.set(label_str, ref);
+    }
+  );
 
-  state.*.line = (start_line + i32(1));
+  state.*.line = next_line;
   true
 });
 

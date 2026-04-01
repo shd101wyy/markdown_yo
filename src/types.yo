@@ -141,9 +141,26 @@ TokenMeta :: struct(
   delimiters : ArrayList(Delimiter)
 );
 
+// Link/image bracket marker — tracks pending [ and ![ positions
+LinkMarker :: struct(
+  pos : i32,               // position of [ in source
+  token_idx : i32,         // index of the [ text token in tokens array
+  is_image : bool,         // true for ![
+  active : bool,           // can still be used as link opener
+  delimiters_count : i32   // delimiter stack depth when [ was pushed
+);
+
+// A resolved emphasis/strong/strikethrough pair for rendering
+EmphasisPair :: struct(
+  opener_tok : i32,   // token index of opener text
+  closer_tok : i32,   // token index of closer text
+  consume : i32,      // chars consumed from each side (1=em, 2=strong)
+  pair_type : i32     // 1=em, 2=strong, 3=strikethrough
+);
+
 export Options, default_options, commonmark_options,
        ParentType, TableAlign,
        InlineType,
        Reference, Env, new_env,
        StringPair,
-       Delimiter, TokenMeta;
+       Delimiter, TokenMeta, LinkMarker, EmphasisPair;

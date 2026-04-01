@@ -7,14 +7,14 @@
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
 { HashMap } :: import "std/collections/hash_map";
-{ Options, Env, Delimiter, InlineType } :: import "../types.yo";
+{ Options, Env, Delimiter, InlineType, LinkMarker } :: import "../types.yo";
 { HtmlRenderer } :: import "../renderer.yo";
 { InlineState, InlineToken } :: import "./state.yo";
 { inline_escape } :: import "./escape.yo";
 { inline_backticks } :: import "./backticks.yo";
 { inline_emphasis } :: import "./emphasis.yo";
 { inline_strikethrough } :: import "./strikethrough.yo";
-{ inline_link } :: import "./link.yo";
+{ inline_link_open, inline_link_close } :: import "./link.yo";
 { inline_newline } :: import "./newline.yo";
 { inline_autolink } :: import "./autolink.yo";
 { inline_html } :: import "./html_inline.yo";
@@ -55,9 +55,13 @@ inline_parse :: (fn(src: String, env: *(Env), renderer: *(HtmlRenderer), options
           matched = inline_strikethrough((&state));
         });
       },
-      // [ or ! — link/image
+      // [ or ! — link/image open bracket
       ((ch == i32(0x5B)) || (ch == i32(0x21))) => {
-        matched = inline_link((&state));
+        matched = inline_link_open((&state));
+      },
+      // ] — link/image close bracket
+      (ch == i32(0x5D)) => {
+        matched = inline_link_close((&state));
       },
       // < — autolink or html inline
       (ch == i32(0x3C)) => {

@@ -1,12 +1,114 @@
 // markdown_yo — Inline link rule
 //
-// Matches: [text](url "title"), [text][ref], [text][]
-// Also handles images: ![alt](url), ![alt][ref]
+// Two-phase approach matching markdown-it:
+// 1. inline_link_open: when [ or ![ is seen, push a bracket marker
+// 2. inline_link_close: when ] is seen, try to resolve as link/image
 
+open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
 { InlineState, InlineToken } :: import "./state.yo";
-{ InlineType } :: import "../types.yo";
+{ InlineType, Reference, LinkMarker, Delimiter, EmphasisPair } :: import "../types.yo";
 { is_space } :: import "../common/utils.yo";
+
+// Check if a byte is ASCII alpha
+_is_alpha :: (fn(b: u8) -> bool)(
+  (((b >= u8(0x41)) && (b <= u8(0x5A))) || ((b >= u8(0x61)) && (b <= u8(0x7A))))
+);
+
+// Convert byte to lowercase ASCII
+_to_lower :: (fn(b: u8) -> u8)(
+  cond(
+    ((b >= u8(0x41)) && (b <= u8(0x5A))) => (b + u8(0x20)),
+    true => b
+  )
+);
+
+// Validate a link URL — reject javascript:, vbscript:, file:, data: (except data:image/)
+// This matches markdown-it's validateLink behavior
+_validate_link_url :: (fn(src: *(u8), start: i32, end_pos: i32) -> bool)({
+  (len : i32) = (end_pos - start);
+  if((len <= i32(0)), { return true; });
+
+  // Find the colon position (protocol separator)
+  (colon_pos : i32) = i32(-1);
+  (i : i32) = i32(0);
+  while ((i < len) && (i < i32(25))), {
+    (b : u8) = (src &+ usize((start + i))).*;
+    if((b == u8(0x3A)), {
+      colon_pos = i;
+      i = len; // break
+    }, {
+      if(!(_is_alpha(b)), {
+        // Non-alpha before colon means it's not a protocol
+        return true;
+      });
+    });
+    i = (i + i32(1));
+  };
+
+  if((colon_pos < i32(0)), { return true; });
+
+  // Extract protocol and compare (case insensitive)
+  // javascript: (10 chars + colon)
+  if((colon_pos == i32(10)), {
+    if(((_to_lower((src &+ usize(start)).*)        == u8(0x6A)) // j
+     && (_to_lower((src &+ usize((start + i32(1)))).*)  == u8(0x61)) // a
+     && (_to_lower((src &+ usize((start + i32(2)))).*)  == u8(0x76)) // v
+     && (_to_lower((src &+ usize((start + i32(3)))).*)  == u8(0x61)) // a
+     && (_to_lower((src &+ usize((start + i32(4)))).*)  == u8(0x73)) // s
+     && (_to_lower((src &+ usize((start + i32(5)))).*)  == u8(0x63)) // c
+     && (_to_lower((src &+ usize((start + i32(6)))).*)  == u8(0x72)) // r
+     && (_to_lower((src &+ usize((start + i32(7)))).*)  == u8(0x69)) // i
+     && (_to_lower((src &+ usize((start + i32(8)))).*)  == u8(0x70)) // p
+     && (_to_lower((src &+ usize((start + i32(9)))).*)  == u8(0x74)) // t
+    ), { return false; });
+  });
+
+  // vbscript: (8 chars + colon)
+  if((colon_pos == i32(8)), {
+    if(((_to_lower((src &+ usize(start)).*)        == u8(0x76)) // v
+     && (_to_lower((src &+ usize((start + i32(1)))).*)  == u8(0x62)) // b
+     && (_to_lower((src &+ usize((start + i32(2)))).*)  == u8(0x73)) // s
+     && (_to_lower((src &+ usize((start + i32(3)))).*)  == u8(0x63)) // c
+     && (_to_lower((src &+ usize((start + i32(4)))).*)  == u8(0x72)) // r
+     && (_to_lower((src &+ usize((start + i32(5)))).*)  == u8(0x69)) // i
+     && (_to_lower((src &+ usize((start + i32(6)))).*)  == u8(0x70)) // p
+     && (_to_lower((src &+ usize((start + i32(7)))).*)  == u8(0x74)) // t
+    ), { return false; });
+  });
+
+  // file: (4 chars + colon)
+  if((colon_pos == i32(4)), {
+    if(((_to_lower((src &+ usize(start)).*)        == u8(0x66)) // f
+     && (_to_lower((src &+ usize((start + i32(1)))).*)  == u8(0x69)) // i
+     && (_to_lower((src &+ usize((start + i32(2)))).*)  == u8(0x6C)) // l
+     && (_to_lower((src &+ usize((start + i32(3)))).*)  == u8(0x65)) // e
+    ), { return false; });
+  });
+
+  // data: (4 chars + colon) — block unless data:image/
+  if((colon_pos == i32(4)), {
+    if(((_to_lower((src &+ usize(start)).*)        == u8(0x64)) // d
+     && (_to_lower((src &+ usize((start + i32(1)))).*)  == u8(0x61)) // a
+     && (_to_lower((src &+ usize((start + i32(2)))).*)  == u8(0x74)) // t
+     && (_to_lower((src &+ usize((start + i32(3)))).*)  == u8(0x61)) // a
+    ), {
+      // Allow data:image/ (11 chars: data:image/)
+      if((len >= i32(11)), {
+        if(((_to_lower((src &+ usize((start + i32(5)))).*)  == u8(0x69)) // i
+         && (_to_lower((src &+ usize((start + i32(6)))).*)  == u8(0x6D)) // m
+         && (_to_lower((src &+ usize((start + i32(7)))).*)  == u8(0x61)) // a
+         && (_to_lower((src &+ usize((start + i32(8)))).*)  == u8(0x67)) // g
+         && (_to_lower((src &+ usize((start + i32(9)))).*)  == u8(0x65)) // e
+         && ((src &+ usize((start + i32(10)))).* == u8(0x2F))           // /
+        ), { return true; });
+      });
+      return false;
+    });
+  });
+
+  true
+});
 
 // Parse link destination: either <...> or a bare URL
 // Returns end position or -1 on failure
@@ -35,12 +137,12 @@ _parse_link_dest :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
     if(!(found), { return i32(-1); });
     (pos + i32(1))
   }, {
-    // Bare URL: no spaces, balanced parens
+    // Bare URL: no spaces/newlines, balanced parens
     (level : i32) = i32(0);
     (done : bool) = false;
     while ((pos < max) && !(done)), {
       (c : i32) = i32((src &+ usize(pos)).*);
-      if(is_space(c), {
+      if((is_space(c) || (c == i32(0x0A))), {
         done = true;
       }, {
         if((c == i32(0x28)), {
@@ -124,19 +226,179 @@ _find_close_bracket :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
   if((level == i32(0)), pos, i32(-1))
 });
 
-inline_link :: (fn(state: *(InlineState)) -> bool)({
+// Normalize a reference label: trim, collapse whitespace, lowercase ASCII
+_normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
+  (result : ArrayList(u8)) = ArrayList(u8).new();
+  (p : i32) = start;
+  (last_was_space : bool) = true;
+
+  while (p < end), {
+    (ch : i32) = i32((src &+ usize(p)).*);
+    if(is_space(ch), {
+      if(!(last_was_space), {
+        _ := result.push(u8(0x20));
+        last_was_space = true;
+      });
+    }, {
+      (out_ch : i32) = cond(
+        ((ch >= i32(0x41)) && (ch <= i32(0x5A))) => (ch + i32(0x20)),
+        true => ch
+      );
+      _ := result.push(u8(out_ch));
+      last_was_space = false;
+    });
+    p = (p + i32(1));
+  };
+  // Trim trailing space
+  if(((result._length > usize(0)) && (result.get_unchecked((result._length - usize(1))) == u8(0x20))), {
+    result._length = (result._length - usize(1));
+  });
+  String.from_bytes(result)
+});
+
+// Resolve emphasis/strong/strikethrough pairs for delimiters in range [start_idx, end_idx).
+// Shrinks text tokens and appends resolved pairs to state.resolved_pairs.
+// After calling, the caller should truncate delimiters to start_idx.
+_resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: i32) -> unit)({
+  (closer_idx : i32) = start_idx;
+
+  while (closer_idx < end_idx), {
+    (closer : Delimiter) = state.*.delimiters.get_unchecked(usize(closer_idx));
+    (is_em_marker : bool) = ((i32(closer.marker) == i32(0x2A)) || (i32(closer.marker) == i32(0x5F)));
+    (is_strike : bool) = (i32(closer.marker) == i32(0x7E));
+
+    if((closer.close && (is_em_marker || is_strike)), {
+      (keep_matching : bool) = (closer.length > i32(0));
+      while keep_matching, {
+        (opener_idx : i32) = (closer_idx - i32(1));
+        (found : bool) = false;
+
+        // Only search back to start_idx — don't cross link scope boundary
+        while ((opener_idx >= start_idx) && !(found)), {
+          (opener : Delimiter) = state.*.delimiters.get_unchecked(usize(opener_idx));
+          if(((opener.marker == closer.marker) && (opener.open && (opener.length > i32(0)))), {
+            (skip : bool) = false;
+            if(is_em_marker, {
+              if(((closer.open || opener.close) && (((opener.length + closer.length) % i32(3)) == i32(0))), {
+                if((((opener.length % i32(3)) != i32(0)) || ((closer.length % i32(3)) != i32(0))), {
+                  skip = true;
+                });
+              });
+            });
+            if(!(skip), {
+              found = true;
+            }, {
+              opener_idx = (opener_idx - i32(1));
+            });
+          }, {
+            opener_idx = (opener_idx - i32(1));
+          });
+        };
+
+        if(found, {
+          (opener : Delimiter) = state.*.delimiters.get_unchecked(usize(opener_idx));
+          (consume : i32) = cond(
+            is_strike => i32(2),
+            ((opener.length >= i32(2)) && (closer.length >= i32(2))) => i32(2),
+            true => i32(1)
+          );
+          (pt : i32) = cond(
+            is_strike => i32(3),
+            (consume == i32(2)) => i32(2),
+            true => i32(1)
+          );
+
+          _ := state.*.resolved_pairs.push(EmphasisPair(
+            opener_tok: opener.token_idx,
+            closer_tok: closer.token_idx,
+            consume: consume,
+            pair_type: pt
+          ));
+
+          // Shrink opener text token from end
+          (otok : InlineToken) = state.*.tokens.get_unchecked(usize(opener.token_idx));
+          state.*.tokens.set(usize(opener.token_idx), InlineToken(
+            type_name: otok.type_name,
+            start: otok.start, end: (otok.end - consume),
+            nesting: otok.nesting, level: otok.level,
+            info_start: otok.info_start, info_end: otok.info_end,
+            title_start: otok.title_start, title_end: otok.title_end,
+            markup_char: otok.markup_char, markup_len: otok.markup_len,
+            content: otok.content, href: otok.href, title: otok.title,
+            block: otok.block, hidden: otok.hidden
+          ));
+
+          // Shrink closer text token from start
+          (ctok : InlineToken) = state.*.tokens.get_unchecked(usize(closer.token_idx));
+          state.*.tokens.set(usize(closer.token_idx), InlineToken(
+            type_name: ctok.type_name,
+            start: (ctok.start + consume), end: ctok.end,
+            nesting: ctok.nesting, level: ctok.level,
+            info_start: ctok.info_start, info_end: ctok.info_end,
+            title_start: ctok.title_start, title_end: ctok.title_end,
+            markup_char: ctok.markup_char, markup_len: ctok.markup_len,
+            content: ctok.content, href: ctok.href, title: ctok.title,
+            block: ctok.block, hidden: ctok.hidden
+          ));
+
+          // Update delimiter lengths
+          state.*.delimiters.set(usize(opener_idx), Delimiter(
+            marker: opener.marker,
+            length: (opener.length - consume),
+            token_idx: opener.token_idx,
+            end: closer_idx,
+            open: opener.open,
+            close: opener.close
+          ));
+          (new_closer_len : i32) = (closer.length - consume);
+          state.*.delimiters.set(usize(closer_idx), Delimiter(
+            marker: closer.marker,
+            length: new_closer_len,
+            token_idx: closer.token_idx,
+            end: opener_idx,
+            open: closer.open,
+            close: closer.close
+          ));
+          closer = state.*.delimiters.get_unchecked(usize(closer_idx));
+
+          // Clear delimiters between opener and closer
+          (mid : i32) = (opener_idx + i32(1));
+          while (mid < closer_idx), {
+            (d : Delimiter) = state.*.delimiters.get_unchecked(usize(mid));
+            state.*.delimiters.set(usize(mid), Delimiter(
+              marker: d.marker, length: i32(0), token_idx: d.token_idx,
+              end: i32(-1), open: false, close: false
+            ));
+            mid = (mid + i32(1));
+          };
+
+          keep_matching = (closer.length > i32(0));
+        }, {
+          keep_matching = false;
+        });
+      };
+    });
+
+    closer_idx = (closer_idx + i32(1));
+  };
+});
+
+// Phase 1: Push a bracket marker when [ or ![ is encountered.
+// The inline parser continues parsing content after the bracket,
+// so emphasis/code/etc inside will be properly tokenized.
+inline_link_open :: (fn(state: *(InlineState)) -> bool)({
   (pos : i32) = state.*.pos;
   (max : i32) = state.*.pos_max;
 
   (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
 
-  // Check for image prefix ![ or link [
   (is_image : bool) = false;
+  (bracket_pos : i32) = pos;
   if((ch == i32(0x21)), {
     if(((pos + i32(1)) < max), {
       if((i32((state.*.src_ptr &+ usize((pos + i32(1)))).*) == i32(0x5B)), {
         is_image = true;
-        pos = (pos + i32(2));
+        bracket_pos = (pos + i32(2));
       }, {
         return false;
       });
@@ -145,33 +407,89 @@ inline_link :: (fn(state: *(InlineState)) -> bool)({
     });
   }, {
     if((ch == i32(0x5B)), {
-      pos = (pos + i32(1));
+      // For non-image links, check if link nesting is too deep
+      if(((state.*.link_level > i32(0)) && !(is_image)), {
+        // Links cannot nest inside links (but images can nest inside links)
+      });
+      bracket_pos = (pos + i32(1));
     }, {
       return false;
     });
   });
 
-  // Find matching ]
-  (close_pos : i32) = _find_close_bracket(state.*.src_ptr, pos, max);
-  if((close_pos < i32(0)), { return false; });
+  // Flush pending text
+  state.*.push_pending();
 
-  (text_start : i32) = pos;
-  (text_end : i32) = close_pos;
-  (after_close : i32) = (close_pos + i32(1));
+  // Record token index for the [ marker (we emit a placeholder text token)
+  (tok_idx : i32) = i32(state.*.tokens.len());
+  if(is_image, {
+    _ := state.*.tokens.push(InlineToken.text(pos, (pos + i32(2)), state.*.level));
+  }, {
+    _ := state.*.tokens.push(InlineToken.text(pos, (pos + i32(1)), state.*.level));
+  });
 
-  // What follows ]?
+  // Push link marker
+  _ := state.*.link_markers.push(LinkMarker(
+    pos: bracket_pos,
+    token_idx: tok_idx,
+    is_image: is_image,
+    active: true,
+    delimiters_count: i32(state.*.delimiters.len())
+  ));
+
+  state.*.pos = bracket_pos;
+  state.*.pending_start = state.*.pos;
+  state.*.pending_end = state.*.pos;
+  true
+});
+
+// Phase 2: When ] is encountered, try to resolve as link/image.
+// Scans backward in link_markers for a matching [.
+inline_link_close :: (fn(state: *(InlineState)) -> bool)({
+  (pos : i32) = state.*.pos;
+  (max : i32) = state.*.pos_max;
+
+  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x5D)), { return false; });
+
+  // Find last active link marker
+  (marker_idx : i32) = (i32(state.*.link_markers.len()) - i32(1));
+  (found_marker : bool) = false;
+  while ((marker_idx >= i32(0)) && !(found_marker)), {
+    if(state.*.link_markers.get_unchecked(usize(marker_idx)).active, {
+      found_marker = true;
+    }, {
+      marker_idx = (marker_idx - i32(1));
+    });
+  };
+
+  if(!(found_marker), {
+    // No active marker — just emit ] as text
+    return false;
+  });
+
+  (marker : LinkMarker) = state.*.link_markers.get_unchecked(usize(marker_idx));
+  (is_image : bool) = marker.is_image;
+
+  (after_close : i32) = (pos + i32(1));
+
+  // Try to parse what follows ]
   (href_start : i32) = i32(0);
   (href_end : i32) = i32(0);
   (title_start : i32) = i32(0);
   (title_end : i32) = i32(0);
   (link_end : i32) = i32(-1);
 
+  // Reference link state
+  (ref_href : String) = ``;
+  (ref_title : String) = ``;
+  (is_ref : bool) = false;
+
   if(((after_close < max) && (i32((state.*.src_ptr &+ usize(after_close)).*) == i32(0x28))), {
     // Inline link: [text](url "title")
     (p : i32) = (after_close + i32(1));
 
-    // Skip spaces
-    while ((p < max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x20))), {
+    // Skip whitespace (spaces, tabs, newlines)
+    while ((p < max) && (is_space(i32((state.*.src_ptr &+ usize(p)).*)) || (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x0A)))), {
       p = (p + i32(1));
     };
 
@@ -179,7 +497,6 @@ inline_link :: (fn(state: *(InlineState)) -> bool)({
     (dest_start : i32) = p;
     (dest_result : i32) = _parse_link_dest(state.*.src_ptr, p, max);
     if((dest_result >= i32(0)), {
-      // Check if destination was <...> form
       if((i32((state.*.src_ptr &+ usize(dest_start)).*) == i32(0x3C)), {
         href_start = (dest_start + i32(1));
         href_end = (dest_result - i32(1));
@@ -189,9 +506,9 @@ inline_link :: (fn(state: *(InlineState)) -> bool)({
       });
       p = dest_result;
 
-      // Skip spaces
+      // Skip whitespace (spaces, tabs, newlines)
       (saved_p : i32) = p;
-      while ((p < max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x20))), {
+      while ((p < max) && (is_space(i32((state.*.src_ptr &+ usize(p)).*)) || (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x0A)))), {
         p = (p + i32(1));
       };
 
@@ -205,8 +522,8 @@ inline_link :: (fn(state: *(InlineState)) -> bool)({
         });
       });
 
-      // Skip trailing spaces
-      while ((p < max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x20))), {
+      // Skip trailing whitespace
+      while ((p < max) && (is_space(i32((state.*.src_ptr &+ usize(p)).*)) || (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x0A)))), {
         p = (p + i32(1));
       };
 
@@ -216,35 +533,108 @@ inline_link :: (fn(state: *(InlineState)) -> bool)({
     });
   });
 
-  // TODO: reference link support [text][ref] and [text][]
+  if((link_end < i32(0)), {
+    // Try reference: [text][label], [text][], [text]
+    (ref_start : i32) = i32(-1);
+    (ref_end : i32) = i32(-1);
+    if(((after_close < max) && (i32((state.*.src_ptr &+ usize(after_close)).*) == i32(0x5B))), {
+      (label_start : i32) = (after_close + i32(1));
+      (label_end_pos : i32) = _find_close_bracket(state.*.src_ptr, label_start, max);
+      if((label_end_pos >= i32(0)), {
+        if((label_end_pos > label_start), {
+          ref_start = label_start;
+          ref_end = label_end_pos;
+          link_end = (label_end_pos + i32(1));
+        }, {
+          ref_start = marker.pos;
+          ref_end = pos;
+          link_end = (label_end_pos + i32(1));
+        });
+      });
+    }, {
+      // Shortcut: [text]
+      ref_start = marker.pos;
+      ref_end = pos;
+      link_end = after_close;
+    });
 
-  if((link_end < i32(0)), { return false; });
+    if((ref_start >= i32(0)), {
+      (label : String) = _normalize_label(state.*.src_ptr, ref_start, ref_end);
+      if((label.len() > usize(0)), {
+        (maybe_ref : Option(Reference)) = state.*.env.*.references.get(label);
+        match(maybe_ref,
+          .Some(r) => {
+            ref_href = r.href;
+            ref_title = r.title;
+            is_ref = true;
+          },
+          .None => ()
+        );
+      });
+    });
 
+    if(!(is_ref), {
+      // Could not resolve — deactivate this marker
+      state.*.link_markers.get_ptr(usize(marker_idx)).*.active = false;
+      return false;
+    });
+  });
+
+  if(!(is_ref), {
+    if(!(_validate_link_url(state.*.src_ptr, href_start, href_end)), {
+      state.*.link_markers.get_ptr(usize(marker_idx)).*.active = false;
+      return false;
+    });
+  });
+
+  // === Link matched! ===
+
+  // Flush pending text before ]
   state.*.push_pending();
 
-  // Emit open token
+  // Process emphasis delimiters that were inside the link text.
+  // Resolve pairs scoped to [delim_start, current_len) so emphasis
+  // can't cross link boundaries, then truncate delimiters.
+  (delim_start : i32) = marker.delimiters_count;
+  (delim_end : i32) = i32(state.*.delimiters.len());
+  if((delim_end > delim_start), {
+    _resolve_scoped_emphasis(state, delim_start, delim_end);
+    state.*.delimiters._length = usize(delim_start);
+  });
+
+  (open_token_idx : i32) = marker.token_idx;
+
+  // Replace the [ placeholder token with LinkOpen/ImageOpen
   (open_type : InlineType) = cond(
     is_image => .ImageOpen,
     true => .LinkOpen
   );
-  _ := state.*.tokens.push(InlineToken(
-    type_name: open_type,
-    start: href_start, end: href_end,
-    nesting: i32(1), level: state.*.level,
-    info_start: i32(0), info_end: i32(0),
-    title_start: title_start, title_end: title_end,
-    markup_char: u8(0), markup_len: u8(0),
-    content: ``, href: ``, title: ``,
-    block: false, hidden: false
-  ));
 
-  state.*.level = (state.*.level + i32(1));
-
-  // For images: emit text content directly (no nested inline parsing)
-  // For links: the text will be inline-parsed
-  _ := state.*.tokens.push(InlineToken.text(text_start, text_end, state.*.level));
-
-  state.*.level = (state.*.level - i32(1));
+  if(is_ref, {
+    (tok_ptr : *(InlineToken)) = state.*.tokens.get_ptr(usize(open_token_idx));
+    tok_ptr.* = InlineToken(
+      type_name: open_type,
+      start: i32(0), end: i32(0),
+      nesting: i32(1), level: state.*.level,
+      info_start: i32(0), info_end: i32(0),
+      title_start: i32(0), title_end: i32(0),
+      markup_char: u8(0), markup_len: u8(0),
+      content: ``, href: ref_href, title: ref_title,
+      block: false, hidden: false
+    );
+  }, {
+    (tok_ptr : *(InlineToken)) = state.*.tokens.get_ptr(usize(open_token_idx));
+    tok_ptr.* = InlineToken(
+      type_name: open_type,
+      start: href_start, end: href_end,
+      nesting: i32(1), level: state.*.level,
+      info_start: i32(0), info_end: i32(0),
+      title_start: title_start, title_end: title_end,
+      markup_char: u8(0), markup_len: u8(0),
+      content: ``, href: ``, title: ``,
+      block: false, hidden: false
+    );
+  });
 
   // Emit close token
   (close_type : InlineType) = cond(
@@ -253,10 +643,30 @@ inline_link :: (fn(state: *(InlineState)) -> bool)({
   );
   _ := state.*.tokens.push(InlineToken.simple(close_type, i32(-1), state.*.level));
 
+  // For non-image links, deactivate all earlier link markers (links can't nest)
+  if(!(is_image), {
+    (i : i32) = i32(0);
+    while (i < marker_idx), {
+      if(!(state.*.link_markers.get_unchecked(usize(i)).is_image), {
+        state.*.link_markers.get_ptr(usize(i)).*.active = false;
+      });
+      i = (i + i32(1));
+    };
+  });
+
+  // Remove this marker and all after it
+  // (Simply truncate the markers list)
+  state.*.link_markers._length = usize(marker_idx);
+
+  state.*.link_level = cond(
+    is_image => state.*.link_level,
+    true => (state.*.link_level + i32(1))
+  );
+
   state.*.pos = link_end;
   state.*.pending_start = state.*.pos;
   state.*.pending_end = state.*.pos;
   true
 });
 
-export inline_link;
+export inline_link_open, inline_link_close;

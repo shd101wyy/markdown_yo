@@ -61,24 +61,28 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
   // Store content range in the token
   (tok_idx : i32) = (i32(state.*.tokens.len()) - i32(1));
 
-  // Strip one leading space and one trailing space if content starts and ends with space
-  // and content is more than just spaces (CommonMark rule)
+  // Strip one leading space and one trailing space if content starts and ends with
+  // a space-like char (space or newline) and content is not all whitespace (CommonMark rule).
+  // Newlines count because the renderer converts them to spaces.
   (content_start : i32) = p;
   (content_end : i32) = close_start;
   if(((content_end - content_start) >= i32(2)), {
     (first : i32) = i32((state.*.src_ptr &+ usize(content_start)).*);
     (last : i32) = i32((state.*.src_ptr &+ usize((content_end - i32(1)))).*);
-    if(((first == i32(0x20)) && (last == i32(0x20))), {
-      // Check content is not all spaces
-      (all_spaces : bool) = true;
+    (first_is_space : bool) = ((first == i32(0x20)) || (first == i32(0x0A)));
+    (last_is_space : bool) = ((last == i32(0x20)) || (last == i32(0x0A)));
+    if((first_is_space && last_is_space), {
+      // Check content is not all whitespace — count non-whitespace chars
+      (non_space_count : i32) = i32(0);
       (sp : i32) = content_start;
-      while ((sp < content_end) && all_spaces), {
-        if((i32((state.*.src_ptr &+ usize(sp)).*) != i32(0x20)), {
-          all_spaces = false;
+      while (sp < content_end), {
+        (c : i32) = i32((state.*.src_ptr &+ usize(sp)).*);
+        if(((c != i32(0x20)) && (c != i32(0x0A))), {
+          non_space_count = (non_space_count + i32(1));
         });
         sp = (sp + i32(1));
       };
-      if(!(all_spaces), {
+      if((non_space_count > i32(0)), {
         content_start = (content_start + i32(1));
         content_end = (content_end - i32(1));
       });

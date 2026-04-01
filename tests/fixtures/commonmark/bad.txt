@@ -1,0 +1,1883 @@
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 355
+
+.
+→foo→baz→→bim
+.
+<pre><code>foo→baz→→bim
+</code></pre>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 362
+
+.
+  →foo→baz→→bim
+.
+<pre><code>foo→baz→→bim
+</code></pre>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 382
+
+.
+  - foo
+
+→bar
+.
+<ul>
+<li>
+<p>foo</p>
+<p>bar</p>
+</li>
+</ul>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 395
+
+.
+- foo
+
+→→bar
+.
+<ul>
+<li>
+<p>foo</p>
+<pre><code>  bar
+</code></pre>
+</li>
+</ul>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 418
+
+.
+>→→foo
+.
+<blockquote>
+<pre><code>  foo
+</code></pre>
+</blockquote>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 427
+
+.
+-→→foo
+.
+<ul>
+<li>
+<pre><code>  foo
+</code></pre>
+</li>
+</ul>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 439
+
+.
+    foo
+→bar
+.
+<pre><code>foo
+bar
+</code></pre>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 448
+
+.
+ - foo
+   - bar
+→ - baz
+.
+<ul>
+<li>foo
+<ul>
+<li>bar
+<ul>
+<li>baz</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 466
+
+.
+#→Foo
+.
+<h1>Foo</h1>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 472
+
+.
+*→*→*→
+.
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 543
+
+.
+foo\
+bar
+.
+<p>foo<br />
+bar</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 587
+
+.
+<a href="/bar\/)">
+.
+<a href="/bar\/)">
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 728
+
+.
+<a href="&ouml;&ouml;.html">
+.
+<a href="&ouml;&ouml;.html">
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 810
+
+.
+&#9;foo
+.
+<p>→foo</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 879
+
+.
+***
+---
+___
+.
+<hr />
+<hr />
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 921
+
+.
+ ***
+  ***
+   ***
+.
+<hr />
+<hr />
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 953
+
+.
+_____________________________________
+.
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 962
+
+.
+ - - -
+.
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 969
+
+.
+ **  * ** * ** * **
+.
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 976
+
+.
+-     -      -      -
+.
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 985
+
+.
+- - - -    
+.
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1019
+
+.
+- foo
+***
+- bar
+.
+<ul>
+<li>foo</li>
+</ul>
+<hr />
+<ul>
+<li>bar</li>
+</ul>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1036
+
+.
+Foo
+***
+bar
+.
+<p>Foo</p>
+<hr />
+<p>bar</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1066
+
+.
+* Foo
+* * *
+* Bar
+.
+<ul>
+<li>Foo</li>
+</ul>
+<hr />
+<ul>
+<li>Bar</li>
+</ul>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1083
+
+.
+- Foo
+- * * *
+.
+<ul>
+<li>Foo</li>
+<li>
+<hr />
+</li>
+</ul>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1283
+
+.
+****
+## foo
+****
+.
+<hr />
+<h2>foo</h2>
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1375
+
+.
+  Foo *bar
+baz*→
+====
+.
+<h1>Foo <em>bar
+baz</em></h1>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1420
+
+.
+    Foo
+    ---
+
+    Foo
+---
+.
+<pre><code>Foo
+---
+
+Foo
+</code></pre>
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1460
+
+.
+Foo
+= =
+
+Foo
+--- -
+.
+<p>Foo
+= =</p>
+<p>Foo</p>
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1516
+
+.
+> Foo
+---
+.
+<blockquote>
+<p>Foo</p>
+</blockquote>
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1540
+
+.
+- Foo
+---
+.
+<ul>
+<li>Foo</li>
+</ul>
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1568
+
+.
+---
+Foo
+---
+Bar
+---
+Baz
+.
+<hr />
+<h2>Foo</h2>
+<h2>Bar</h2>
+<p>Baz</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1597
+
+.
+---
+---
+.
+<hr />
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1606
+
+.
+- foo
+-----
+.
+<ul>
+<li>foo</li>
+</ul>
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1617
+
+.
+    foo
+---
+.
+<pre><code>foo
+</code></pre>
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1627
+
+.
+> foo
+-----
+.
+<blockquote>
+<p>foo</p>
+</blockquote>
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1688
+
+.
+Foo
+bar
+
+---
+
+baz
+.
+<p>Foo
+bar</p>
+<hr />
+<p>baz</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1706
+
+.
+Foo
+bar
+* * *
+baz
+.
+<p>Foo
+bar</p>
+<hr />
+<p>baz</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 1878
+
+.
+# Heading
+    foo
+Heading
+------
+    foo
+----
+.
+<h1>Heading</h1>
+<pre><code>foo
+</code></pre>
+<h2>Heading</h2>
+<pre><code>foo
+</code></pre>
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2078
+
+.
+`````
+
+```
+aaa
+.
+<pre><code>
+```
+aaa
+</code></pre>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2212
+
+.
+```
+aaa
+    ```
+.
+<pre><code>aaa
+    ```
+</code></pre>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2235
+
+.
+~~~~~~
+aaa
+~~~ ~~
+.
+<pre><code>aaa
+~~~ ~~
+</code></pre>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2428
+
+.
+<table><tr><td>
+<pre>
+**Hello**,
+
+_world_.
+</pre>
+</td></tr></table>
+.
+<table><tr><td>
+<pre>
+**Hello**,
+<p><em>world</em>.
+</pre></p>
+</td></tr></table>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2457
+
+.
+<table>
+  <tr>
+    <td>
+           hi
+    </td>
+  </tr>
+</table>
+
+okay.
+.
+<table>
+  <tr>
+    <td>
+           hi
+    </td>
+  </tr>
+</table>
+<p>okay.</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2479
+
+.
+ <div>
+  *hello*
+         <foo><a>
+.
+ <div>
+  *hello*
+         <foo><a>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2492
+
+.
+</div>
+*foo*
+.
+</div>
+*foo*
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2503
+
+.
+<DIV CLASS="foo">
+
+*Markdown*
+
+</DIV>
+.
+<DIV CLASS="foo">
+<p><em>Markdown</em></p>
+</DIV>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2519
+
+.
+<div id="foo"
+  class="bar">
+</div>
+.
+<div id="foo"
+  class="bar">
+</div>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2530
+
+.
+<div id="foo" class="bar
+  baz">
+</div>
+.
+<div id="foo" class="bar
+  baz">
+</div>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2542
+
+.
+<div>
+*foo*
+
+*bar*
+.
+<div>
+*foo*
+<p><em>bar</em></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2558
+
+.
+<div id="foo"
+*hi*
+.
+<div id="foo"
+*hi*
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2567
+
+.
+<div class
+foo
+.
+<div class
+foo
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2579
+
+.
+<div *???-&&&-<---
+*foo*
+.
+<div *???-&&&-<---
+*foo*
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2591
+
+.
+<div><a href="bar">*foo*</a></div>
+.
+<div><a href="bar">*foo*</a></div>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2598
+
+.
+<table><tr><td>
+foo
+</td></tr></table>
+.
+<table><tr><td>
+foo
+</td></tr></table>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2615
+
+.
+<div></div>
+``` c
+int x = 33;
+```
+.
+<div></div>
+``` c
+int x = 33;
+```
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2632
+
+.
+<a href="foo">
+*bar*
+</a>
+.
+<a href="foo">
+*bar*
+</a>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2645
+
+.
+<Warning>
+*bar*
+</Warning>
+.
+<Warning>
+*bar*
+</Warning>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2656
+
+.
+<i class="foo">
+*bar*
+</i>
+.
+<i class="foo">
+*bar*
+</i>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2667
+
+.
+</ins>
+*bar*
+.
+</ins>
+*bar*
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2682
+
+.
+<del>
+*foo*
+</del>
+.
+<del>
+*foo*
+</del>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2697
+
+.
+<del>
+
+*foo*
+
+</del>
+.
+<del>
+<p><em>foo</em></p>
+</del>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2715
+
+.
+<del>*foo*</del>
+.
+<p><del><em>foo</em></del></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2731
+
+.
+<pre language="haskell"><code>
+import Text.HTML.TagSoup
+
+main :: IO ()
+main = print $ parseTags tags
+</code></pre>
+okay
+.
+<pre language="haskell"><code>
+import Text.HTML.TagSoup
+
+main :: IO ()
+main = print $ parseTags tags
+</code></pre>
+<p>okay</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2752
+
+.
+<script type="text/javascript">
+// JavaScript example
+
+document.getElementById("demo").innerHTML = "Hello JavaScript!";
+</script>
+okay
+.
+<script type="text/javascript">
+// JavaScript example
+
+document.getElementById("demo").innerHTML = "Hello JavaScript!";
+</script>
+<p>okay</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2771
+
+.
+<textarea>
+
+*foo*
+
+_bar_
+
+</textarea>
+.
+<textarea>
+
+*foo*
+
+_bar_
+
+</textarea>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2791
+
+.
+<style
+  type="text/css">
+h1 {color:red;}
+
+p {color:blue;}
+</style>
+okay
+.
+<style
+  type="text/css">
+h1 {color:red;}
+
+p {color:blue;}
+</style>
+<p>okay</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2814
+
+.
+<style
+  type="text/css">
+
+foo
+.
+<style
+  type="text/css">
+
+foo
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2827
+
+.
+> <div>
+> foo
+
+bar
+.
+<blockquote>
+<div>
+foo
+</blockquote>
+<p>bar</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2841
+
+.
+- <div>
+- foo
+.
+<ul>
+<li>
+<div>
+</li>
+<li>foo</li>
+</ul>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2856
+
+.
+<style>p{color:red;}</style>
+*foo*
+.
+<style>p{color:red;}</style>
+<p><em>foo</em></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2865
+
+.
+<!-- foo -->*bar*
+*baz*
+.
+<!-- foo -->*bar*
+<p><em>baz</em></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2877
+
+.
+<script>
+foo
+</script>1. *bar*
+.
+<script>
+foo
+</script>1. *bar*
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2890
+
+.
+<!-- Foo
+
+bar
+   baz -->
+okay
+.
+<!-- Foo
+
+bar
+   baz -->
+<p>okay</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2908
+
+.
+<?php
+
+  echo '>';
+
+?>
+okay
+.
+<?php
+
+  echo '>';
+
+?>
+<p>okay</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2927
+
+.
+<!DOCTYPE html>
+.
+<!DOCTYPE html>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2936
+
+.
+<![CDATA[
+function matchwo(a,b)
+{
+  if (a < b && a < 0) then {
+    return 1;
+
+  } else {
+
+    return 0;
+  }
+}
+]]>
+okay
+.
+<![CDATA[
+function matchwo(a,b)
+{
+  if (a < b && a < 0) then {
+    return 1;
+
+  } else {
+
+    return 0;
+  }
+}
+]]>
+<p>okay</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2970
+
+.
+  <!-- foo -->
+
+    <!-- foo -->
+.
+  <!-- foo -->
+<pre><code>&lt;!-- foo --&gt;
+</code></pre>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2981
+
+.
+  <div>
+
+    <div>
+.
+  <div>
+<pre><code>&lt;div&gt;
+</code></pre>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 2995
+
+.
+Foo
+<div>
+bar
+</div>
+.
+<p>Foo</p>
+<div>
+bar
+</div>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 3012
+
+.
+<div>
+bar
+</div>
+*foo*
+.
+<div>
+bar
+</div>
+*foo*
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 3027
+
+.
+Foo
+<a href="bar">
+baz
+.
+<p>Foo
+<a href="bar">
+baz</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 3068
+
+.
+<div>
+
+*Emphasized* text.
+
+</div>
+.
+<div>
+<p><em>Emphasized</em> text.</p>
+</div>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 3081
+
+.
+<div>
+*Emphasized* text.
+</div>
+.
+<div>
+*Emphasized* text.
+</div>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 3103
+
+.
+<table>
+
+<tr>
+
+<td>
+Hi
+</td>
+
+</tr>
+
+</table>
+.
+<table>
+<tr>
+<td>
+Hi
+</td>
+</tr>
+</table>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 3130
+
+.
+<table>
+
+  <tr>
+
+    <td>
+      Hi
+    </td>
+
+  </tr>
+
+</table>
+.
+<table>
+  <tr>
+<pre><code>&lt;td&gt;
+  Hi
+&lt;/td&gt;
+</code></pre>
+  </tr>
+</table>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 3290
+
+.
+[foo]: <bar>(baz)
+
+[foo]
+.
+<p>[foo]: <bar>(baz)</p>
+<p>[foo]</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 3503
+
+.
+[foo]
+
+> [foo]: /url
+.
+<p><a href="/url">foo</a></p>
+<blockquote>
+</blockquote>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 3615
+
+.
+aaa     
+bbb     
+.
+<p>aaa<br />
+bbb</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 3800
+
+.
+> foo
+---
+.
+<blockquote>
+<p>foo</p>
+</blockquote>
+<hr />
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 3891
+
+.
+>
+.
+<blockquote>
+</blockquote>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 3899
+
+.
+>
+>  
+> 
+.
+<blockquote>
+</blockquote>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 3987
+
+.
+> aaa
+***
+> bbb
+.
+<blockquote>
+<p>aaa</p>
+</blockquote>
+<hr />
+<blockquote>
+<p>bbb</p>
+</blockquote>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 5435
+
+.
+- foo
+- bar
+
+<!-- -->
+
+- baz
+- bim
+.
+<ul>
+<li>foo</li>
+<li>bar</li>
+</ul>
+<!-- -->
+<ul>
+<li>baz</li>
+<li>bim</li>
+</ul>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 5456
+
+.
+-   foo
+
+    notcode
+
+-   foo
+
+<!-- -->
+
+    code
+.
+<ul>
+<li>
+<p>foo</p>
+<p>notcode</p>
+</li>
+<li>
+<p>foo</p>
+</li>
+</ul>
+<!-- -->
+<pre><code>code
+</code></pre>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 6047
+
+.
+<a href="`">`
+.
+<p><a href="`">`</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 7409
+
+.
+*<img src="foo" title="*"/>
+.
+<p>*<img src="foo" title="*"/></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 7416
+
+.
+**<a href="**">
+.
+<p>**<a href="**"></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 7423
+
+.
+__<a href="__">
+.
+<p>__<a href="__"></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 7608
+
+.
+[link](<foo
+bar>)
+.
+<p>[link](<foo
+bar>)</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 7636
+
+.
+[a](<b)c
+[a](<b)c>
+[a](<b>c)
+.
+<p>[a](&lt;b)c
+[a](&lt;b)c&gt;
+[a](<b>c)</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 7877
+
+.
+[![moon](moon.jpg)](/uri)
+.
+<p><a href="/uri"><img src="moon.jpg" alt="moon" /></a></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 7900
+
+.
+![[[foo](uri1)](uri2)](uri3)
+.
+<p><img src="uri3" alt="[foo](uri2)" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 7937
+
+.
+[foo <bar attr="](baz)">
+.
+<p>[foo <bar attr="](baz)"></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8033
+
+.
+[![moon](moon.jpg)][ref]
+
+[ref]: /uri
+.
+<p><a href="/uri"><img src="moon.jpg" alt="moon" /></a></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8089
+
+.
+[foo <bar attr="][ref]">
+
+[ref]: /uri
+.
+<p>[foo <bar attr="][ref]"></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8541
+
+.
+![foo](/url "title")
+.
+<p><img src="/url" alt="foo" title="title" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8548
+
+.
+![foo *bar*]
+
+[foo *bar*]: train.jpg "train & tracks"
+.
+<p><img src="train.jpg" alt="foo bar" title="train &amp; tracks" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8557
+
+.
+![foo ![bar](/url)](/url2)
+.
+<p><img src="/url2" alt="foo bar" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8564
+
+.
+![foo [bar](/url)](/url2)
+.
+<p><img src="/url2" alt="foo bar" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8578
+
+.
+![foo *bar*][]
+
+[foo *bar*]: train.jpg "train & tracks"
+.
+<p><img src="train.jpg" alt="foo bar" title="train &amp; tracks" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8587
+
+.
+![foo *bar*][foobar]
+
+[FOOBAR]: train.jpg "train & tracks"
+.
+<p><img src="train.jpg" alt="foo bar" title="train &amp; tracks" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8596
+
+.
+![foo](train.jpg)
+.
+<p><img src="train.jpg" alt="foo" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8603
+
+.
+My ![foo bar](/path/to/train.jpg  "title"   )
+.
+<p>My <img src="/path/to/train.jpg" alt="foo bar" title="title" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8610
+
+.
+![foo](<url>)
+.
+<p><img src="url" alt="foo" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8617
+
+.
+![](/url)
+.
+<p><img src="/url" alt="" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8626
+
+.
+![foo][bar]
+
+[bar]: /url
+.
+<p><img src="/url" alt="foo" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8635
+
+.
+![foo][bar]
+
+[BAR]: /url
+.
+<p><img src="/url" alt="foo" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8646
+
+.
+![foo][]
+
+[foo]: /url "title"
+.
+<p><img src="/url" alt="foo" title="title" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8655
+
+.
+![*foo* bar][]
+
+[*foo* bar]: /url "title"
+.
+<p><img src="/url" alt="foo bar" title="title" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8666
+
+.
+![Foo][]
+
+[foo]: /url "title"
+.
+<p><img src="/url" alt="Foo" title="title" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8678
+
+.
+![foo] 
+[]
+
+[foo]: /url "title"
+.
+<p><img src="/url" alt="foo" title="title" />
+[]</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8691
+
+.
+![foo]
+
+[foo]: /url "title"
+.
+<p><img src="/url" alt="foo" title="title" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8700
+
+.
+![*foo* bar]
+
+[*foo* bar]: /url "title"
+.
+<p><img src="/url" alt="foo bar" title="title" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 8723
+
+.
+![Foo]
+
+[foo]: /url "title"
+.
+<p><img src="/url" alt="Foo" title="title" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9016
+
+.
+<a><bab><c2c>
+.
+<p><a><bab><c2c></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9025
+
+.
+<a/><b2/>
+.
+<p><a/><b2/></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9034
+
+.
+<a  /><b2
+data="foo" >
+.
+<p><a  /><b2
+data="foo" ></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9045
+
+.
+<a foo="bar" bam = 'baz <em>"</em>'
+_boolean zoop:33=zoop:33 />
+.
+<p><a foo="bar" bam = 'baz <em>"</em>'
+_boolean zoop:33=zoop:33 /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9056
+
+.
+Foo <responsive-image src="foo.jpg" />
+.
+<p>Foo <responsive-image src="foo.jpg" /></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9116
+
+.
+</a></foo >
+.
+<p></a></foo ></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9134
+
+.
+foo <!-- this is a --
+comment - with hyphens -->
+.
+<p>foo <!-- this is a --
+comment - with hyphens --></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9142
+
+.
+foo <!--> foo -->
+
+foo <!---> foo -->
+.
+<p>foo <!--> foo --&gt;</p>
+<p>foo <!---> foo --&gt;</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9154
+
+.
+foo <?php echo $a; ?>
+.
+<p>foo <?php echo $a; ?></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9163
+
+.
+foo <!ELEMENT br EMPTY>
+.
+<p>foo <!ELEMENT br EMPTY></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9172
+
+.
+foo <![CDATA[>&<]]>
+.
+<p>foo <![CDATA[>&<]]></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9182
+
+.
+foo <a href="&ouml;">
+.
+<p>foo <a href="&ouml;"></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9191
+
+.
+foo <a href="\*">
+.
+<p>foo <a href="\*"></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9212
+
+.
+foo  
+baz
+.
+<p>foo<br />
+baz</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9224
+
+.
+foo\
+baz
+.
+<p>foo<br />
+baz</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9235
+
+.
+foo       
+baz
+.
+<p>foo<br />
+baz</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9246
+
+.
+foo  
+     bar
+.
+<p>foo<br />
+bar</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9255
+
+.
+foo\
+     bar
+.
+<p>foo<br />
+bar</p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9267
+
+.
+*foo  
+bar*
+.
+<p><em>foo<br />
+bar</em></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9276
+
+.
+*foo\
+bar*
+.
+<p><em>foo<br />
+bar</em></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9305
+
+.
+<a href="foo  
+bar">
+.
+<p><a href="foo  
+bar"></p>
+.
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src line: 9314
+
+.
+<a href="foo\
+bar">
+.
+<p><a href="foo\
+bar"></p>
+.

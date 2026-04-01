@@ -1,0 +1,160 @@
+// markdown_yo — URL normalization (percent-encoding)
+//
+// Matches mdurl encode behavior:
+// - Alphanumeric chars pass through
+// - Chars in exclude set pass through: ;/?:@&=+$,-_.!~*'()#
+// - Already-encoded %XX sequences are preserved
+// - Non-ASCII chars are UTF-8 encoded then percent-encoded
+// - Invalid surrogate pairs become U+FFFD
+
+open import "std/collections/array_list";
+open import "std/string";
+
+_HEX_CHARS :: "0123456789ABCDEF";
+
+// Default exclude chars for normalizeLink: ;/?:@&=+$,-_.!~*'()#
+// These chars are NOT percent-encoded in URLs
+_is_default_exclude :: (fn(ch : u8) -> bool)(
+  cond(
+    (ch == u8(0x3B)) => true, // ;
+    (ch == u8(0x2F)) => true, // /
+    (ch == u8(0x3F)) => true, // ?
+    (ch == u8(0x3A)) => true, // :
+    (ch == u8(0x40)) => true, // @
+    (ch == u8(0x26)) => true, // &
+    (ch == u8(0x3D)) => true, // =
+    (ch == u8(0x2B)) => true, // +
+    (ch == u8(0x24)) => true, // $
+    (ch == u8(0x2C)) => true, // ,
+    (ch == u8(0x2D)) => true, // -
+    (ch == u8(0x5F)) => true, // _
+    (ch == u8(0x2E)) => true, // .
+    (ch == u8(0x21)) => true, // !
+    (ch == u8(0x7E)) => true, // ~
+    (ch == u8(0x2A)) => true, // *
+    (ch == u8(0x27)) => true, // '
+    (ch == u8(0x28)) => true, // (
+    (ch == u8(0x29)) => true, // )
+    (ch == u8(0x23)) => true, // #
+    true => false
+  )
+);
+
+_is_hex_char :: (fn(ch : u8) -> bool)(
+  cond(
+    ((ch >= u8(0x30)) && (ch <= u8(0x39))) => true, // 0-9
+    ((ch >= u8(0x41)) && (ch <= u8(0x46))) => true, // A-F
+    ((ch >= u8(0x61)) && (ch <= u8(0x66))) => true, // a-f
+    true => false
+  )
+);
+
+_is_alnum :: (fn(ch : u8) -> bool)(
+  cond(
+    ((ch >= u8(0x30)) && (ch <= u8(0x39))) => true, // 0-9
+    ((ch >= u8(0x41)) && (ch <= u8(0x5A))) => true, // A-Z
+    ((ch >= u8(0x61)) && (ch <= u8(0x7A))) => true, // a-z
+    true => false
+  )
+);
+
+// Emit a percent-encoded byte (%XX) into the output buffer
+_emit_pct :: (fn(out: *(ArrayList(u8)), b: u8) -> unit)({
+  _ := out.*.push(u8(0x25)); // %
+  (hex_ptr : *(u8)) = *(u8)(_HEX_CHARS);
+  _ := out.*.push((hex_ptr &+ usize((b >> u8(4)))).*);
+  _ := out.*.push((hex_ptr &+ usize((b & u8(0x0F)))).*);
+});
+
+// Percent-encode a URL string, preserving already-encoded sequences
+// and default exclude chars
+normalize_link :: (fn(url: str) -> String)({
+  (src : *(u8)) = url.ptr();
+  (len : i32) = i32(url.len());
+  (out : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(len));
+
+  (i : i32) = i32(0);
+  while (i < len), {
+    (b : u8) = (src &+ usize(i)).*;
+
+    // Check for already-encoded %XX sequences — preserve them
+    if(((b == u8(0x25)) && ((i + i32(2)) < len)), {
+      (h1 : u8) = (src &+ usize((i + i32(1)))).*;
+      (h2 : u8) = (src &+ usize((i + i32(2)))).*;
+      if((_is_hex_char(h1) && _is_hex_char(h2)), {
+        _ := out.push(b);
+        _ := out.push(h1);
+        _ := out.push(h2);
+        i = (i + i32(3));
+      }, {
+        // Invalid percent sequence — encode the %
+        _emit_pct((&out), b);
+        i = (i + i32(1));
+      });
+    }, {
+      if((b < u8(0x80)), {
+        // ASCII range
+        if((_is_alnum(b) || _is_default_exclude(b)), {
+          _ := out.push(b);
+        }, {
+          _emit_pct((&out), b);
+        });
+        i = (i + i32(1));
+      }, {
+        // Non-ASCII: already UTF-8 encoded in the source, just percent-encode each byte
+        // Determine UTF-8 sequence length
+        if(((b & u8(0xE0)) == u8(0xC0)), {
+          // 2-byte UTF-8
+          _emit_pct((&out), b);
+          if(((i + i32(1)) < len), {
+            _emit_pct((&out), (src &+ usize((i + i32(1)))).*);
+          });
+          i = (i + i32(2));
+        }, {
+          if(((b & u8(0xF0)) == u8(0xE0)), {
+            // 3-byte UTF-8
+            _emit_pct((&out), b);
+            if(((i + i32(1)) < len), {
+              _emit_pct((&out), (src &+ usize((i + i32(1)))).*);
+            });
+            if(((i + i32(2)) < len), {
+              _emit_pct((&out), (src &+ usize((i + i32(2)))).*);
+            });
+            i = (i + i32(3));
+          }, {
+            if(((b & u8(0xF8)) == u8(0xF0)), {
+              // 4-byte UTF-8
+              _emit_pct((&out), b);
+              if(((i + i32(1)) < len), {
+                _emit_pct((&out), (src &+ usize((i + i32(1)))).*);
+              });
+              if(((i + i32(2)) < len), {
+                _emit_pct((&out), (src &+ usize((i + i32(2)))).*);
+              });
+              if(((i + i32(3)) < len), {
+                _emit_pct((&out), (src &+ usize((i + i32(3)))).*);
+              });
+              i = (i + i32(4));
+            }, {
+              // Invalid byte — emit replacement char U+FFFD
+              _emit_pct((&out), u8(0xEF));
+              _emit_pct((&out), u8(0xBF));
+              _emit_pct((&out), u8(0xBD));
+              i = (i + i32(1));
+            });
+          });
+        });
+      });
+    });
+  };
+  String.from_bytes(out)
+});
+
+// Normalize link text for display — decode percent-encoded sequences
+// and pass through as-is (no Punycode for now)
+normalize_link_text :: (fn(url: str) -> String)({
+  // For now, just return the URL as-is — we don't do Punycode
+  String.from(url)
+});
+
+export normalize_link, normalize_link_text;

@@ -12,7 +12,7 @@ block_hr :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bo
   (pos : i32) = (bm + ts);
 
   // Must not be indented >3 spaces
-  if((state.*.s_count.get_unchecked(usize(start_line)) >= i32(4)), { return false; });
+  if(((state.*.s_count.get_unchecked(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return false; });
 
   if((pos >= em), { return false; });
 

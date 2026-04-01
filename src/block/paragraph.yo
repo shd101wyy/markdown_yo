@@ -33,6 +33,12 @@ _build_inline_string :: (fn(state: *(BlockState), start_line: i32, end_line: i32
 
     line = (line + i32(1));
   };
+
+  // Trim trailing spaces from the final line
+  while ((buf.len() > usize(0)) && (buf.get_unchecked((buf.len() - usize(1))) == u8(0x20))), {
+    buf._length = (buf._length - usize(1));
+  };
+
   String.from_bytes(buf)
 });
 
@@ -46,7 +52,7 @@ block_paragraph :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
   (searching : bool) = true;
   while (((next_line < end_line) && !(state.*.is_empty(next_line))) && searching), {
     // Lazy continuation for deeply indented lines
-    if((state.*.s_count.get_unchecked(usize(next_line)) > i32(3)), {
+    if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
       next_line = (next_line + i32(1));
     }, {
       // Blockquote quirk

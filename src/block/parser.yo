@@ -3,6 +3,7 @@
 // Dispatches block-level rules in markdown-it order.
 // Each rule either matches and advances state.line, or returns false.
 // SAX-style: rules call renderer directly for block open/close events.
+// List and blockquote handle recursive block_tokenize calls inline here.
 
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
@@ -18,115 +19,466 @@ open import "std/string";
 { block_fence } :: import "./fence.yo";
 { block_hr } :: import "./hr.yo";
 { block_blockquote } :: import "./blockquote.yo";
-{ block_list } :: import "./list.yo";
+{ block_list, skip_bullet_list_marker, skip_ordered_list_marker, parse_list_number } :: import "./list.yo";
 { block_html } :: import "./html_block.yo";
 { block_table } :: import "./table.yo";
 { block_reference } :: import "./reference.yo";
 { block_paragraph } :: import "./paragraph.yo";
+{ _try_list_terminate, _try_block_terminate } :: import "./terminators.yo";
 
 // Main block tokenize function.
 // Parses lines [start_line, end_line) and calls renderer directly.
 block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> unit)({
   (line : i32) = start_line;
   (max_nesting : i32) = state.*.options.*.max_nesting;
+  (has_empty_lines : bool) = false;
 
-  while (line < end_line), {
+  (tokenize_done : bool) = false;
+  while (!(tokenize_done)), {
+    // Skip empty lines
+    while ((line < end_line) && state.*.is_empty(line)), {
+      line = (line + i32(1));
+    };
     state.*.line = line;
 
-    // Skip empty lines
-    if(state.*.is_empty(line), {
-      line = (line + i32(1));
-    }, {
-      // Check nesting depth
-      if((state.*.level >= max_nesting), {
-        // Too deep — treat as paragraph
-        state.*.line = (line + i32(1));
-        line = state.*.line;
-      }, {
-        // Try each block rule in order
-        (matched : bool) = false;
+    if((line >= end_line), { tokenize_done = true; });
 
-        // 1. Table (GFM)
-        if((!(matched) && state.*.options.*.enable_table), {
-          matched = block_table(state, line, end_line, false);
-        });
-
-        // 2. Code (indented)
-        if(!(matched), {
-          matched = block_code(state, line, end_line, false);
-        });
-
-        // 3. Fence (``` / ~~~)
-        if(!(matched), {
-          matched = block_fence(state, line, end_line, false);
-        });
-
-        // 4. Blockquote — handle recursion here to avoid circular import
-        if(!(matched), {
-          (bq_end : i32) = block_blockquote(state, line, end_line, false);
-          if((bq_end > i32(0)), {
-            (old_line_max : i32) = state.*.line_max;
-            (old_parent_type : ParentType) = state.*.parent_type;
-
-            state.*.renderer.*.open_blockquote();
-            state.*.parent_type = .Blockquote;
-            state.*.line_max = bq_end;
-
-            // Recursive parse of blockquote content
-            recur(state, line, bq_end);
-
-            state.*.renderer.*.close_blockquote();
-            state.*.line_max = old_line_max;
-            state.*.parent_type = old_parent_type;
-            state.*.line = bq_end;
-            matched = true;
-          });
-        });
-
-        // 5. Horizontal rule
-        if(!(matched), {
-          matched = block_hr(state, line, end_line, false);
-        });
-
-        // 6. List
-        if(!(matched), {
-          matched = block_list(state, line, end_line, false);
-        });
-
-        // 7. Reference
-        if(!(matched), {
-          matched = block_reference(state, line, end_line, false);
-        });
-
-        // 8. HTML block
-        if((!(matched) && state.*.options.*.html), {
-          matched = block_html(state, line, end_line, false);
-        });
-
-        // 9. Heading (ATX)
-        if(!(matched), {
-          matched = block_heading(state, line, end_line, false);
-        });
-
-        // 10. Setext heading (lheading)
-        if(!(matched), {
-          matched = block_lheading(state, line, end_line, false);
-        });
-
-        // 11. Paragraph (fallback — always matches)
-        if(!(matched), {
-          matched = block_paragraph(state, line, end_line, false);
-        });
-
-        line = state.*.line;
+    // Termination condition for nested calls (blockquote, list items):
+    if(!(tokenize_done), {
+      if((state.*.s_count.get_unchecked(usize(line)) < state.*.blk_indent), {
+        tokenize_done = true;
       });
+    });
+
+    // Check nesting depth
+    if(!(tokenize_done), {
+      if((state.*.level >= max_nesting), {
+        state.*.line = end_line;
+        tokenize_done = true;
+      });
+    });
+
+    if(!(tokenize_done), {
+      // Try each block rule in order
+      (matched : bool) = false;
+
+          // 1. Table (GFM)
+          if((!(matched) && state.*.options.*.enable_table), {
+            matched = block_table(state, line, end_line, false);
+          });
+
+          // 2. Code (indented)
+          if(!(matched), {
+            matched = block_code(state, line, end_line, false);
+          });
+
+          // 3. Fence (``` / ~~~)
+          if(!(matched), {
+            matched = block_fence(state, line, end_line, false);
+          });
+
+          // 4. Blockquote — handle recursion here to avoid circular import
+          if(!(matched), {
+            // First check silent (no state modification)
+            if((block_blockquote(state, line, end_line, true) > i32(0)), {
+              // Save state arrays for the range [line, end_line)
+              (bq_save_bm : ArrayList(i32)) = ArrayList(i32).with_capacity(usize((end_line - line)));
+              (bq_save_ts : ArrayList(i32)) = ArrayList(i32).with_capacity(usize((end_line - line)));
+              (bq_save_sc : ArrayList(i32)) = ArrayList(i32).with_capacity(usize((end_line - line)));
+              (bq_save_bs : ArrayList(i32)) = ArrayList(i32).with_capacity(usize((end_line - line)));
+              (bq_si : i32) = line;
+              while (bq_si < end_line), {
+                _ := bq_save_bm.push(state.*.b_marks.get_unchecked(usize(bq_si)));
+                _ := bq_save_ts.push(state.*.t_shift.get_unchecked(usize(bq_si)));
+                _ := bq_save_sc.push(state.*.s_count.get_unchecked(usize(bq_si)));
+                _ := bq_save_bs.push(state.*.bs_count.get_unchecked(usize(bq_si)));
+                bq_si = (bq_si + i32(1));
+              };
+
+              // Now call non-silent — modifies state arrays, returns bq_end
+              (bq_end : i32) = block_blockquote(state, line, end_line, false);
+
+              (old_line_max : i32) = state.*.line_max;
+              (old_parent_type : ParentType) = state.*.parent_type;
+              (old_blk_indent : i32) = state.*.blk_indent;
+
+              state.*.renderer.*.open_blockquote();
+              state.*.parent_type = .Blockquote;
+              state.*.line_max = bq_end;
+              state.*.blk_indent = i32(0);
+
+              // Recursive parse of blockquote content
+              recur(state, line, bq_end);
+
+              state.*.renderer.*.close_blockquote();
+              state.*.line_max = old_line_max;
+              state.*.parent_type = old_parent_type;
+              state.*.line = bq_end;
+              state.*.blk_indent = old_blk_indent;
+
+              // Restore state arrays
+              (bq_ri : i32) = line;
+              while (bq_ri < end_line), {
+                (ridx : usize) = usize((bq_ri - line));
+                state.*.b_marks.set(usize(bq_ri), bq_save_bm.get_unchecked(ridx));
+                state.*.t_shift.set(usize(bq_ri), bq_save_ts.get_unchecked(ridx));
+                state.*.s_count.set(usize(bq_ri), bq_save_sc.get_unchecked(ridx));
+                state.*.bs_count.set(usize(bq_ri), bq_save_bs.get_unchecked(ridx));
+                bq_ri = (bq_ri + i32(1));
+              };
+
+              matched = true;
+            });
+          });
+
+          // 5. Horizontal rule
+          if(!(matched), {
+            matched = block_hr(state, line, end_line, false);
+          });
+
+          // 6. List — full inline handling with recursive tokenize
+          if(!(matched), {
+            if(block_list(state, line, end_line, false), {
+              // ── Begin inline list handling ──
+              (list_next : i32) = line;
+
+              // Detect list type
+              (list_is_ordered : bool) = false;
+              (list_marker_value : i32) = i32(0);
+              (list_pam : i32) = skip_ordered_list_marker(state, list_next);
+
+              if((list_pam >= i32(0)), {
+                list_is_ordered = true;
+                (s : i32) = (state.*.b_marks.get_unchecked(usize(list_next)) + state.*.t_shift.get_unchecked(usize(list_next)));
+                list_marker_value = parse_list_number(state.*.src_ptr, s, (list_pam - i32(1)));
+              }, {
+                list_pam = skip_bullet_list_marker(state, list_next);
+              });
+
+              // Remember marker char for style change detection
+              (list_marker_char : i32) = i32((state.*.src_ptr &+ usize((list_pam - i32(1)))).*);
+
+              // Open list tag
+              if(list_is_ordered, {
+                state.*.renderer.*.open_ordered_list(list_marker_value);
+              }, {
+                state.*.renderer.*.open_unordered_list();
+              });
+
+              // Record buffer position AFTER the list open tag
+              // so mark_tight_paragraphs scans only list item contents (depth 0 = direct children)
+              (list_buf_start : usize) = state.*.renderer.*.buf_pos();
+
+              (list_tight : bool) = true;
+              (list_prev_empty_end : bool) = false;
+
+              (list_old_parent : ParentType) = state.*.parent_type;
+              state.*.parent_type = .List;
+
+              (list_done : bool) = false;
+              while ((list_next < end_line) && !(list_done)), {
+                (item_pos : i32) = list_pam;
+                (item_max : i32) = state.*.e_marks.get_unchecked(usize(list_next));
+
+                (item_initial : i32) = ((state.*.s_count.get_unchecked(usize(list_next)) + list_pam) - (state.*.b_marks.get_unchecked(usize(list_next)) + state.*.t_shift.get_unchecked(usize(list_next))));
+                (item_offset : i32) = item_initial;
+
+                // Calculate indent after marker (skip spaces/tabs)
+                (item_indent_scanning : bool) = true;
+                while ((item_pos < item_max) && item_indent_scanning), {
+                  (ch : i32) = i32((state.*.src_ptr &+ usize(item_pos)).*);
+                  if((ch == i32(0x09)), {
+                    item_offset = (item_offset + (i32(4) - ((item_offset + state.*.bs_count.get_unchecked(usize(list_next))) % i32(4))));
+                    item_pos = (item_pos + i32(1));
+                  }, {
+                    if((ch == i32(0x20)), {
+                      item_offset = (item_offset + i32(1));
+                      item_pos = (item_pos + i32(1));
+                    }, {
+                      item_indent_scanning = false;
+                    });
+                  });
+                };
+
+                (item_content_start : i32) = item_pos;
+                (item_indent_after_marker : i32) = cond(
+                  (item_content_start >= item_max) => i32(1),
+                  true => (item_offset - item_initial)
+                );
+
+                if((item_indent_after_marker > i32(4)), {
+                  item_indent_after_marker = i32(1);
+                });
+
+                (item_indent : i32) = (item_initial + item_indent_after_marker);
+
+                // Open list item
+                state.*.renderer.*.open_list_item();
+
+                // Save state
+                (item_old_tight : bool) = state.*.tight;
+                (item_old_tshift : i32) = state.*.t_shift.get_unchecked(usize(list_next));
+                (item_old_scount : i32) = state.*.s_count.get_unchecked(usize(list_next));
+                (item_old_list_indent : i32) = state.*.list_indent;
+                state.*.list_indent = state.*.blk_indent;
+                state.*.blk_indent = item_indent;
+
+                state.*.tight = true;
+                state.*.t_shift.set(usize(list_next), (item_content_start - state.*.b_marks.get_unchecked(usize(list_next))));
+                state.*.s_count.set(usize(list_next), item_offset);
+
+                if(((item_content_start >= item_max) && state.*.is_empty((list_next + i32(1)))), {
+                  // Empty item workaround
+                  state.*.line = cond(
+                    ((list_next + i32(2)) < end_line) => (list_next + i32(2)),
+                    true => end_line
+                  );
+                }, {
+                  // Recursive block tokenize for list item content
+                  recur(state, list_next, end_line);
+                });
+
+                // Detect loose list
+                if((!(state.*.tight) || list_prev_empty_end), {
+                  list_tight = false;
+                });
+                list_prev_empty_end = (((state.*.line - list_next) > i32(1)) && state.*.is_empty((state.*.line - i32(1))));
+
+                // Restore state
+                state.*.blk_indent = state.*.list_indent;
+                state.*.list_indent = item_old_list_indent;
+                state.*.t_shift.set(usize(list_next), item_old_tshift);
+                state.*.s_count.set(usize(list_next), item_old_scount);
+                state.*.tight = item_old_tight;
+
+                // Close list item
+                state.*.renderer.*.close_list_item();
+
+                list_next = state.*.line;
+
+                if((list_next >= end_line), { list_done = true; });
+
+                if(!(list_done), {
+                  if((state.*.s_count.get_unchecked(usize(list_next)) < state.*.blk_indent), {
+                    list_done = true;
+                  });
+                });
+
+                if(!(list_done), {
+                  if(((state.*.s_count.get_unchecked(usize(list_next)) - state.*.blk_indent) >= i32(4)), {
+                    list_done = true;
+                  });
+                });
+
+                // Check terminator rules
+                if(!(list_done), {
+                  if(_try_list_terminate(state, list_next, end_line), {
+                    list_done = true;
+                  });
+                });
+
+                // Check for matching marker type
+                if(!(list_done), {
+                  if(list_is_ordered, {
+                    list_pam = skip_ordered_list_marker(state, list_next);
+                    if((list_pam < i32(0)), { list_done = true; });
+                  }, {
+                    list_pam = skip_bullet_list_marker(state, list_next);
+                    if((list_pam < i32(0)), { list_done = true; });
+                  });
+                });
+
+                // Check marker style change
+                if(!(list_done), {
+                  if((list_marker_char != i32((state.*.src_ptr &+ usize((list_pam - i32(1)))).*)), {
+                    list_done = true;
+                  });
+                });
+              };
+
+              // Close list tag
+              if(list_is_ordered, {
+                state.*.renderer.*.close_ordered_list();
+              }, {
+                state.*.renderer.*.close_unordered_list();
+              });
+
+              state.*.line = list_next;
+              state.*.parent_type = list_old_parent;
+
+              // If tight, remove <p> and </p> tags from the list content
+              if(list_tight, {
+                state.*.renderer.*.mark_tight_paragraphs(list_buf_start);
+              });
+
+              matched = true;
+              // ── End inline list handling ──
+            });
+          });
+
+          // 7. Reference
+          if(!(matched), {
+            matched = block_reference(state, line, end_line, false);
+          });
+
+          // 8. HTML block
+          if((!(matched) && state.*.options.*.html), {
+            matched = block_html(state, line, end_line, false);
+          });
+
+          // 9. Heading (ATX)
+          if(!(matched), {
+            matched = block_heading(state, line, end_line, false);
+          });
+
+          // 10. Setext heading (lheading)
+          if(!(matched), {
+            matched = block_lheading(state, line, end_line, false);
+          });
+
+          // 11. Paragraph (fallback — always matches)
+          if(!(matched), {
+            matched = block_paragraph(state, line, end_line, false);
+          });
+
+          line = state.*.line;
+
+          // Set state.tight based on whether we had empty lines before this tag
+          state.*.tight = !(has_empty_lines);
+
+          // Paragraph might "eat" one newline after it
+          if(state.*.is_empty((state.*.line - i32(1))), {
+            has_empty_lines = true;
+          });
+
+          if(((line < end_line) && state.*.is_empty(line)), {
+            has_empty_lines = true;
+            line = (line + i32(1));
+            state.*.line = line;
+          });
     });
   };
 });
 
+// Pre-scan all lines for reference definitions before the main parse.
+// This ensures forward references ([foo] before [foo]: /url) work correctly.
+_prescan_references :: (fn(state: *(BlockState)) -> unit)({
+  (line : i32) = i32(0);
+  (max : i32) = state.*.line_max;
+  // Track paragraph state: references cannot appear inside paragraph continuations
+  (in_paragraph : bool) = false;
+  while (line < max), {
+    if(state.*.is_empty(line), {
+      in_paragraph = false;
+      line = (line + i32(1));
+    }, {
+      // Skip fenced code blocks: detect opening fence and skip to closing
+      (bm : i32) = state.*.b_marks.get_unchecked(usize(line));
+      (ts : i32) = state.*.t_shift.get_unchecked(usize(line));
+      (em : i32) = state.*.e_marks.get_unchecked(usize(line));
+      (sc : i32) = state.*.s_count.get_unchecked(usize(line));
+      (fence_detected : bool) = false;
+      if((sc < i32(4)), {
+        (line_start : i32) = (bm + ts);
+        if((line_start < em), {
+          (fc : u8) = (state.*.src_ptr &+ usize(line_start)).*;
+          if(((fc == u8(0x60)) || (fc == u8(0x7E))), {
+            // Count consecutive fence chars
+            (fence_char : u8) = fc;
+            (fence_count : i32) = i32(0);
+            (fp : i32) = line_start;
+            while ((fp < em) && ((state.*.src_ptr &+ usize(fp)).* == fence_char)), {
+              fence_count = (fence_count + i32(1));
+              fp = (fp + i32(1));
+            };
+            if((fence_count >= i32(3)), {
+              // Check no backticks in info string for backtick fences
+              (has_backtick_in_info : bool) = false;
+              if((fence_char == u8(0x60)), {
+                (ip : i32) = fp;
+                while (ip < em), {
+                  if(((state.*.src_ptr &+ usize(ip)).* == u8(0x60)), {
+                    has_backtick_in_info = true;
+                  });
+                  ip = (ip + i32(1));
+                };
+              });
+              if(!(has_backtick_in_info), {
+                fence_detected = true;
+                in_paragraph = false;
+                // Skip to closing fence or end
+                line = (line + i32(1));
+                while (line < max), {
+                  (fbm : i32) = state.*.b_marks.get_unchecked(usize(line));
+                  (fts : i32) = state.*.t_shift.get_unchecked(usize(line));
+                  (fem : i32) = state.*.e_marks.get_unchecked(usize(line));
+                  (fsc : i32) = state.*.s_count.get_unchecked(usize(line));
+                  (fpos : i32) = (fbm + fts);
+                  if((((fsc < i32(4)) && (fpos < fem)) && ((state.*.src_ptr &+ usize(fpos)).* == fence_char)), {
+                    // Count closing fence chars
+                    (cc : i32) = i32(0);
+                    while ((fpos < fem) && ((state.*.src_ptr &+ usize(fpos)).* == fence_char)), {
+                      cc = (cc + i32(1));
+                      fpos = (fpos + i32(1));
+                    };
+                    if((cc >= fence_count), {
+                      // Closing fence — skip past it
+                      line = (line + i32(1));
+                      while true, { break; };
+                    });
+                  });
+                  line = (line + i32(1));
+                };
+              });
+            });
+          });
+        });
+      });
+
+      if(!(fence_detected), {
+        if(in_paragraph, {
+          // In a paragraph: check if this line terminates the paragraph
+          if(_try_block_terminate(state, line, max), {
+            // Block element terminates the paragraph — leave paragraph state
+            in_paragraph = false;
+            line = (line + i32(1));
+          }, {
+            // Paragraph continuation — skip this line
+            line = (line + i32(1));
+          });
+        }, {
+          // Not in a paragraph: try reference rule
+          (old_line : i32) = state.*.line;
+          state.*.line = line;
+          (matched : bool) = block_reference(state, line, max, false);
+          if(matched, {
+            line = state.*.line;
+          }, {
+            state.*.line = old_line;
+            // Non-reference line: check if it's a block element or a paragraph start
+            if(_try_block_terminate(state, line, max), {
+              // Block element (heading, blockquote, etc.) — skip, don't enter paragraph
+              line = (line + i32(1));
+            }, {
+              // Paragraph start — enter paragraph mode
+              in_paragraph = true;
+              line = (line + i32(1));
+            });
+          });
+        });
+      });
+    });
+  };
+  // Reset line for the main parse
+  state.*.line = i32(0);
+});
+
 // Entry point: parse entire source as blocks
-block_parse :: (fn(state: *(BlockState)) -> unit)(
-  block_tokenize(state, i32(0), state.*.line_max)
-);
+block_parse :: (fn(state: *(BlockState)) -> unit)({
+  // Phase 1: Pre-scan for link reference definitions
+  _prescan_references(state);
+  // Phase 2: Parse blocks and render
+  block_tokenize(state, i32(0), state.*.line_max);
+});
 
 export block_parse, block_tokenize;

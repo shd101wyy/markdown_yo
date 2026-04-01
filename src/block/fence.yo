@@ -5,6 +5,7 @@
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
 { BlockState } :: import "./state.yo";
+{ HtmlRenderer } :: import "../renderer.yo";
 { is_space } :: import "../common/utils.yo";
 
 block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
@@ -14,7 +15,7 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   (pos : i32) = (bm + ts);
 
   // Must not be indented >3 spaces
-  if((state.*.s_count.get_unchecked(usize(start_line)) >= i32(4)), { return false; });
+  if(((state.*.s_count.get_unchecked(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return false; });
 
   if((pos >= em), { return false; });
 
@@ -60,6 +61,9 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
 
   if(silent, { return true; });
 
+  // Save fence indent for content stripping (getLines logic)
+  (fence_indent : i32) = state.*.s_count.get_unchecked(usize(start_line));
+
   // Find closing fence
   (next_line : i32) = (start_line + i32(1));
   (found_close : bool) = false;
@@ -70,31 +74,36 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
     (nem : i32) = state.*.e_marks.get_unchecked(usize(next_line));
     (npos : i32) = (nbm + nts);
 
-    // Closing fence: same marker, >= count, nothing else
-    if((state.*.s_count.get_unchecked(usize(next_line)) < i32(4)), {
-      if((npos < nem), {
-        (nch : u8) = (state.*.src_ptr &+ usize(npos)).*;
-        if((nch == marker), {
-          (nc : i32) = i32(0);
-          (np : i32) = npos;
-          while ((np < nem) && ((state.*.src_ptr &+ usize(np)).* == marker)), {
-            nc = (nc + i32(1));
-            np = (np + i32(1));
-          };
+    // Non-empty outdented line: stop looking for closing fence
+    if(((npos < nem) && (state.*.s_count.get_unchecked(usize(next_line)) < state.*.blk_indent)), {
+      next_line = end_line;
+    }, {
+      // Closing fence: same marker, >= count, nothing else
+      if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) < i32(4)), {
+        if((npos < nem), {
+          (nch : u8) = (state.*.src_ptr &+ usize(npos)).*;
+          if((nch == marker), {
+            (nc : i32) = i32(0);
+            (np : i32) = npos;
+            while ((np < nem) && ((state.*.src_ptr &+ usize(np)).* == marker)), {
+              nc = (nc + i32(1));
+              np = (np + i32(1));
+            };
 
-          if((nc >= marker_count), {
-            // Check rest of line is spaces only
-            np = state.*.skip_spaces(np);
-            if((np >= nem), {
-              found_close = true;
+            if((nc >= marker_count), {
+              // Check rest of line is spaces only
+              np = state.*.skip_spaces(np);
+              if((np >= nem), {
+                found_close = true;
+              });
             });
           });
         });
       });
-    });
 
-    if(!(found_close), {
-      next_line = (next_line + i32(1));
+      if(!(found_close), {
+        next_line = (next_line + i32(1));
+      });
     });
   };
 
@@ -105,29 +114,68 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
     true => end_line
   );
 
-  // Build content: each line with indent stripped (up to opening indent)
-  // Use renderer.fence which takes content range and lang range
-  // For now, build content range in source
-  (content_start : i32) = cond(
-    (content_first_line < content_last_line) => state.*.b_marks.get_unchecked(usize(content_first_line)),
-    true => i32(0)
-  );
-  (content_end : i32) = cond(
-    (content_last_line > content_first_line) => {
-      // End at the end of the last content line (including newline)
-      (last_content_line : i32) = (content_last_line - i32(1));
-      (last_em : i32) = state.*.e_marks.get_unchecked(usize(last_content_line));
-      // Include the newline after the last line if present
-      cond(
-        ((last_em < state.*.src_len) && (i32((state.*.src_ptr &+ usize(last_em)).*) == i32(0x0A))) =>
-          (last_em + i32(1)),
-        true => last_em
-      )
-    },
-    true => i32(0)
-  );
+  // Emit <pre><code> with optional language class
+  (r : *(HtmlRenderer)) = state.*.renderer;
+  if((lang_start < lang_end), {
+    r.*.lit("<pre><code class=\"");
+    r.*.push_string(r.*.options.*.lang_prefix);
+    r.*.escaped_unesc(lang_start, lang_end);
+    r.*.lit("\">");
+  }, {
+    r.*.lit("<pre><code>");
+  });
 
-  state.*.renderer.*.fence(content_start, content_end, lang_start, lang_end);
+  // Emit content with indent stripping (markdown-it getLines logic)
+  (cl : i32) = content_first_line;
+  while (cl < content_last_line), {
+    (line_start : i32) = state.*.b_marks.get_unchecked(usize(cl));
+    (line_end : i32) = state.*.e_marks.get_unchecked(usize(cl));
+
+    // Strip up to fence_indent columns (tab-aware, tShift-aware)
+    (first : i32) = line_start;
+    (col : i32) = i32(0);
+    (line_tshift : i32) = state.*.t_shift.get_unchecked(usize(cl));
+    while ((first < line_end) && (col < fence_indent)), {
+      (ch : u8) = (state.*.src_ptr &+ usize(first)).*;
+      if((ch == u8(0x09)), {
+        col = (col + (i32(4) - ((col + state.*.bs_count.get_unchecked(usize(cl))) % i32(4))));
+        // Only advance past tab if fully consumed
+        if((col <= fence_indent), {
+          first = (first + i32(1));
+        });
+      }, if((ch == u8(0x20)), {
+        col = (col + i32(1));
+        first = (first + i32(1));
+      }, if(((first - line_start) < line_tshift), {
+        // Non-space within tShift (e.g. list/blockquote markers) — count as indent
+        col = (col + i32(1));
+        first = (first + i32(1));
+      }, {
+        // Non-space: stop stripping without advancing
+        col = fence_indent;
+      })));
+    };
+
+    // Partially consumed tab → emit extra spaces
+    if((col > fence_indent), {
+      (extra : i32) = (col - fence_indent);
+      (sp : i32) = i32(0);
+      while (sp < extra), {
+        r.*.byte(u8(0x20));
+        sp = (sp + i32(1));
+      };
+    });
+
+    // Emit escaped content + newline (only if source has a newline at this position)
+    r.*.escaped(first, line_end);
+    if((state.*.e_marks.get_unchecked(usize(cl)) < state.*.src_len), {
+      r.*.byte(u8(0x0A));
+    });
+
+    cl = (cl + i32(1));
+  };
+
+  r.*.lit("</code></pre>\n");
 
   state.*.line = cond(
     found_close => (next_line + i32(1)),

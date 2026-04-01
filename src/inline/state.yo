@@ -5,7 +5,7 @@
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
 { HashMap } :: import "std/collections/hash_map";
-{ Options, Env, Delimiter, InlineType } :: import "../types.yo";
+{ Options, Env, Delimiter, InlineType, LinkMarker, EmphasisPair } :: import "../types.yo";
 { HtmlRenderer } :: import "../renderer.yo";
 { is_space } :: import "../common/utils.yo";
 
@@ -66,6 +66,8 @@ InlineState :: struct(
   backticks_scanned : bool,
 
   link_level : i32,
+  link_markers : ArrayList(LinkMarker),
+  resolved_pairs : ArrayList(EmphasisPair),
 
   env : *(Env),
   renderer : *(HtmlRenderer),
@@ -96,6 +98,8 @@ impl(InlineState,
       backticks: HashMap(i32, i32).new(),
       backticks_scanned: false,
       link_level: i32(0),
+      link_markers: ArrayList(LinkMarker).new(),
+      resolved_pairs: ArrayList(EmphasisPair).new(),
       env: env,
       renderer: renderer,
       options: options

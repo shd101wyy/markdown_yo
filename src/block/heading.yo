@@ -16,7 +16,7 @@ block_heading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silen
   (pos : i32) = (bm + ts);
 
   // Must not be indented >3 spaces
-  if((state.*.s_count.get_unchecked(usize(start_line)) >= i32(4)), { return false; });
+  if(((state.*.s_count.get_unchecked(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return false; });
 
   // Must start with #
   if((pos >= em), { return false; });
@@ -55,8 +55,8 @@ block_heading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silen
   while ((tmp > pos) && (i32((state.*.src_ptr &+ usize((tmp - i32(1)))).*) == i32(0x23))), {
     tmp = (tmp - i32(1));
   };
-  // Trailing #'s must be preceded by space (or be entire content)
-  if(((tmp > pos) && is_space(i32((state.*.src_ptr &+ usize((tmp - i32(1)))).*))) , {
+  // Trailing #'s must be preceded by space (or be entire content after opening)
+  if(((tmp == pos) || is_space(i32((state.*.src_ptr &+ usize((tmp - i32(1)))).*))) , {
     content_end = tmp;
     // Trim trailing spaces before the #'s
     while ((content_end > pos) && is_space(i32((state.*.src_ptr &+ usize((content_end - i32(1)))).*))) , {

@@ -6,7 +6,7 @@
 { ArrayList } :: import "std/collections/array_list";
 { InlineState, InlineToken } :: import "./state.yo";
 { Delimiter } :: import "../types.yo";
-{ is_space, is_punct_char } :: import "../common/utils.yo";
+{ is_space, is_white_space, is_punct_char } :: import "../common/utils.yo";
 
 // Scan delimiter run for open/close properties (CommonMark §6.2)
 _scan_delims :: (fn(state: *(InlineState), start: i32, marker: u8) -> i32)({
@@ -33,8 +33,8 @@ _scan_delims :: (fn(state: *(InlineState), start: i32, marker: u8) -> i32)({
 
   (is_last_punct : bool) = is_punct_char(char_before);
   (is_next_punct : bool) = is_punct_char(char_after);
-  (is_last_ws : bool) = is_space(char_before);
-  (is_next_ws : bool) = is_space(char_after);
+  (is_last_ws : bool) = is_white_space(char_before);
+  (is_next_ws : bool) = is_white_space(char_after);
 
   // Left-flanking: not followed by whitespace, and either not followed by punct
   // or preceded by whitespace or punct
@@ -76,7 +76,13 @@ inline_emphasis :: (fn(state: *(InlineState)) -> bool)({
   (can_open : bool) = ((scan_result & i32(0x10000)) != i32(0));
   (can_close : bool) = ((scan_result & i32(0x20000)) != i32(0));
 
-  if((!(can_open) && !(can_close)), { return false; });
+  if((!(can_open) && !(can_close)), {
+    // Can't be used as delimiter — consume entire run as text to prevent
+    // individual characters from being re-scanned with different context.
+    state.*.pending_end = (pos + count);
+    state.*.pos = (pos + count);
+    return true;
+  });
 
   // Push pending text
   state.*.push_pending();

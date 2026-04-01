@@ -6,7 +6,7 @@
 
 block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
   // Must be indented by 4+
-  if((state.*.s_count.get_unchecked(usize(start_line)) < i32(4)), {
+  if(((state.*.s_count.get_unchecked(usize(start_line)) - state.*.blk_indent) < i32(4)), {
     return false;
   });
 
@@ -19,7 +19,7 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
     if(state.*.is_empty(next_line), {
       next_line = (next_line + i32(1));
     }, {
-      if((state.*.s_count.get_unchecked(usize(next_line)) >= i32(4)), {
+      if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) >= i32(4)), {
         last = next_line;
         next_line = (next_line + i32(1));
       }, {
@@ -30,34 +30,49 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
   };
 
   // Emit code block: lines from start_line to last (inclusive)
-  // Build content from lines, stripping 4-space indent
+  // Use getLines logic: strip (4 + blkIndent) columns per line, tab-aware
   state.*.renderer.*.lit("<pre><code>");
 
+  (indent : i32) = (i32(4) + state.*.blk_indent);
   (line : i32) = start_line;
   while (line <= last), {
     (bm : i32) = state.*.b_marks.get_unchecked(usize(line));
     (em : i32) = state.*.e_marks.get_unchecked(usize(line));
 
-    if(state.*.is_empty(line), {
-      // Empty line — just emit newline
-      state.*.renderer.*.byte(u8(0x0A));
-    }, {
-      // Compute content start: skip 4 spaces of indent
-      (ts : i32) = state.*.t_shift.get_unchecked(usize(line));
-      (sc : i32) = state.*.s_count.get_unchecked(usize(line));
-      (content_start : i32) = (bm + ts);
+    // Strip up to `indent` columns (tab-aware, tShift-aware)
+    // Characters within tShift count as indent even if non-space (e.g. list markers)
+    (first : i32) = bm;
+    (col : i32) = i32(0);
+    (line_tshift : i32) = state.*.t_shift.get_unchecked(usize(line));
+    while ((first < em) && (col < indent)), {
+      (ch : u8) = (state.*.src_ptr &+ usize(first)).*;
+      if((ch == u8(0x09)), {
+        col = (col + (i32(4) - ((col + state.*.bs_count.get_unchecked(usize(line))) % i32(4))));
+        if((col <= indent), { first = (first + i32(1)); });
+      }, if((ch == u8(0x20)), {
+        col = (col + i32(1));
+        first = (first + i32(1));
+      }, if(((first - bm) < line_tshift), {
+        // Non-space within tShift (e.g. list marker chars) — count as indent
+        col = (col + i32(1));
+        first = (first + i32(1));
+      }, {
+        col = indent;
+      })));
+    };
 
-      // If indent > 4, need to emit extra spaces
-      (extra_indent : i32) = (sc - i32(4));
-      if((extra_indent > i32(0)), {
-        (si : i32) = i32(0);
-        while (si < extra_indent), {
-          state.*.renderer.*.byte(u8(0x20));
-          si = (si + i32(1));
-        };
-      });
+    // Partially consumed tab → emit extra spaces
+    if((col > indent), {
+      (extra : i32) = (col - indent);
+      (sp : i32) = i32(0);
+      while (sp < extra), {
+        state.*.renderer.*.byte(u8(0x20));
+        sp = (sp + i32(1));
+      };
+    });
 
-      state.*.renderer.*.escaped(content_start, em);
+    state.*.renderer.*.escaped(first, em);
+    if((state.*.e_marks.get_unchecked(usize(line)) < state.*.src_len), {
       state.*.renderer.*.byte(u8(0x0A));
     });
 

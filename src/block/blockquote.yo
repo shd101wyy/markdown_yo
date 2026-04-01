@@ -1,12 +1,19 @@
 // markdown_yo — Blockquote rule
 //
 // Matches: > prefixed lines
-// Returns bq_end line number (> start_line if matched, 0 if no match).
+// Returns bq_end line number (> start_line if matched, -1 if no match).
 // The caller (parser.yo) handles recursive block_tokenize call.
+// When silent=false, modifies state arrays (bMarks, tShift, sCount, bsCount)
+// for the blockquote content lines. The caller MUST save and restore these.
 
 { BlockState } :: import "./state.yo";
 { is_space } :: import "../common/utils.yo";
 { ParentType } :: import "../types.yo";
+{ block_heading } :: import "./heading.yo";
+{ block_fence } :: import "./fence.yo";
+{ block_hr } :: import "./hr.yo";
+{ block_list } :: import "./list.yo";
+{ block_html } :: import "./html_block.yo";
 
 // Scan blockquote lines and adjust state arrays.
 // Returns bq_end (the line AFTER the blockquote), or -1 if no match.
@@ -18,7 +25,7 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
   (pos : i32) = (bm + ts);
 
   // Must not be indented >3 spaces
-  if((state.*.s_count.get_unchecked(usize(start_line)) >= i32(4)), { return i32(-1); });
+  if(((state.*.s_count.get_unchecked(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return i32(-1); });
 
   // Check >
   if((pos >= em), { return i32(-1); });
@@ -29,7 +36,6 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
   // Find all lines belonging to this blockquote
   (next_line : i32) = start_line;
   (last_line_empty : bool) = false;
-  (bq_end : i32) = start_line;
 
   (scanning : bool) = true;
   while ((next_line < end_line) && scanning), {
@@ -39,56 +45,108 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
     (npos : i32) = (nbm + nts);
     (nsc : i32) = state.*.s_count.get_unchecked(usize(next_line));
 
-    (is_bq_line : bool) = false;
+    (is_outdented : bool) = (nsc < state.*.blk_indent);
 
-    if((((npos < nem) && (i32((state.*.src_ptr &+ usize(npos)).*) == i32(0x3E))) && (nsc < i32(4))), {
-      is_bq_line = true;
-    });
+    // Empty line breaks blockquote
+    if((npos >= nem), { scanning = false; }, {
 
-    if(is_bq_line, {
+    if(((i32((state.*.src_ptr &+ usize(npos)).*) == i32(0x3E)) && !(is_outdented)), {
+      // This line is inside the blockquote
       last_line_empty = false;
-      bq_end = (next_line + i32(1));
 
-      // Adjust line markers: skip > and optional space after it
-      (adj_pos : i32) = (npos + i32(1));
-      (space_after : i32) = i32(0);
-      if(((adj_pos < nem) && is_space(i32((state.*.src_ptr &+ usize(adj_pos)).*))) , {
-        space_after = i32(1);
-        adj_pos = (adj_pos + i32(1));
+      // set offset past spaces and ">"
+      npos = (npos + i32(1));
+      (initial : i32) = (nsc + i32(1));
+      (space_after_marker : bool) = false;
+      (adjust_tab : bool) = false;
+
+      // skip one optional space after '>'
+      if((npos < nem), {
+        (ch : i32) = i32((state.*.src_ptr &+ usize(npos)).*);
+        if((ch == i32(0x20)), {
+          npos = (npos + i32(1));
+          initial = (initial + i32(1));
+          space_after_marker = true;
+        }, {
+          if((ch == i32(0x09)), {
+            space_after_marker = true;
+            if((((state.*.bs_count.get_unchecked(usize(next_line)) + initial) % i32(4)) == i32(3)), {
+              npos = (npos + i32(1));
+              initial = (initial + i32(1));
+            }, {
+              adjust_tab = true;
+            });
+          });
+        });
       });
 
-      // Update state arrays for this line
-      (old_bs : i32) = state.*.bs_count.get_unchecked(usize(next_line));
+      (offset : i32) = initial;
 
-      (indent : i32) = ((nts + i32(1)) + space_after);
-      state.*.t_shift.set(usize(next_line), (adj_pos - nbm));
-      state.*.s_count.set(usize(next_line), (nsc - indent));
-      state.*.bs_count.set(usize(next_line), (old_bs + indent));
+      // Update bMarks — point to content after "> "
+      state.*.b_marks.set(usize(next_line), npos);
+
+      // Scan remaining whitespace to calculate sCount
+      (ws_scanning : bool) = true;
+      while ((npos < nem) && ws_scanning), {
+        (wch : i32) = i32((state.*.src_ptr &+ usize(npos)).*);
+        if(is_space(wch), {
+          if((wch == i32(0x09)), {
+            offset = (offset + (i32(4) - (((offset + state.*.bs_count.get_unchecked(usize(next_line))) + cond(adjust_tab => i32(1), true => i32(0))) % i32(4))));
+          }, {
+            offset = (offset + i32(1));
+          });
+          npos = (npos + i32(1));
+        }, {
+          ws_scanning = false;
+        });
+      };
+
+      last_line_empty = (npos >= nem);
+
+      // Update bsCount
+      state.*.bs_count.set(usize(next_line), ((nsc + i32(1)) + cond(space_after_marker => i32(1), true => i32(0))));
+
+      // sCount = offset - initial (leading whitespace of content)
+      state.*.s_count.set(usize(next_line), (offset - initial));
+
+      // tShift relative to new bMarks
+      state.*.t_shift.set(usize(next_line), (npos - state.*.b_marks.get_unchecked(usize(next_line))));
 
       next_line = (next_line + i32(1));
     }, {
-      // Non-blockquote line
-      if(state.*.is_empty(next_line), {
-        if(last_line_empty, {
-          scanning = false;
-        }, {
-          last_line_empty = true;
-          bq_end = (next_line + i32(1));
-          next_line = (next_line + i32(1));
-        });
+      // Not a blockquote line
+      if(last_line_empty, {
+        scanning = false;
       }, {
-        // Lazy continuation
-        if((i32(state.*.parent_type) == i32(ParentType.Paragraph)), {
-          bq_end = (next_line + i32(1));
-          next_line = (next_line + i32(1));
-        }, {
+        // Lazy continuation: check terminators (inline to avoid circular import)
+        (terminated : bool) = false;
+        if(!(terminated), { if(block_fence(state, next_line, end_line, true), { terminated = true; }); });
+        if(!(terminated), { if(block_hr(state, next_line, end_line, true), { terminated = true; }); });
+        if(!(terminated), { if(block_list(state, next_line, end_line, true), { terminated = true; }); });
+        if(!(terminated), { if((state.*.options.*.html && block_html(state, next_line, end_line, true)), { terminated = true; }); });
+        if(!(terminated), { if(block_heading(state, next_line, end_line, true), { terminated = true; }); });
+
+        if(terminated, {
+          // Quirk to enforce "hard termination mode" for paragraphs
+          state.*.line_max = next_line;
+
+          // If blkIndent was non-zero, re-adjust sCount for terminating line
+          if((state.*.blk_indent != i32(0)), {
+            state.*.s_count.set(usize(next_line), (nsc - state.*.blk_indent));
+          });
+
           scanning = false;
+        }, {
+          // Lazy continuation — set sCount to -1 (paragraph continuation marker)
+          state.*.s_count.set(usize(next_line), i32(-1));
+          next_line = (next_line + i32(1));
         });
       });
     });
+    });
   };
 
-  bq_end
+  next_line
 });
 
 export block_blockquote;
