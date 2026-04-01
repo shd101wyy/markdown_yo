@@ -6,9 +6,11 @@
 // - Already-encoded %XX sequences are preserved
 // - Non-ASCII chars are UTF-8 encoded then percent-encoded
 // - Invalid surrogate pairs become U+FFFD
+// - Domain names with non-ASCII are punycode-encoded (IDN)
 
 open import "std/collections/array_list";
 open import "std/string";
+{ encode_domain, decode_domain } :: import "./punycode.yo";
 
 _HEX_CHARS :: "0123456789ABCDEF";
 
@@ -68,6 +70,78 @@ _emit_pct :: (fn(out: *(ArrayList(u8)), b: u8) -> unit)({
 
 // Percent-encode a URL string, preserving already-encoded sequences
 // and default exclude chars
+// Find domain start and end in a URL string.
+// Returns (domain_start, domain_end) or (-1, -1) if no domain found.
+// Domain starts after "://" or at "//" and ends at next "/", "?", "#", or end.
+// Skips userinfo (user:pass@) if present.
+// Check if an ASCII byte is a URI reserved character (not decoded by decodeURI)
+// Reserved: ; / ? : @ & = + $ , # and % itself
+_is_uri_reserved :: (fn(ch: i32) -> bool)(
+  cond(
+    (ch == i32(0x23)) => true, // #
+    (ch == i32(0x24)) => true, // $
+    (ch == i32(0x25)) => true, // %
+    (ch == i32(0x26)) => true, // &
+    (ch == i32(0x2B)) => true, // +
+    (ch == i32(0x2C)) => true, // ,
+    (ch == i32(0x2F)) => true, // /
+    (ch == i32(0x3A)) => true, // :
+    (ch == i32(0x3B)) => true, // ;
+    (ch == i32(0x3D)) => true, // =
+    (ch == i32(0x3F)) => true, // ?
+    (ch == i32(0x40)) => true, // @
+    true => false
+  )
+);
+
+// Decode a hex digit to its value (0-15), or -1 if not hex
+_hex_val :: (fn(ch: u8) -> i32)(
+  cond(
+    ((ch >= u8(0x30)) && (ch <= u8(0x39))) => (i32(ch) - i32(0x30)),
+    ((ch >= u8(0x41)) && (ch <= u8(0x46))) => ((i32(ch) - i32(0x41)) + i32(10)),
+    ((ch >= u8(0x61)) && (ch <= u8(0x66))) => ((i32(ch) - i32(0x61)) + i32(10)),
+    true => i32(-1)
+  )
+);
+_find_domain :: (fn(src: *(u8), len: i32) -> i32)({
+  // Look for :// or //
+  (authority_start : i32) = i32(-1);
+  (p : i32) = i32(0);
+  while ((p < len) && (authority_start == i32(-1))), {
+    if(((p + i32(1)) < len), {
+      if(((i32((src &+ usize(p)).*) == i32(0x2F)) && (i32((src &+ usize((p + i32(1)))).*) == i32(0x2F))), {
+        authority_start = (p + i32(2));
+      });
+    });
+    p = (p + i32(1));
+  };
+  authority_start
+});
+
+_find_domain_end :: (fn(src: *(u8), start: i32, len: i32) -> i32)({
+  (p : i32) = start;
+  while (p < len), {
+    (ch : i32) = i32((src &+ usize(p)).*);
+    if(((ch == i32(0x2F)) || ((ch == i32(0x3F)) || ((ch == i32(0x23)) || (ch == i32(0x3A))))), {
+      return p;
+    });
+    p = (p + i32(1));
+  };
+  len
+});
+
+// Skip userinfo (user:pass@) — find @ before domain end
+_skip_userinfo :: (fn(src: *(u8), start: i32, end: i32) -> i32)({
+  (p : i32) = start;
+  while (p < end), {
+    if((i32((src &+ usize(p)).*) == i32(0x40)), {
+      return (p + i32(1));
+    });
+    p = (p + i32(1));
+  };
+  start
+});
+
 normalize_link :: (fn(url: str) -> String)({
   (src : *(u8)) = url.ptr();
   (len : i32) = i32(url.len());
@@ -147,38 +221,79 @@ normalize_link :: (fn(url: str) -> String)({
       });
     });
   };
-  String.from_bytes(out)
+
+  // Post-process: punycode-encode domain if it has non-ASCII
+  (encoded_str : String) = String.from_bytes(out);
+  (enc_src : *(u8)) = encoded_str.as_str().ptr();
+  (enc_len : i32) = i32(encoded_str.as_str().len());
+  (auth_start : i32) = _find_domain(enc_src, enc_len);
+  if((auth_start >= i32(0)), {
+    (domain_start : i32) = _skip_userinfo(enc_src, auth_start, enc_len);
+    (domain_end : i32) = _find_domain_end(enc_src, domain_start, enc_len);
+    if((domain_start < domain_end), {
+      // Check if domain has any percent-encoded non-ASCII (%C0-%FF lead bytes)
+      (has_pct_non_ascii : bool) = false;
+      (dp : i32) = domain_start;
+      while ((dp < domain_end) && !(has_pct_non_ascii)), {
+        if(((i32((enc_src &+ usize(dp)).*) == i32(0x25)) && ((dp + i32(2)) < domain_end)), {
+          (h1_v : i32) = _hex_val((enc_src &+ usize((dp + i32(1)))).*);
+          (h2_v : i32) = _hex_val((enc_src &+ usize((dp + i32(2)))).*);
+          if(((h1_v >= i32(0)) && (h2_v >= i32(0))), {
+            if((((h1_v * i32(16)) + h2_v) >= i32(0xC0)), {
+              has_pct_non_ascii = true;
+            });
+          });
+        });
+        dp = (dp + i32(1));
+      };
+      if(has_pct_non_ascii, {
+        // Decode percent-encoded domain back to UTF-8, then punycode-encode
+        (domain_bytes : ArrayList(u8)) = ArrayList(u8).new();
+        (dp2 : i32) = domain_start;
+        while (dp2 < domain_end), {
+          if(((i32((enc_src &+ usize(dp2)).*) == i32(0x25)) && ((dp2 + i32(2)) < domain_end)), {
+            (dh1 : i32) = _hex_val((enc_src &+ usize((dp2 + i32(1)))).*);
+            (dh2 : i32) = _hex_val((enc_src &+ usize((dp2 + i32(2)))).*);
+            if(((dh1 >= i32(0)) && (dh2 >= i32(0))), {
+              _ := domain_bytes.push(u8(((dh1 * i32(16)) + dh2)));
+              dp2 = (dp2 + i32(3));
+            }, {
+              _ := domain_bytes.push((enc_src &+ usize(dp2)).*);
+              dp2 = (dp2 + i32(1));
+            });
+          }, {
+            _ := domain_bytes.push((enc_src &+ usize(dp2)).*);
+            dp2 = (dp2 + i32(1));
+          });
+        };
+        (domain_str_tmp : String) = String.from_bytes(domain_bytes);
+        (domain_str : str) = domain_str_tmp.as_str();
+        (puny_domain : String) = encode_domain(domain_str);
+        (final_out : ArrayList(u8)) = ArrayList(u8).new();
+        (fp : i32) = i32(0);
+        while (fp < domain_start), {
+          _ := final_out.push((enc_src &+ usize(fp)).*);
+          fp = (fp + i32(1));
+        };
+        (pd_ptr : *(u8)) = puny_domain.as_str().ptr();
+        (pd_len : i32) = i32(puny_domain.as_str().len());
+        (fp2 : i32) = i32(0);
+        while (fp2 < pd_len), {
+          _ := final_out.push((pd_ptr &+ usize(fp2)).*);
+          fp2 = (fp2 + i32(1));
+        };
+        (fp3 : i32) = domain_end;
+        while (fp3 < enc_len), {
+          _ := final_out.push((enc_src &+ usize(fp3)).*);
+          fp3 = (fp3 + i32(1));
+        };
+        return String.from_bytes(final_out);
+      });
+    });
+  });
+  encoded_str
 });
 
-// Check if an ASCII byte is a URI reserved character (not decoded by decodeURI)
-// Reserved: ; / ? : @ & = + $ , # and % itself
-_is_uri_reserved :: (fn(ch: i32) -> bool)(
-  cond(
-    (ch == i32(0x23)) => true, // #
-    (ch == i32(0x24)) => true, // $
-    (ch == i32(0x25)) => true, // %
-    (ch == i32(0x26)) => true, // &
-    (ch == i32(0x2B)) => true, // +
-    (ch == i32(0x2C)) => true, // ,
-    (ch == i32(0x2F)) => true, // /
-    (ch == i32(0x3A)) => true, // :
-    (ch == i32(0x3B)) => true, // ;
-    (ch == i32(0x3D)) => true, // =
-    (ch == i32(0x3F)) => true, // ?
-    (ch == i32(0x40)) => true, // @
-    true => false
-  )
-);
-
-// Decode a hex digit to its value (0-15), or -1 if not hex
-_hex_val :: (fn(ch: u8) -> i32)(
-  cond(
-    ((ch >= u8(0x30)) && (ch <= u8(0x39))) => (i32(ch) - i32(0x30)),
-    ((ch >= u8(0x41)) && (ch <= u8(0x46))) => ((i32(ch) - i32(0x41)) + i32(10)),
-    ((ch >= u8(0x61)) && (ch <= u8(0x66))) => ((i32(ch) - i32(0x61)) + i32(10)),
-    true => i32(-1)
-  )
-);
 
 // Normalize link text for display — decode percent-encoded sequences
 // Matches mdurl.decode behavior: decodes %XX sequences to their byte values,
@@ -316,7 +431,58 @@ normalize_link_text :: (fn(url: str) -> String)({
       i = (i + i32(1));
     });
   };
-  String.from_bytes(out)
+
+  // Post-process: punycode-decode domain labels (xn--... → Unicode)
+  (decoded_str : String) = String.from_bytes(out);
+  (dec_src : *(u8)) = decoded_str.as_str().ptr();
+  (dec_len : i32) = i32(decoded_str.as_str().len());
+  (auth_start : i32) = _find_domain(dec_src, dec_len);
+  if((auth_start >= i32(0)), {
+    (domain_start : i32) = _skip_userinfo(dec_src, auth_start, dec_len);
+    (domain_end : i32) = _find_domain_end(dec_src, domain_start, dec_len);
+    if((domain_start < domain_end), {
+      // Check if domain has any xn-- labels
+      (has_punycode : bool) = false;
+      (dp : i32) = domain_start;
+      while ((dp < domain_end) && !(has_punycode)), {
+        // Check for xn-- at start of label (start of domain or after dot)
+        if(((dp == domain_start) || (i32((dec_src &+ usize((dp - i32(1)))).*) == i32(0x2E))), {
+          if((((dp + i32(4)) <= domain_end)
+            && (((i32((dec_src &+ usize(dp)).*) == i32(0x78)) || (i32((dec_src &+ usize(dp)).*) == i32(0x58)))
+            && (((i32((dec_src &+ usize((dp + i32(1)))).*) == i32(0x6E)) || (i32((dec_src &+ usize((dp + i32(1)))).*) == i32(0x4E)))
+            && ((i32((dec_src &+ usize((dp + i32(2)))).*) == i32(0x2D))
+            && (i32((dec_src &+ usize((dp + i32(3)))).*) == i32(0x2D)))))), {
+            has_punycode = true;
+          });
+        });
+        dp = (dp + i32(1));
+      };
+      if(has_punycode, {
+        (domain_slice : str) = str.from_raw_parts((dec_src &+ usize(domain_start)), usize((domain_end - domain_start)));
+        (unicode_domain : String) = decode_domain(domain_slice);
+        (final_out : ArrayList(u8)) = ArrayList(u8).new();
+        (fp : i32) = i32(0);
+        while (fp < domain_start), {
+          _ := final_out.push((dec_src &+ usize(fp)).*);
+          fp = (fp + i32(1));
+        };
+        (ud_ptr : *(u8)) = unicode_domain.as_str().ptr();
+        (ud_len : i32) = i32(unicode_domain.as_str().len());
+        (fp2 : i32) = i32(0);
+        while (fp2 < ud_len), {
+          _ := final_out.push((ud_ptr &+ usize(fp2)).*);
+          fp2 = (fp2 + i32(1));
+        };
+        (fp3 : i32) = domain_end;
+        while (fp3 < dec_len), {
+          _ := final_out.push((dec_src &+ usize(fp3)).*);
+          fp3 = (fp3 + i32(1));
+        };
+        return String.from_bytes(final_out);
+      });
+    });
+  });
+  decoded_str
 });
 
 export normalize_link, normalize_link_text;
