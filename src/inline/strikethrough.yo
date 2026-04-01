@@ -1,62 +1,93 @@
 // markdown_yo — Inline strikethrough marker rule
 //
 // Handles ~~ markers. Pushes a text token and Delimiter for later resolution.
+// Follows the same flanking rules as emphasis.
 
 { ArrayList } :: import "std/collections/array_list";
 { InlineState, InlineToken } :: import "./state.yo";
 { Delimiter } :: import "../types.yo";
-{ is_space } :: import "../common/utils.yo";
+{ is_white_space, is_punct_char } :: import "../common/utils.yo";
 
 inline_strikethrough :: (fn(state: *(InlineState)) -> bool)({
   (pos : i32) = state.*.pos;
-  if(((pos + i32(1)) >= state.*.pos_max), { return false; });
+  if((pos >= state.*.pos_max), { return false; });
 
   (ch : u8) = (state.*.src_ptr &+ usize(pos)).*;
   if((i32(ch) != i32(0x7E)), { return false; });
 
-  (ch2 : u8) = (state.*.src_ptr &+ usize((pos + i32(1)))).*;
-  if((i32(ch2) != i32(0x7E)), { return false; });
-
-  // Must be exactly 2 tildes
-  (count : i32) = i32(2);
-  (p : i32) = (pos + i32(2));
+  // Count consecutive tildes
+  (count : i32) = i32(0);
+  (p : i32) = pos;
   while ((p < state.*.pos_max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x7E))), {
     count = (count + i32(1));
     p = (p + i32(1));
   };
 
-  // Only match exactly 2
-  if((count != i32(2)), { return false; });
+  if((count < i32(2)), { return false; });
 
-  // Check open/close (simple: not at start/end of whitespace)
+  // Flanking rules (same as emphasis, using Unicode whitespace + punctuation)
   (char_before : i32) = cond(
     (pos > i32(0)) => i32((state.*.src_ptr &+ usize((pos - i32(1)))).*),
     true => i32(0x20)
   );
   (char_after : i32) = cond(
-    ((pos + i32(2)) < state.*.pos_max) => i32((state.*.src_ptr &+ usize((pos + i32(2)))).*),
+    (p < state.*.pos_max) => i32((state.*.src_ptr &+ usize(p)).*),
     true => i32(0x20)
   );
 
-  (can_open : bool) = !(is_space(char_after));
-  (can_close : bool) = !(is_space(char_before));
+  (is_last_ws : bool) = is_white_space(char_before);
+  (is_last_punct : bool) = is_punct_char(char_before);
+  (is_next_ws : bool) = is_white_space(char_after);
+  (is_next_punct : bool) = is_punct_char(char_after);
+
+  // Left-flanking delimiter run
+  (can_open : bool) = !(is_next_ws);
+  if(is_next_punct, {
+    if((!(is_last_ws) && !(is_last_punct)), {
+      can_open = false;
+    });
+  });
+
+  // Right-flanking delimiter run
+  (can_close : bool) = !(is_last_ws);
+  if(is_last_punct, {
+    if((!(is_next_ws) && !(is_next_punct)), {
+      can_close = false;
+    });
+  });
 
   if((!(can_open) && !(can_close)), { return false; });
 
   state.*.push_pending();
-  _ := state.*.tokens.push(InlineToken.text(pos, (pos + i32(2)), state.*.level));
-  (tok_idx : i32) = (i32(state.*.tokens.len()) - i32(1));
 
-  _ := state.*.delimiters.push(Delimiter(
-    marker: u8(0x7E),
-    length: i32(2),
-    token_idx: tok_idx,
-    end: i32(-1),
-    open: can_open,
-    close: can_close
-  ));
+  // If odd count, emit one tilde as plain text
+  (usable : i32) = count;
+  if(((count % i32(2)) != i32(0)), {
+    _ := state.*.tokens.push(InlineToken.text(pos, (pos + i32(1)), state.*.level));
+    usable = (count - i32(1));
+  });
 
-  state.*.pos = (pos + i32(2));
+  // Emit pairs of tildes, each as a delimiter
+  (di : i32) = i32(0);
+  while (di < usable), {
+    (dpos : i32) = ((pos + (count - usable)) + di);
+    _ := state.*.tokens.push(InlineToken.text(dpos, (dpos + i32(2)), state.*.level));
+    (tok_idx : i32) = (i32(state.*.tokens.len()) - i32(1));
+
+    _ := state.*.delimiters.push(Delimiter(
+      marker: u8(0x7E),
+      length: i32(2),
+      token_idx: tok_idx,
+      end: i32(-1),
+      jump: (di / i32(2)),
+      open: can_open,
+      close: can_close
+    ));
+
+    di = (di + i32(2));
+  };
+
+  state.*.pos = p;
   state.*.pending_start = state.*.pos;
   state.*.pending_end = state.*.pos;
   true

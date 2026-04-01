@@ -347,6 +347,7 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
             length: (opener.length - consume),
             token_idx: opener.token_idx,
             end: closer_idx,
+            jump: i32(0),
             open: opener.open,
             close: opener.close
           ));
@@ -356,6 +357,7 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
             length: new_closer_len,
             token_idx: closer.token_idx,
             end: opener_idx,
+            jump: i32(0),
             open: closer.open,
             close: closer.close
           ));
@@ -367,7 +369,7 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
             (d : Delimiter) = state.*.delimiters.get_unchecked(usize(mid));
             state.*.delimiters.set(usize(mid), Delimiter(
               marker: d.marker, length: i32(0), token_idx: d.token_idx,
-              end: i32(-1), open: false, close: false
+              end: i32(-1), jump: i32(0), open: false, close: false
             ));
             mid = (mid + i32(1));
           };

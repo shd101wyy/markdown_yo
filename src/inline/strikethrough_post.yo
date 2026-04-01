@@ -60,6 +60,7 @@ strikethrough_post :: (fn(state: *(InlineState)) -> unit)({
           marker: opener.marker, length: i32(0),
           token_idx: opener.token_idx,
           end: closer_idx,
+          jump: i32(0),
           open: false, close: false
         ));
 
@@ -69,7 +70,7 @@ strikethrough_post :: (fn(state: *(InlineState)) -> unit)({
           (d : Delimiter) = state.*.delimiters.get(usize(mid));
           state.*.delimiters.set(usize(mid), Delimiter(
             marker: d.marker, length: i32(0), token_idx: d.token_idx,
-            end: i32(-1), open: false, close: false
+            end: i32(-1), jump: i32(0), open: false, close: false
           ));
           mid = (mid + i32(1));
         };
@@ -78,7 +79,7 @@ strikethrough_post :: (fn(state: *(InlineState)) -> unit)({
         state.*.delimiters.set(usize(closer_idx), Delimiter(
           marker: closer.marker, length: i32(0),
           token_idx: closer.token_idx,
-          end: i32(-1), open: false, close: false
+          end: i32(-1), jump: i32(0), open: false, close: false
         ));
       });
     });

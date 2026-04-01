@@ -40,8 +40,8 @@ inline_escape :: (fn(state: *(InlineState)) -> bool)({
 
   if(_is_escapable(ch), {
     state.*.push_pending();
-    // Emit the escaped character as text (skip the backslash)
-    _ := state.*.tokens.push(InlineToken.text((pos + i32(1)), (pos + i32(2)), state.*.level));
+    // Emit the escaped character as text_special (skip the backslash)
+    _ := state.*.tokens.push(InlineToken.text_special((pos + i32(1)), (pos + i32(2)), state.*.level));
     state.*.pos = (pos + i32(2));
     state.*.pending_start = state.*.pos;
     state.*.pending_end = state.*.pos;

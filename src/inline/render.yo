@@ -1,8 +1,9 @@
 // markdown_yo — Inline token render pass
 //
 // 1. Resolves emphasis/strikethrough delimiter pairs
-// 2. Walks inline tokens, inserting em/strong/s open/close tags at pair boundaries
-// 3. Dispatches each token to the HtmlRenderer
+// 2. Runs smartquotes post-processing (when typographer is enabled)
+// 3. Walks inline tokens, inserting em/strong/s open/close tags at pair boundaries
+// 4. Dispatches each token to the HtmlRenderer
 
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
@@ -11,6 +12,8 @@ open import "std/string";
 { Delimiter, InlineType, EmphasisPair } :: import "../types.yo";
 { normalize_link } :: import "../common/normalize_link.yo";
 { unescaped_slice } :: import "../common/unescape.yo";
+{ is_white_space, is_punct_char, is_md_ascii_punct } :: import "../common/utils.yo";
+
 
 // A resolved delimiter pair
 _Pair :: struct(
@@ -19,6 +22,326 @@ _Pair :: struct(
   consume : i32,      // chars consumed from each side (1=em, 2=strong)
   pair_type : i32     // 1=em, 2=strong, 3=strikethrough
 );
+
+// =========================================================================
+// Smartquotes — replace straight quotes with typographic curly quotes
+// =========================================================================
+
+// A single quote replacement: position + kind
+_SQReplace :: struct(
+  byte_pos : i32,   // absolute byte offset in inline source
+  kind : u8         // 0=left_dbl ", 1=right_dbl ", 2=left_sgl ', 3=right_sgl '
+);
+
+// Stack entry for tracking potential quote openers
+_SQEntry :: struct(
+  tok_idx : i32,     // token index (for level tracking)
+  byte_pos : i32,    // byte position of the quote character
+  is_single : bool,  // true for ', false for "
+  level : i32        // nesting level at this token
+);
+
+// Emit a curly quote as UTF-8 bytes directly into the buffer.
+// " = E2 80 9C, " = E2 80 9D, ' = E2 80 98, ' = E2 80 99
+_emit_quote_utf8 :: (fn(buf: *(ArrayList(u8)), kind: u8) -> unit)({
+  _ := buf.*.push(u8(0xE2));
+  _ := buf.*.push(u8(0x80));
+  (last : u8) = cond(
+    (kind == u8(0)) => u8(0x9C),
+    (kind == u8(1)) => u8(0x9D),
+    (kind == u8(2)) => u8(0x98),
+    true => u8(0x99)
+  );
+  _ := buf.*.push(last);
+});
+
+// Compute opener_consumed and closer_consumed for a given token index.
+// Returns (opener_consumed << 16) | closer_consumed
+_compute_consumed :: (fn(pairs: *(ArrayList(_Pair)), tok_idx: i32) -> i32)({
+  (opener : i32) = i32(0);
+  (closer : i32) = i32(0);
+  (count : i32) = i32(pairs.*.len());
+  (i : i32) = i32(0);
+  while (i < count), {
+    (p : _Pair) = pairs.*.get_unchecked(usize(i));
+    if((p.opener_tok == tok_idx), { opener = (opener + p.consume); });
+    if((p.closer_tok == tok_idx), { closer = (closer + p.consume); });
+    i = (i + i32(1));
+  };
+  ((opener * i32(65536)) | closer)
+});
+
+// Process smartquotes on inline tokens. Scans text tokens for ' and ",
+// applies flanking rules, matches opener/closer pairs with a stack,
+// and records replacement positions.
+_process_smartquotes :: (fn(
+  tokens: *(ArrayList(InlineToken)),
+  pairs: *(ArrayList(_Pair)),
+  src: *(u8),
+  replaces: *(ArrayList(_SQReplace))
+) -> unit)({
+  (tok_count : i32) = i32(tokens.*.len());
+  (stack : ArrayList(_SQEntry)) = ArrayList(_SQEntry).new();
+
+  // Compute emphasis-aware nesting levels for each token.
+  // Emphasis pairs increase the nesting level for tokens between them.
+  (levels : ArrayList(i32)) = ArrayList(i32).with_capacity(usize(tok_count));
+  (li : i32) = i32(0);
+  while (li < tok_count), {
+    _ := levels.push(i32(0));
+    li = (li + i32(1));
+  };
+  (pi : i32) = i32(0);
+  while (pi < i32(pairs.*.len())), {
+    (p : _Pair) = pairs.*.get_unchecked(usize(pi));
+    (ti : i32) = (p.opener_tok + i32(1));
+    while (ti < p.closer_tok), {
+      levels.set(usize(ti), (levels.get_unchecked(usize(ti)) + i32(1)));
+      ti = (ti + i32(1));
+    };
+    pi = (pi + i32(1));
+  };
+
+  (tok_i : i32) = i32(0);
+  while (tok_i < tok_count), {
+    (tok : InlineToken) = tokens.*.get_unchecked(usize(tok_i));
+    (this_level : i32) = (tok.level + levels.get_unchecked(usize(tok_i)));
+
+    // Prune stack: remove entries with level > thisLevel
+    while ((i32(stack.len()) > i32(0)) && (stack.get_unchecked(usize((i32(stack.len()) - i32(1)))).level > this_level)), {
+      _ := stack.pop();
+    };
+
+    // Only scan Text tokens for quote characters
+    if((i32(tok.type_name) != i32(InlineType.Text)), {
+      tok_i = (tok_i + i32(1));
+    }, {
+      // Compute effective range (accounting for emphasis pair consumption)
+      (consumed : i32) = _compute_consumed(pairs, tok_i);
+      (eff_start : i32) = (tok.start + (consumed & i32(0xFFFF)));
+      (eff_end : i32) = (tok.end - (consumed / i32(65536)));
+
+      (pos : i32) = eff_start;
+      while (pos < eff_end), {
+        (ch : u8) = (src &+ usize(pos)).*;
+
+        if(((ch != u8(0x22)) && (ch != u8(0x27))), {
+          pos = (pos + i32(1));
+        }, {
+          (is_single : bool) = (ch == u8(0x27));
+
+          // -- Find lastChar (previous visible character, default = space) --
+          (last_char : i32) = i32(0x20);
+          if((pos > eff_start), {
+            last_char = i32((src &+ usize((pos - i32(1)))).*);
+          }, {
+            // Look backward through previous tokens
+            (bj : i32) = (tok_i - i32(1));
+            (back_done : bool) = false;
+            while (((bj >= i32(0)) && !(back_done))), {
+              (prev : InlineToken) = tokens.*.get_unchecked(usize(bj));
+              (pt : i32) = i32(prev.type_name);
+              cond(
+                ((pt == i32(InlineType.Softbreak)) || (pt == i32(InlineType.Hardbreak))) => {
+                  back_done = true;
+                },
+                (((pt == i32(InlineType.Text)) || (pt == i32(InlineType.CodeInline))) || (pt == i32(InlineType.HtmlInline))) => {
+                  (pc : i32) = _compute_consumed(pairs, bj);
+                  (pe : i32) = (prev.end - (pc / i32(65536)));
+                  (ps : i32) = (prev.start + (pc & i32(0xFFFF)));
+                  if((pe > ps), {
+                    last_char = i32((src &+ usize((pe - i32(1)))).*);
+                    back_done = true;
+                  });
+                },
+                (pt == i32(InlineType.TextSpecial)) => {
+                  if((prev.end > prev.start), {
+                    last_char = i32((src &+ usize((prev.end - i32(1)))).*);
+                    back_done = true;
+                  });
+                },
+                true => ()
+              );
+              if(!(back_done), { bj = (bj - i32(1)); });
+            };
+          });
+
+          // -- Find nextChar (next visible character, default = space) --
+          (next_char : i32) = i32(0x20);
+          if(((pos + i32(1)) < eff_end), {
+            next_char = i32((src &+ usize((pos + i32(1)))).*);
+          }, {
+            // Look forward through next tokens
+            (fj : i32) = (tok_i + i32(1));
+            (fwd_done : bool) = false;
+            while (((fj < tok_count) && !(fwd_done))), {
+              (nxt : InlineToken) = tokens.*.get_unchecked(usize(fj));
+              (nt : i32) = i32(nxt.type_name);
+              cond(
+                ((nt == i32(InlineType.Softbreak)) || (nt == i32(InlineType.Hardbreak))) => {
+                  fwd_done = true;
+                },
+                (((nt == i32(InlineType.Text)) || (nt == i32(InlineType.CodeInline))) || (nt == i32(InlineType.HtmlInline))) => {
+                  (nc : i32) = _compute_consumed(pairs, fj);
+                  (ns : i32) = (nxt.start + (nc & i32(0xFFFF)));
+                  (ne : i32) = (nxt.end - (nc / i32(65536)));
+                  if((ne > ns), {
+                    next_char = i32((src &+ usize(ns)).*);
+                    fwd_done = true;
+                  });
+                },
+                (nt == i32(InlineType.TextSpecial)) => {
+                  // Escaped char: visible char is after backslash
+                  if(((nxt.start + i32(1)) < nxt.end), {
+                    next_char = i32((src &+ usize((nxt.start + i32(1)))).*);
+                    fwd_done = true;
+                  });
+                },
+                true => ()
+              );
+              if(!(fwd_done), { fj = (fj + i32(1)); });
+            };
+          });
+
+          // -- Flanking rules --
+          (is_last_punct : bool) = (is_md_ascii_punct(last_char) || is_punct_char(last_char));
+          (is_next_punct : bool) = (is_md_ascii_punct(next_char) || is_punct_char(next_char));
+          (is_last_ws : bool) = is_white_space(last_char);
+          (is_next_ws : bool) = is_white_space(next_char);
+
+          (can_open : bool) = true;
+          (can_close : bool) = true;
+
+          if(is_next_ws, {
+            can_open = false;
+          }, {
+            if(is_next_punct, {
+              if((!(is_last_ws) && !(is_last_punct)), {
+                can_open = false;
+              });
+            });
+          });
+
+          if(is_last_ws, {
+            can_close = false;
+          }, {
+            if(is_last_punct, {
+              if((!(is_next_ws) && !(is_next_punct)), {
+                can_close = false;
+              });
+            });
+          });
+
+          // Special case: 1"" — count first quote as inch mark
+          if(((next_char == i32(0x22)) && !(is_single)), {
+            if(((last_char >= i32(0x30)) && (last_char <= i32(0x39))), {
+              can_open = false;
+              can_close = false;
+            });
+          });
+
+          // If both can open and close, use punctuation to disambiguate
+          if((can_open && can_close), {
+            can_open = is_last_punct;
+            can_close = is_next_punct;
+          });
+
+          if((!(can_open) && !(can_close)), {
+            // Middle of word — replace single quote with apostrophe
+            if(is_single, {
+              _ := replaces.*.push(_SQReplace(byte_pos: pos, kind: u8(3)));
+            });
+          }, {
+            // Try to match as closer
+            (matched : bool) = false;
+            if(can_close, {
+              (sj : i32) = (i32(stack.len()) - i32(1));
+              while (((sj >= i32(0)) && !(matched))), {
+                (entry : _SQEntry) = stack.get_unchecked(usize(sj));
+                if((entry.level < this_level), {
+                  sj = i32(-1);
+                }, {
+                  if(((entry.is_single == is_single) && (entry.level == this_level)), {
+                    // Found matching opener!
+                    (open_kind : u8) = cond(is_single => u8(2), true => u8(0));
+                    (close_kind : u8) = cond(is_single => u8(3), true => u8(1));
+                    _ := replaces.*.push(_SQReplace(byte_pos: entry.byte_pos, kind: open_kind));
+                    _ := replaces.*.push(_SQReplace(byte_pos: pos, kind: close_kind));
+                    // Truncate stack to sj
+                    while (i32(stack.len()) > sj), { _ := stack.pop(); };
+                    matched = true;
+                  }, {
+                    sj = (sj - i32(1));
+                  });
+                });
+              };
+            });
+
+            if(!(matched), {
+              if(can_open, {
+                _ := stack.push(_SQEntry(
+                  tok_idx: tok_i, byte_pos: pos,
+                  is_single: is_single, level: this_level
+                ));
+              }, {
+                if((can_close && is_single), {
+                  _ := replaces.*.push(_SQReplace(byte_pos: pos, kind: u8(3)));
+                });
+              });
+            });
+          });
+
+          pos = (pos + i32(1));
+        });
+      };
+
+      tok_i = (tok_i + i32(1));
+    });
+  };
+});
+
+// Emit text in range [start, end), replacing positions in the smartquote
+// replacement list with curly quote UTF-8 bytes. Non-replaced text goes
+// through the renderer's normal text() path (which handles typographer
+// and HTML escaping).
+_emit_text_with_sq :: (fn(
+  renderer: *(HtmlRenderer),
+  start: i32, end: i32,
+  replaces: *(ArrayList(_SQReplace))
+) -> unit)({
+  (cur : i32) = start;
+  while (cur < end), {
+    // Find the next replacement in [cur, end) with smallest byte_pos
+    (next_pos : i32) = i32(-1);
+    (next_kind : u8) = u8(0);
+    (repl_count : i32) = i32(replaces.*.len());
+    (ri : i32) = i32(0);
+    while (ri < repl_count), {
+      (r : _SQReplace) = replaces.*.get_unchecked(usize(ri));
+      if(((r.byte_pos >= cur) && (r.byte_pos < end)), {
+        if(((next_pos == i32(-1)) || (r.byte_pos < next_pos)), {
+          next_pos = r.byte_pos;
+          next_kind = r.kind;
+        });
+      });
+      ri = (ri + i32(1));
+    };
+
+    if((next_pos == i32(-1)), {
+      // No more replacements — emit remaining text normally
+      renderer.*.text(cur, end);
+      cur = end;
+    }, {
+      // Emit text before replacement
+      if((next_pos > cur), {
+        renderer.*.text(cur, next_pos);
+      });
+      // Emit curly quote UTF-8 bytes directly into buffer
+      _emit_quote_utf8((&renderer.*.buf), next_kind);
+      cur = (next_pos + i32(1));
+    });
+  };
+});
 
 // Helper: create a String from source bytes [start, end)
 _slice_to_string :: (fn(src: *(u8), start: i32, end: i32) -> String)({
@@ -31,12 +354,23 @@ _slice_to_string :: (fn(src: *(u8), start: i32, end: i32) -> String)({
 
 // Resolve all emphasis (*, _) and strikethrough (~~) delimiter pairs.
 // Appends resolved pairs to the pairs list.
+// Algorithm matches markdown-it's balance_pairs: tracks delimiter runs via
+// headerIdx (first delimiter of the current run, i.e. consecutive tokens
+// with same marker), and uses the run boundary to prevent same-run matching.
 _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(_Pair))) -> unit)({
   (max_delim : i32) = i32(state.*.delimiters.len());
+  (header_idx : i32) = i32(0);
+  (last_token_idx : i32) = i32(-2);
   (closer_idx : i32) = i32(0);
 
   while (closer_idx < max_delim), {
     (closer : Delimiter) = state.*.delimiters.get_unchecked(usize(closer_idx));
+
+    // Track delimiter runs: consecutive tokens with same marker
+    if(((closer_idx == i32(0)) || ((i32(state.*.delimiters.get_unchecked(usize(header_idx)).marker) != i32(closer.marker)) || (last_token_idx != (closer.token_idx - i32(1))))), {
+      header_idx = closer_idx;
+    });
+    last_token_idx = closer.token_idx;
 
     if(closer.close, {
       (is_em_marker : bool) = ((i32(closer.marker) == i32(0x2A)) || (i32(closer.marker) == i32(0x5F)));
@@ -46,7 +380,8 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(_Pair))) -> unit
         // Keep consuming from this closer until depleted or no opener found
         (keep_matching : bool) = (closer.length > i32(0));
         while keep_matching, {
-          (opener_idx : i32) = (closer_idx - i32(1));
+          // Start search BEFORE the current run to prevent same-run matching
+          (opener_idx : i32) = (header_idx - i32(1));
           (found : bool) = false;
 
           while ((opener_idx >= i32(0)) && !(found)), {
@@ -101,6 +436,7 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(_Pair))) -> unit
               length: (opener.length - consume),
               token_idx: opener.token_idx,
               end: closer_idx,
+              jump: i32(0),
               open: opener.open,
               close: opener.close
             ));
@@ -112,6 +448,7 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(_Pair))) -> unit
               length: new_closer_len,
               token_idx: closer.token_idx,
               end: opener_idx,
+              jump: i32(0),
               open: closer.open,
               close: closer.close
             ));
@@ -123,12 +460,14 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(_Pair))) -> unit
               (d : Delimiter) = state.*.delimiters.get_unchecked(usize(mid));
               state.*.delimiters.set(usize(mid), Delimiter(
                 marker: d.marker, length: i32(0), token_idx: d.token_idx,
-                end: i32(-1), open: false, close: false
+                end: i32(-1), jump: i32(0), open: false, close: false
               ));
               mid = (mid + i32(1));
             };
 
             keep_matching = (closer.length > i32(0));
+            // Reset run tracking after a match (next closer = new run start)
+            last_token_idx = i32(-2);
           }, {
             keep_matching = false;
           });
@@ -244,6 +583,64 @@ inline_render :: (fn(state: *(InlineState)) -> unit)({
   (tok_count : i32) = i32(state.*.tokens.len());
   (pair_count : i32) = i32(pairs.len());
 
+  // Phase 1a: Swap lone tilde markers past subsequent strikethrough closers.
+  // When a tilde run has odd length, the odd "~" text token precedes the
+  // delimiter tokens. If a delimiter becomes a closer, the "~" must appear
+  // AFTER the closing tag, not before it. Swap them (matching markdown-it).
+  (si : i32) = i32(0);
+  while (si < tok_count), {
+    (tok_s : InlineToken) = state.*.tokens.get_unchecked(usize(si));
+    if(((i32(tok_s.type_name) == i32(InlineType.Text)) && (((tok_s.end - tok_s.start) == i32(1)) && ((state.*.src_ptr &+ usize(tok_s.start)).* == u8(0x7E)))), {
+      // Look ahead for consecutive strikethrough closer tokens
+      (sj : i32) = (si + i32(1));
+      (scanning : bool) = true;
+      while ((sj < tok_count) && scanning), {
+        (is_strike_closer : bool) = false;
+        (pi2 : i32) = i32(0);
+        while (pi2 < pair_count), {
+          (p2 : _Pair) = pairs.get_unchecked(usize(pi2));
+          if(((p2.closer_tok == sj) && (p2.pair_type == i32(3))), {
+            is_strike_closer = true;
+          });
+          pi2 = (pi2 + i32(1));
+        };
+        if(is_strike_closer, { sj = (sj + i32(1)); }, { scanning = false; });
+      };
+      (sj_last : i32) = (sj - i32(1));
+      if((sj_last > si), {
+        // Swap tokens[si] and tokens[sj_last]
+        (tmp_tok : InlineToken) = state.*.tokens.get_unchecked(usize(si));
+        state.*.tokens.set(usize(si), state.*.tokens.get_unchecked(usize(sj_last)));
+        state.*.tokens.set(usize(sj_last), tmp_tok);
+        // Update pair references for swapped positions
+        (ui : i32) = i32(0);
+        while (ui < pair_count), {
+          (pp : _Pair) = pairs.get_unchecked(usize(ui));
+          (new_opener : i32) = pp.opener_tok;
+          (new_closer : i32) = pp.closer_tok;
+          if((pp.opener_tok == si), { new_opener = sj_last; }, if((pp.opener_tok == sj_last), { new_opener = si; }));
+          if((pp.closer_tok == si), { new_closer = sj_last; }, if((pp.closer_tok == sj_last), { new_closer = si; }));
+          if(((new_opener != pp.opener_tok) || (new_closer != pp.closer_tok)), {
+            pairs.set(usize(ui), _Pair(
+              opener_tok: new_opener, closer_tok: new_closer,
+              consume: pp.consume, pair_type: pp.pair_type
+            ));
+          });
+          ui = (ui + i32(1));
+        };
+      });
+    });
+    si = (si + i32(1));
+  };
+
+  // Phase 1b: Smartquotes post-processing (when typographer is enabled)
+  (sq_replaces : ArrayList(_SQReplace)) = ArrayList(_SQReplace).new();
+  (has_sq : bool) = false;
+  if(renderer.*.options.*.typographer, {
+    _process_smartquotes((&state.*.tokens), (&pairs), state.*.src_ptr, (&sq_replaces));
+    has_sq = (i32(sq_replaces.len()) > i32(0));
+  });
+
   // Swap renderer's source pointer to the inline content's bytes.
   // Token offsets are relative to the inline content, not the original source.
   (saved_src_ptr : *(u8)) = renderer.*.src_ptr;
@@ -291,11 +688,22 @@ inline_render :: (fn(state: *(InlineState)) -> unit)({
       (new_start : i32) = (tok.start + closer_consumed);
       (new_end : i32) = (tok.end - opener_consumed);
       if((new_end > new_start), {
-        renderer.*.text(new_start, new_end);
+        if(has_sq, {
+          _emit_text_with_sq(renderer, new_start, new_end, (&sq_replaces));
+        }, {
+          renderer.*.text(new_start, new_end);
+        });
       });
     }, {
-      // Normal token — dispatch by type
-      _emit_inline_token(renderer, (&tok), state.*.src_ptr);
+      // For Text tokens with smartquotes, use replacement-aware emission
+      if((has_sq && (i32(tok.type_name) == i32(InlineType.Text))), {
+        if((tok.end > tok.start), {
+          _emit_text_with_sq(renderer, tok.start, tok.end, (&sq_replaces));
+        });
+      }, {
+        // Normal token — dispatch by type
+        _emit_inline_token(renderer, (&tok), state.*.src_ptr);
+      });
     });
 
     // Collect pairs where this token is an opener (emit open tags after text)

@@ -39,6 +39,12 @@ impl(InlineToken,
          markup_char: u8(0), markup_len: u8(0), content: ``, href: ``, title: ``,
          block: false, hidden: false)
   ),
+  text_special : (fn(start: i32, end: i32, level: i32) -> Self)(
+    Self(type_name: .TextSpecial, start: start, end: end, nesting: i32(0), level: level,
+         info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
+         markup_char: u8(0), markup_len: u8(0), content: ``, href: ``, title: ``,
+         block: false, hidden: false)
+  ),
   simple : (fn(type_name: InlineType, nesting: i32, level: i32) -> Self)(
     Self(type_name: type_name, start: i32(0), end: i32(0), nesting: nesting, level: level,
          info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),

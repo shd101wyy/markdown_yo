@@ -97,6 +97,7 @@ inline_emphasis :: (fn(state: *(InlineState)) -> bool)({
     length: count,
     token_idx: tok_idx,
     end: i32(-1),
+    jump: i32(0),
     open: can_open,
     close: can_close
   ));

@@ -132,6 +132,7 @@ Delimiter :: struct(
   length : i32,      // Number of consecutive markers
   token_idx : i32,   // Index into inline tokens array
   end : i32,         // Resolved end (set by balance_pairs)
+  jump : i32,        // Skip count for same-run delimiters (prevents self-matching)
   open : bool,       // Can open emphasis
   close : bool       // Can close emphasis
 );

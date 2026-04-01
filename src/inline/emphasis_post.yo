@@ -57,6 +57,7 @@ emphasis_post :: (fn(state: *(InlineState)) -> unit)({
           length: (opener.length - consume),
           token_idx: opener.token_idx,
           end: opener.end,
+          jump: i32(0),
           open: opener.open,
           close: opener.close
         );
@@ -67,6 +68,7 @@ emphasis_post :: (fn(state: *(InlineState)) -> unit)({
           length: (closer.length - consume),
           token_idx: closer.token_idx,
           end: closer.end,
+          jump: i32(0),
           open: closer.open,
           close: closer.close
         );
@@ -113,6 +115,7 @@ emphasis_post :: (fn(state: *(InlineState)) -> unit)({
           length: updated_opener.length,
           token_idx: updated_opener.token_idx,
           end: closer_idx,
+          jump: i32(0),
           open: updated_opener.open,
           close: updated_opener.close
         ));
@@ -123,7 +126,7 @@ emphasis_post :: (fn(state: *(InlineState)) -> unit)({
           (d : Delimiter) = state.*.delimiters.get(usize(mid));
           state.*.delimiters.set(usize(mid), Delimiter(
             marker: d.marker, length: i32(0), token_idx: d.token_idx,
-            end: i32(-1), open: false, close: false
+            end: i32(-1), jump: i32(0), open: false, close: false
           ));
           mid = (mid + i32(1));
         };
@@ -134,7 +137,7 @@ emphasis_post :: (fn(state: *(InlineState)) -> unit)({
           state.*.delimiters.set(usize(opener_idx), Delimiter(
             marker: updated_opener2.marker, length: i32(0),
             token_idx: updated_opener2.token_idx,
-            end: updated_opener2.end, open: false, close: false
+            end: updated_opener2.end, jump: i32(0), open: false, close: false
           ));
         });
       });
