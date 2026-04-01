@@ -6,6 +6,8 @@
 
 { InlineState, InlineToken } :: import "./state.yo";
 { is_space } :: import "../common/utils.yo";
+{ validate_link_url } :: import "./link.yo";
+{ normalize_link_text } :: import "../common/normalize_link.yo";
 open import "std/string";
 open import "std/collections/array_list";
 
@@ -87,6 +89,10 @@ inline_autolink :: (fn(state: *(InlineState)) -> bool)({
       if((i32((state.*.src_ptr &+ usize(sp)).*) == i32(0x3A)), {
         // Validate rest has no spaces (already checked above, but also no 0x00-0x20)
         is_uri = true;
+        // Reject dangerous protocols (javascript:, vbscript:, etc.)
+        if(!(validate_link_url(state.*.src_ptr, content_start, content_end)), {
+          is_uri = false;
+        });
       });
     });
   });
@@ -189,7 +195,24 @@ inline_autolink :: (fn(state: *(InlineState)) -> bool)({
   );
   _ := state.*.tokens.push(tok);
 
-  _ := state.*.tokens.push(InlineToken.text(content_start, content_end, (state.*.level + i32(1))));
+  // For display text: URI autolinks get normalize_link_text applied to decode percent-encoded chars
+  // Email autolinks use raw source bytes (no mailto: prefix in display)
+  if((is_uri && !(is_email)), {
+    (display_text : String) = normalize_link_text(link_href.as_str());
+    (text_tok : InlineToken) = InlineToken(
+      type_name: .Text,
+      start: i32(0), end: i32(0),
+      nesting: i32(0), level: (state.*.level + i32(1)),
+      info_start: i32(0), info_end: i32(0),
+      title_start: i32(0), title_end: i32(0),
+      markup_char: u8(0), markup_len: u8(0),
+      content: display_text, href: ``, title: ``,
+      block: false, hidden: false
+    );
+    _ := state.*.tokens.push(text_tok);
+  }, {
+    _ := state.*.tokens.push(InlineToken.text(content_start, content_end, (state.*.level + i32(1))));
+  });
 
   _ := state.*.tokens.push(InlineToken.simple(.LinkClose, i32(-1), state.*.level));
 

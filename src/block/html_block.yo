@@ -180,8 +180,7 @@ _is_block_tag :: (fn(src: *(u8), tag_start: i32, max: i32) -> bool)({
     (c0 == i32(0x6D)) => { // m...
       if((len == i32(4)), {
         if(_match_ci(src, tag_start, max, "main", i32(4)), { return true; });
-        if(_match_ci(src, tag_start, max, "menu", i32(4)), { return true; });
-        return _match_ci(src, tag_start, max, "meta", i32(4));
+        return _match_ci(src, tag_start, max, "menu", i32(4));
       });
       if((len == i32(7)), { return _match_ci(src, tag_start, max, "marquee", i32(7)); });
       if((len == i32(8)), { return _match_ci(src, tag_start, max, "menuitem", i32(8)); });

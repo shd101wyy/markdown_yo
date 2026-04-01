@@ -10,6 +10,8 @@ open import "std/string";
 { is_space } :: import "../common/utils.yo";
 { Reference } :: import "../types.yo";
 { _try_block_terminate } :: import "./terminators.yo";
+{ validate_link_url } :: import "../inline/link.yo";
+{ try_decode_entity } :: import "../common/unescape.yo";
 
 // Normalize a reference label: trim, collapse whitespace, lowercase ASCII
 // Also treats newlines as whitespace (for multiline labels)
@@ -46,7 +48,7 @@ _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
 });
 
 // Unescape a byte range: handle backslash escapes and HTML entity decoding
-// This is a simplified version for reference dests/titles
+// This matches markdown-it's unescapeAll behavior
 _unescape_range :: (fn(src: *(u8), start: i32, end: i32) -> String)({
   (result : ArrayList(u8)) = ArrayList(u8).new();
   (p : i32) = start;
@@ -66,10 +68,19 @@ _unescape_range :: (fn(src: *(u8), start: i32, end: i32) -> String)({
         _ := result.push(ch);
         p = (p + i32(1));
       });
+    }, if((ch == u8(0x26)), {
+      // Try to decode HTML entity
+      (entity_end : i32) = try_decode_entity(src, p, end, (&result));
+      if((entity_end >= i32(0)), {
+        p = entity_end;
+      }, {
+        _ := result.push(ch);
+        p = (p + i32(1));
+      });
     }, {
       _ := result.push(ch);
       p = (p + i32(1));
-    });
+    }));
   };
 
   String.from_bytes(result)
@@ -444,7 +455,44 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
           },
           (c == i32(0x5C)) => {
             pos = (pos + i32(1));
-            if((pos < max), { pos = (pos + i32(1)); });
+            if((pos < max), {
+              (esc_ch : i32) = i32((str_buf.ptr().unwrap_or(src) &+ usize(pos)).*);
+              if((esc_ch == i32(0x0A)), {
+                // Backslash before newline in title — extend to next line
+                if(((next_line < end_l) && !(state.*.is_empty(next_line))), {
+                  (is_cont6 : bool) = false;
+                  if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+                    is_cont6 = true;
+                  });
+                  if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+                    is_cont6 = true;
+                  });
+                  if((!(is_cont6) && _try_block_terminate(state, next_line, end_l)), {
+                    title_scan_done = true;
+                  }, {
+                    (nl_bm6 : i32) = state.*.b_marks.get_unchecked(usize(next_line));
+                    (nl_ts6 : i32) = state.*.t_shift.get_unchecked(usize(next_line));
+                    (nl_em6 : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+                    (np6 : i32) = (nl_bm6 + nl_ts6);
+                    (nl_ce6 : i32) = cond(
+                      (nl_em6 < state.*.src_len) => (nl_em6 + i32(1)),
+                      true => nl_em6
+                    );
+                    while (np6 < nl_ce6), {
+                      _ := str_buf.push((src &+ usize(np6)).*);
+                      np6 = (np6 + i32(1));
+                    };
+                    max = i32(str_buf.len());
+                    next_line = (next_line + i32(1));
+                    pos = (pos + i32(1));
+                  });
+                }, {
+                  title_scan_done = true;
+                });
+              }, {
+                pos = (pos + i32(1));
+              });
+            });
           },
           true => { pos = (pos + i32(1)); }
         );
@@ -499,9 +547,14 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
 
   if(silent, { return true; });
 
-  (dest_str : String) = _unescape_range(s_ptr, dest_start, dest_end);
+  // Validate link URL — reject dangerous protocols
+  // Get fresh pointer since str_buf may have been reallocated
+  (final_ptr : *(u8)) = str_buf.ptr().unwrap_or(src);
+  if(!(validate_link_url(final_ptr, dest_start, dest_end)), { return false; });
+
+  (dest_str : String) = _unescape_range(final_ptr, dest_start, dest_end);
   (title_str : String) = cond(
-    has_title => _unescape_range(s_ptr, title_start, title_end),
+    has_title => _unescape_range(final_ptr, title_start, title_end),
     true => ``
   );
 

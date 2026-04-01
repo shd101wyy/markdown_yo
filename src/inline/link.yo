@@ -9,6 +9,7 @@ open import "std/string";
 { InlineState, InlineToken } :: import "./state.yo";
 { InlineType, Reference, LinkMarker, Delimiter, EmphasisPair } :: import "../types.yo";
 { is_space } :: import "../common/utils.yo";
+{ try_decode_entity } :: import "../common/unescape.yo";
 
 // Check if a byte is ASCII alpha
 _is_alpha :: (fn(b: u8) -> bool)(
@@ -23,23 +24,20 @@ _to_lower :: (fn(b: u8) -> u8)(
   )
 );
 
-// Validate a link URL — reject javascript:, vbscript:, file:, data: (except data:image/)
-// This matches markdown-it's validateLink behavior
-_validate_link_url :: (fn(src: *(u8), start: i32, end_pos: i32) -> bool)({
-  (len : i32) = (end_pos - start);
-  if((len <= i32(0)), { return true; });
+// Check if protocol is blocked. buf/len is the decoded URL prefix.
+_check_protocol :: (fn(buf: *(u8), buf_len: i32) -> bool)({
+  if((buf_len <= i32(0)), { return true; });
 
   // Find the colon position (protocol separator)
   (colon_pos : i32) = i32(-1);
   (i : i32) = i32(0);
-  while ((i < len) && (i < i32(25))), {
-    (b : u8) = (src &+ usize((start + i))).*;
+  while ((i < buf_len) && (i < i32(25))), {
+    (b : u8) = (buf &+ usize(i)).*;
     if((b == u8(0x3A)), {
       colon_pos = i;
-      i = len; // break
+      i = buf_len; // break
     }, {
       if(!(_is_alpha(b)), {
-        // Non-alpha before colon means it's not a protocol
         return true;
       });
     });
@@ -48,66 +46,117 @@ _validate_link_url :: (fn(src: *(u8), start: i32, end_pos: i32) -> bool)({
 
   if((colon_pos < i32(0)), { return true; });
 
-  // Extract protocol and compare (case insensitive)
-  // javascript: (10 chars + colon)
+  // Helper: compare lowercase protocol bytes against a known pattern
+  // javascript: (10 chars)
   if((colon_pos == i32(10)), {
-    if(((_to_lower((src &+ usize(start)).*)        == u8(0x6A)) // j
-     && (_to_lower((src &+ usize((start + i32(1)))).*)  == u8(0x61)) // a
-     && (_to_lower((src &+ usize((start + i32(2)))).*)  == u8(0x76)) // v
-     && (_to_lower((src &+ usize((start + i32(3)))).*)  == u8(0x61)) // a
-     && (_to_lower((src &+ usize((start + i32(4)))).*)  == u8(0x73)) // s
-     && (_to_lower((src &+ usize((start + i32(5)))).*)  == u8(0x63)) // c
-     && (_to_lower((src &+ usize((start + i32(6)))).*)  == u8(0x72)) // r
-     && (_to_lower((src &+ usize((start + i32(7)))).*)  == u8(0x69)) // i
-     && (_to_lower((src &+ usize((start + i32(8)))).*)  == u8(0x70)) // p
-     && (_to_lower((src &+ usize((start + i32(9)))).*)  == u8(0x74)) // t
-    ), { return false; });
-  });
-
-  // vbscript: (8 chars + colon)
-  if((colon_pos == i32(8)), {
-    if(((_to_lower((src &+ usize(start)).*)        == u8(0x76)) // v
-     && (_to_lower((src &+ usize((start + i32(1)))).*)  == u8(0x62)) // b
-     && (_to_lower((src &+ usize((start + i32(2)))).*)  == u8(0x73)) // s
-     && (_to_lower((src &+ usize((start + i32(3)))).*)  == u8(0x63)) // c
-     && (_to_lower((src &+ usize((start + i32(4)))).*)  == u8(0x72)) // r
-     && (_to_lower((src &+ usize((start + i32(5)))).*)  == u8(0x69)) // i
-     && (_to_lower((src &+ usize((start + i32(6)))).*)  == u8(0x70)) // p
-     && (_to_lower((src &+ usize((start + i32(7)))).*)  == u8(0x74)) // t
-    ), { return false; });
-  });
-
-  // file: (4 chars + colon)
-  if((colon_pos == i32(4)), {
-    if(((_to_lower((src &+ usize(start)).*)        == u8(0x66)) // f
-     && (_to_lower((src &+ usize((start + i32(1)))).*)  == u8(0x69)) // i
-     && (_to_lower((src &+ usize((start + i32(2)))).*)  == u8(0x6C)) // l
-     && (_to_lower((src &+ usize((start + i32(3)))).*)  == u8(0x65)) // e
-    ), { return false; });
-  });
-
-  // data: (4 chars + colon) — block unless data:image/
-  if((colon_pos == i32(4)), {
-    if(((_to_lower((src &+ usize(start)).*)        == u8(0x64)) // d
-     && (_to_lower((src &+ usize((start + i32(1)))).*)  == u8(0x61)) // a
-     && (_to_lower((src &+ usize((start + i32(2)))).*)  == u8(0x74)) // t
-     && (_to_lower((src &+ usize((start + i32(3)))).*)  == u8(0x61)) // a
-    ), {
-      // Allow data:image/ (11 chars: data:image/)
-      if((len >= i32(11)), {
-        if(((_to_lower((src &+ usize((start + i32(5)))).*)  == u8(0x69)) // i
-         && (_to_lower((src &+ usize((start + i32(6)))).*)  == u8(0x6D)) // m
-         && (_to_lower((src &+ usize((start + i32(7)))).*)  == u8(0x61)) // a
-         && (_to_lower((src &+ usize((start + i32(8)))).*)  == u8(0x67)) // g
-         && (_to_lower((src &+ usize((start + i32(9)))).*)  == u8(0x65)) // e
-         && ((src &+ usize((start + i32(10)))).* == u8(0x2F))           // /
-        ), { return true; });
+    if(((_to_lower((buf &+ usize(0)).*) == u8(0x6A))
+     && (_to_lower((buf &+ usize(1)).*) == u8(0x61))), {
+      if(((_to_lower((buf &+ usize(2)).*) == u8(0x76))
+       && (_to_lower((buf &+ usize(3)).*) == u8(0x61))), {
+        if(((_to_lower((buf &+ usize(4)).*) == u8(0x73))
+         && (_to_lower((buf &+ usize(5)).*) == u8(0x63))), {
+          if(((_to_lower((buf &+ usize(6)).*) == u8(0x72))
+           && (_to_lower((buf &+ usize(7)).*) == u8(0x69))), {
+            if(((_to_lower((buf &+ usize(8)).*) == u8(0x70))
+             && (_to_lower((buf &+ usize(9)).*) == u8(0x74))), {
+              return false;
+            });
+          });
+        });
       });
-      return false;
+    });
+  });
+
+  // vbscript: (8 chars)
+  if((colon_pos == i32(8)), {
+    if(((_to_lower((buf &+ usize(0)).*) == u8(0x76))
+     && (_to_lower((buf &+ usize(1)).*) == u8(0x62))), {
+      if(((_to_lower((buf &+ usize(2)).*) == u8(0x73))
+       && (_to_lower((buf &+ usize(3)).*) == u8(0x63))), {
+        if(((_to_lower((buf &+ usize(4)).*) == u8(0x72))
+         && (_to_lower((buf &+ usize(5)).*) == u8(0x69))), {
+          if(((_to_lower((buf &+ usize(6)).*) == u8(0x70))
+           && (_to_lower((buf &+ usize(7)).*) == u8(0x74))), {
+            return false;
+          });
+        });
+      });
+    });
+  });
+
+  // file: (4 chars)
+  if((colon_pos == i32(4)), {
+    if(((_to_lower((buf &+ usize(0)).*) == u8(0x66))
+     && (_to_lower((buf &+ usize(1)).*) == u8(0x69))), {
+      if(((_to_lower((buf &+ usize(2)).*) == u8(0x6C))
+       && (_to_lower((buf &+ usize(3)).*) == u8(0x65))), {
+        return false;
+      });
+    });
+  });
+
+  // data: (4 chars) — block unless data:image/
+  if((colon_pos == i32(4)), {
+    if(((_to_lower((buf &+ usize(0)).*) == u8(0x64))
+     && (_to_lower((buf &+ usize(1)).*) == u8(0x61))), {
+      if(((_to_lower((buf &+ usize(2)).*) == u8(0x74))
+       && (_to_lower((buf &+ usize(3)).*) == u8(0x61))), {
+        // Allow data:image/ (11+ decoded bytes)
+        if((buf_len >= i32(11)), {
+          if(((_to_lower((buf &+ usize(5)).*) == u8(0x69))
+           && (_to_lower((buf &+ usize(6)).*) == u8(0x6D))), {
+            if(((_to_lower((buf &+ usize(7)).*) == u8(0x61))
+             && (_to_lower((buf &+ usize(8)).*) == u8(0x67))), {
+              if(((_to_lower((buf &+ usize(9)).*) == u8(0x65))
+               && ((buf &+ usize(10)).* == u8(0x2F))), {
+                return true;
+              });
+            });
+          });
+        });
+        return false;
+      });
     });
   });
 
   true
+});
+
+// Validate a link URL — reject javascript:, vbscript:, file:, data: (except data:image/)
+// Decodes HTML entities first to prevent protocol obfuscation (e.g. &#74;avascript:)
+validate_link_url :: (fn(src: *(u8), start: i32, end_pos: i32) -> bool)({
+  (len : i32) = (end_pos - start);
+  if((len <= i32(0)), { return true; });
+
+  // Decode entities in the URL prefix (only need ~32 decoded bytes for protocol check)
+  (decoded : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(32));
+  (i : i32) = start;
+  (max : i32) = cond(
+    ((start + i32(64)) < end_pos) => (start + i32(64)),
+    true => end_pos
+  );
+  while ((i < max) && (i32(decoded.len()) < i32(32))), {
+    (b : u8) = (src &+ usize(i)).*;
+    if((b == u8(0x26)), {
+      (decoded_end : i32) = try_decode_entity(src, i, end_pos, &decoded);
+      if((decoded_end > i32(0)), {
+        i = decoded_end;
+      }, {
+        _ := decoded.push(b);
+        i = (i + i32(1));
+      });
+    }, {
+      _ := decoded.push(b);
+      i = (i + i32(1));
+    });
+  };
+
+  (result : bool) = cond(
+    (decoded.len() == usize(0)) => true,
+    true => _check_protocol(decoded.get_ptr(usize(0)), i32(decoded.len()))
+  );
+  decoded.dispose();
+  result
 });
 
 // Parse link destination: either <...> or a bare URL
@@ -123,7 +172,7 @@ _parse_link_dest :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
     (found : bool) = false;
     while ((pos < max) && !(found)), {
       (c : i32) = i32((src &+ usize(pos)).*);
-      if((c == i32(0x0A)), { return i32(-1); });
+      if(((c == i32(0x0A)) || (c == i32(0x3C))), { return i32(-1); });
       if((c == i32(0x3E)), {
         found = true;
       }, {
@@ -157,8 +206,13 @@ _parse_link_dest :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
             });
           }, {
             if((c == i32(0x5C)), {
-              pos = (pos + i32(1));
-              if((pos >= max), { return i32(-1); });
+              // Don't let backslash escape spaces in link destinations
+              if((((pos + i32(1)) < max) && (i32((src &+ usize((pos + i32(1)))).*) == i32(0x20))), {
+                done = true;
+              }, {
+                pos = (pos + i32(1));
+                if((pos >= max), { return i32(-1); });
+              });
             });
           });
         });
@@ -191,6 +245,8 @@ _parse_link_title :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
     if((c == close_marker), {
       found = true;
     }, {
+      // Opening paren inside (...) title is not allowed (even unescaped)
+      if(((marker == i32(0x28)) && (c == i32(0x28))), { return i32(-1); });
       if((c == i32(0x5C)), {
         pos = (pos + i32(1));
       });
@@ -583,7 +639,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
   });
 
   if(!(is_ref), {
-    if(!(_validate_link_url(state.*.src_ptr, href_start, href_end)), {
+    if(!(validate_link_url(state.*.src_ptr, href_start, href_end)), {
       state.*.link_markers.get_ptr(usize(marker_idx)).*.active = false;
       return false;
     });
@@ -671,4 +727,4 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
   true
 });
 
-export inline_link_open, inline_link_close;
+export inline_link_open, inline_link_close, validate_link_url;

@@ -120,7 +120,7 @@ impl(BlockState,
     });
     _ := bs_count.push(i32(0));
 
-    (line_count : i32) = i32(b_marks.len());
+    (line_count : i32) = (i32(b_marks.len()) - i32(1));
 
     Self(
       src: src,

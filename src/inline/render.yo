@@ -485,8 +485,13 @@ _emit_inline_token :: (fn(renderer: *(HtmlRenderer), tok: *(InlineToken), src: *
 
   cond(
     (t == i32(InlineType.Text)) => {
-      if((tok.*.end > tok.*.start), {
-        renderer.*.text(tok.*.start, tok.*.end);
+      // If content String is set, use that (e.g., normalized autolink text)
+      if((tok.*.content.len() > usize(0)), {
+        renderer.*.escaped_string(tok.*.content);
+      }, {
+        if((tok.*.end > tok.*.start), {
+          renderer.*.text(tok.*.start, tok.*.end);
+        });
       });
     },
     (t == i32(InlineType.TextSpecial)) => {

@@ -6,6 +6,28 @@ open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
 { decode_named_entity } :: import "./entities.yo";
 
+// Check if a numeric entity codepoint is valid for decoding.
+// Matches markdown-it's isValidEntityCode: surrogates, out-of-range, and
+// certain control characters are rejected.
+_is_valid_entity_code :: (fn(code: i32) -> bool)(
+  cond(
+    // Surrogates
+    ((code >= i32(0xD800)) && (code <= i32(0xDFFF))) => false,
+    // Out of range or zero
+    ((code <= i32(0)) || (code > i32(0x10FFFF))) => false,
+    // Non-characters
+    ((code >= i32(0xFDD0)) && (code <= i32(0xFDEF))) => false,
+    ((code & i32(0xFFFF)) == i32(0xFFFF)) => false,
+    ((code & i32(0xFFFF)) == i32(0xFFFE)) => false,
+    // C0 controls (except HT, LF, FF, CR which are ok)
+    (((code >= i32(0x01)) && (code <= i32(0x08))) ||
+     (code == i32(0x0B)) ||
+     ((code >= i32(0x0E)) && (code <= i32(0x1F))) ||
+     ((code >= i32(0x7F)) && (code <= i32(0x9F)))) => false,
+    true => true
+  )
+);
+
 // Emit a Unicode codepoint as UTF-8 bytes into an ArrayList(u8)
 emit_codepoint :: (fn(out: *(ArrayList(u8)), code: i32) -> unit)({
   // Replace invalid or zero codepoints with U+FFFD
@@ -69,6 +91,7 @@ try_decode_entity :: (fn(src: *(u8), i: i32, end: i32, out: *(ArrayList(u8))) ->
         p = (p + i32(1));
       };
       if((((p >= end) || (digits < i32(1))) || (digits > i32(6))), { return i32(-1); });
+      if(!((_is_valid_entity_code(code))), { return i32(-1); });
       emit_codepoint(out, code);
       return (p + i32(1));
     }, {
@@ -86,6 +109,7 @@ try_decode_entity :: (fn(src: *(u8), i: i32, end: i32, out: *(ArrayList(u8))) ->
         p = (p + i32(1));
       };
       if((((p >= end) || (digits < i32(1))) || (digits > i32(7))), { return i32(-1); });
+      if(!((_is_valid_entity_code(code))), { return i32(-1); });
       emit_codepoint(out, code);
       return (p + i32(1));
     });

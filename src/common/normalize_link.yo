@@ -150,11 +150,173 @@ normalize_link :: (fn(url: str) -> String)({
   String.from_bytes(out)
 });
 
+// Check if an ASCII byte is a URI reserved character (not decoded by decodeURI)
+// Reserved: ; / ? : @ & = + $ , # and % itself
+_is_uri_reserved :: (fn(ch: i32) -> bool)(
+  cond(
+    (ch == i32(0x23)) => true, // #
+    (ch == i32(0x24)) => true, // $
+    (ch == i32(0x25)) => true, // %
+    (ch == i32(0x26)) => true, // &
+    (ch == i32(0x2B)) => true, // +
+    (ch == i32(0x2C)) => true, // ,
+    (ch == i32(0x2F)) => true, // /
+    (ch == i32(0x3A)) => true, // :
+    (ch == i32(0x3B)) => true, // ;
+    (ch == i32(0x3D)) => true, // =
+    (ch == i32(0x3F)) => true, // ?
+    (ch == i32(0x40)) => true, // @
+    true => false
+  )
+);
+
+// Decode a hex digit to its value (0-15), or -1 if not hex
+_hex_val :: (fn(ch: u8) -> i32)(
+  cond(
+    ((ch >= u8(0x30)) && (ch <= u8(0x39))) => (i32(ch) - i32(0x30)),
+    ((ch >= u8(0x41)) && (ch <= u8(0x46))) => ((i32(ch) - i32(0x41)) + i32(10)),
+    ((ch >= u8(0x61)) && (ch <= u8(0x66))) => ((i32(ch) - i32(0x61)) + i32(10)),
+    true => i32(-1)
+  )
+);
+
 // Normalize link text for display — decode percent-encoded sequences
-// and pass through as-is (no Punycode for now)
+// Matches mdurl.decode behavior: decodes %XX sequences to their byte values,
+// except keeps %25 as literal % (to avoid double-decoding)
 normalize_link_text :: (fn(url: str) -> String)({
-  // For now, just return the URL as-is — we don't do Punycode
-  String.from(url)
+  (src : *(u8)) = url.ptr();
+  (len : i32) = i32(url.len());
+  (out : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(len));
+
+  (i : i32) = i32(0);
+  while (i < len), {
+    (b : u8) = (src &+ usize(i)).*;
+    if(((b == u8(0x25)) && (((i + i32(2)) < len))), {
+      (h1 : i32) = _hex_val((src &+ usize((i + i32(1)))).*);
+      (h2 : i32) = _hex_val((src &+ usize((i + i32(2)))).*);
+      if(((h1 >= i32(0)) && (h2 >= i32(0))), {
+        (decoded : i32) = ((h1 * i32(16)) + h2);
+        if((decoded >= i32(0x80)), {
+          // Non-ASCII: decode the full UTF-8 sequence from percent-encoded bytes
+          // Check for multi-byte UTF-8 sequences
+          if(((decoded & i32(0xE0)) == i32(0xC0)), {
+            // 2-byte UTF-8: %CC%XX
+            if((((i + i32(5)) < len) &&
+                ((src &+ usize((i + i32(3)))).* == u8(0x25))), {
+              (h3 : i32) = _hex_val((src &+ usize((i + i32(4)))).*);
+              (h4 : i32) = _hex_val((src &+ usize((i + i32(5)))).*);
+              if(((h3 >= i32(0)) && (h4 >= i32(0))), {
+                (b2 : i32) = ((h3 * i32(16)) + h4);
+                if(((b2 & i32(0xC0)) == i32(0x80)), {
+                  _ := out.push(u8(decoded));
+                  _ := out.push(u8(b2));
+                  i = (i + i32(6));
+                }, {
+                  _ := out.push(b);
+                  i = (i + i32(1));
+                });
+              }, {
+                _ := out.push(b);
+                i = (i + i32(1));
+              });
+            }, {
+              _ := out.push(b);
+              i = (i + i32(1));
+            });
+          }, if(((decoded & i32(0xF0)) == i32(0xE0)), {
+            // 3-byte UTF-8: %EE%XX%XX
+            if((((i + i32(8)) < len) &&
+                ((src &+ usize((i + i32(3)))).* == u8(0x25)) &&
+                ((src &+ usize((i + i32(6)))).* == u8(0x25))), {
+              (h3 : i32) = _hex_val((src &+ usize((i + i32(4)))).*);
+              (h4 : i32) = _hex_val((src &+ usize((i + i32(5)))).*);
+              (h5 : i32) = _hex_val((src &+ usize((i + i32(7)))).*);
+              (h6 : i32) = _hex_val((src &+ usize((i + i32(8)))).*);
+              if((((h3 >= i32(0)) && (h4 >= i32(0))) && ((h5 >= i32(0)) && (h6 >= i32(0)))), {
+                (b2 : i32) = ((h3 * i32(16)) + h4);
+                (b3 : i32) = ((h5 * i32(16)) + h6);
+                if((((b2 & i32(0xC0)) == i32(0x80)) && ((b3 & i32(0xC0)) == i32(0x80))), {
+                  _ := out.push(u8(decoded));
+                  _ := out.push(u8(b2));
+                  _ := out.push(u8(b3));
+                  i = (i + i32(9));
+                }, {
+                  _ := out.push(b);
+                  i = (i + i32(1));
+                });
+              }, {
+                _ := out.push(b);
+                i = (i + i32(1));
+              });
+            }, {
+              _ := out.push(b);
+              i = (i + i32(1));
+            });
+          }, if(((decoded & i32(0xF8)) == i32(0xF0)), {
+            // 4-byte UTF-8: %FF%XX%XX%XX
+            if((((i + i32(11)) < len) &&
+                ((src &+ usize((i + i32(3)))).* == u8(0x25)) &&
+                ((src &+ usize((i + i32(6)))).* == u8(0x25)) &&
+                ((src &+ usize((i + i32(9)))).* == u8(0x25))), {
+              (h3 : i32) = _hex_val((src &+ usize((i + i32(4)))).*);
+              (h4 : i32) = _hex_val((src &+ usize((i + i32(5)))).*);
+              (h5 : i32) = _hex_val((src &+ usize((i + i32(7)))).*);
+              (h6 : i32) = _hex_val((src &+ usize((i + i32(8)))).*);
+              (h7 : i32) = _hex_val((src &+ usize((i + i32(10)))).*);
+              (h8 : i32) = _hex_val((src &+ usize((i + i32(11)))).*);
+              if(((((h3 >= i32(0)) && (h4 >= i32(0))) && ((h5 >= i32(0)) && (h6 >= i32(0)))) &&
+                  ((h7 >= i32(0)) && (h8 >= i32(0)))), {
+                (b2 : i32) = ((h3 * i32(16)) + h4);
+                (b3 : i32) = ((h5 * i32(16)) + h6);
+                (b4 : i32) = ((h7 * i32(16)) + h8);
+                if(((((b2 & i32(0xC0)) == i32(0x80)) && ((b3 & i32(0xC0)) == i32(0x80))) &&
+                    ((b4 & i32(0xC0)) == i32(0x80))), {
+                  _ := out.push(u8(decoded));
+                  _ := out.push(u8(b2));
+                  _ := out.push(u8(b3));
+                  _ := out.push(u8(b4));
+                  i = (i + i32(12));
+                }, {
+                  _ := out.push(b);
+                  i = (i + i32(1));
+                });
+              }, {
+                _ := out.push(b);
+                i = (i + i32(1));
+              });
+            }, {
+              _ := out.push(b);
+              i = (i + i32(1));
+            });
+          }, {
+            // Single non-ASCII byte (continuation byte alone) — pass through
+            _ := out.push(b);
+            i = (i + i32(1));
+          })));
+        }, {
+          // ASCII range: decode if not a URI reserved character
+          if((_is_uri_reserved(decoded)), {
+            // Keep as %XX (reserved chars like %, #, etc.)
+            _ := out.push(b);
+            _ := out.push((src &+ usize((i + i32(1)))).*);
+            _ := out.push((src &+ usize((i + i32(2)))).*);
+            i = (i + i32(3));
+          }, {
+            _ := out.push(u8(decoded));
+            i = (i + i32(3));
+          });
+        });
+      }, {
+        // Invalid %XX sequence — pass through
+        _ := out.push(b);
+        i = (i + i32(1));
+      });
+    }, {
+      _ := out.push(b);
+      i = (i + i32(1));
+    });
+  };
+  String.from_bytes(out)
 });
 
 export normalize_link, normalize_link_text;

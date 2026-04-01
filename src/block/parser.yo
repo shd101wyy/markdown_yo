@@ -110,10 +110,16 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               // Recursive parse of blockquote content
               recur(state, line, bq_end);
 
+              // Inner tokenize may stop before bq_end (e.g., lazy continuation
+              // lines with sCount=-1 that don't match any inner rule). Use the
+              // inner tokenize's stopping point so the outer parser can process
+              // the remaining lines.
+              (inner_end : i32) = state.*.line;
+
               state.*.renderer.*.close_blockquote();
               state.*.line_max = old_line_max;
               state.*.parent_type = old_parent_type;
-              state.*.line = bq_end;
+              state.*.line = inner_end;
               state.*.blk_indent = old_blk_indent;
 
               // Restore state arrays

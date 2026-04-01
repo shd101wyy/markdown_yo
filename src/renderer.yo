@@ -302,7 +302,8 @@ HtmlRenderer :: struct(
   src_ptr : *(u8),        // pointer to source bytes for zero-copy slicing
   src_len : i32,
   list_nesting : i32,     // list nesting depth (for tight paragraph removal)
-  tight_mode : bool       // when true, paragraph open/close emit nothing
+  tight_mode : bool,      // when true, paragraph open/close emit nothing
+  bq_buf_pos : i32        // buffer position at blockquote open (for empty detection)
 );
 
 impl(HtmlRenderer,
@@ -317,7 +318,8 @@ impl(HtmlRenderer,
       src_ptr: src_ptr,
       src_len: src_len,
       list_nesting: i32(0),
-      tight_mode: false
+      tight_mode: false,
+      bq_buf_pos: i32(-1)
     )
   }),
 
@@ -517,13 +519,22 @@ impl(HtmlRenderer,
     )
   ),
 
-  open_blockquote : (fn(self: *(Self)) -> unit)(
-    self.*.lit("<blockquote>\n")
-  ),
+  open_blockquote : (fn(self: *(Self)) -> unit)({
+    self.*.lit("<blockquote>\n");
+    // Save position after the \n to detect empty blockquotes
+    self.*.bq_buf_pos = i32(self.*.buf.len());
+  }),
 
-  close_blockquote : (fn(self: *(Self)) -> unit)(
-    self.*.lit("</blockquote>\n")
-  ),
+  close_blockquote : (fn(self: *(Self)) -> unit)({
+    // If no content was emitted since open, remove the trailing \n
+    // to produce <blockquote></blockquote> instead of <blockquote>\n</blockquote>
+    if(((self.*.bq_buf_pos >= i32(0)) && (i32(self.*.buf.len()) == self.*.bq_buf_pos)), {
+      // Remove the \n that was added after <blockquote>
+      self.*.buf.pop();
+    });
+    self.*.bq_buf_pos = i32(-1);
+    self.*.lit("</blockquote>\n");
+  }),
 
   open_unordered_list : (fn(self: *(Self)) -> unit)(
     self.*.lit("<ul>\n")
@@ -791,7 +802,7 @@ impl(HtmlRenderer,
 
   softbreak : (fn(self: *(Self)) -> unit)(
     cond(
-      (self.*.img_nest > i32(0)) => self.*.lit(" "),
+      (self.*.img_nest > i32(0)) => self.*.lit("\n"),
       self.*.options.*.breaks => cond(
         self.*.options.*.xhtml_out => self.*.lit("<br />\n"),
         true => self.*.lit("<br>\n")
@@ -802,14 +813,17 @@ impl(HtmlRenderer,
 
   hardbreak : (fn(self: *(Self)) -> unit)(
     cond(
-      (self.*.img_nest > i32(0)) => self.*.lit(" "),
+      (self.*.img_nest > i32(0)) => self.*.lit("\n"),
       self.*.options.*.xhtml_out => self.*.lit("<br />\n"),
       true => self.*.lit("<br>\n")
     )
   ),
 
   html_inline : (fn(self: *(Self), start: i32, end: i32) -> unit)(
-    if((self.*.img_nest == i32(0)), {
+    if((self.*.img_nest > i32(0)), {
+      // Inside image alt text — render HTML tags as escaped text
+      escape_html_buf((&self.*.buf), self.*.src_ptr, start, end);
+    }, {
       self.*.raw(start, end);
     })
   ),

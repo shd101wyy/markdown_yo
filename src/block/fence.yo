@@ -7,6 +7,7 @@ open import "std/string";
 { BlockState } :: import "./state.yo";
 { HtmlRenderer } :: import "../renderer.yo";
 { is_space } :: import "../common/utils.yo";
+{ try_decode_entity } :: import "../common/unescape.yo";
 
 block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
   (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
@@ -52,11 +53,39 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
     info_start = (info_start + i32(1));
   };
 
-  // Find end of first word (language name) — split on space
+  // Find end of first word (language name) — entity-aware whitespace split
+  // Entities like &#32; or &#x0C; that decode to whitespace must be decoded first
   (lang_start : i32) = info_start;
   (lang_end : i32) = info_start;
-  while ((lang_end < em) && !(is_space(i32((state.*.src_ptr &+ usize(lang_end)).*)))), {
-    lang_end = (lang_end + i32(1));
+  (found_ws : bool) = false;
+  while ((lang_end < em) && !(found_ws)), {
+    (b : u8) = (state.*.src_ptr &+ usize(lang_end)).*;
+    if((b == u8(0x26)), {
+      // Try to decode entity and check if it's whitespace
+      (tmp : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(4));
+      (entity_end : i32) = try_decode_entity(state.*.src_ptr, lang_end, em, &tmp);
+      if((entity_end > i32(0)), {
+        // Check if the decoded character is whitespace (<=0x20 covers space, tab, ff, etc.)
+        if(((tmp.len() == usize(1)) && (i32(tmp.get_unchecked(usize(0))) <= i32(0x20))), {
+          found_ws = true;
+        }, {
+          lang_end = entity_end;
+        });
+      }, {
+        if(is_space(i32(b)), {
+          found_ws = true;
+        }, {
+          lang_end = (lang_end + i32(1));
+        });
+      });
+      tmp.dispose();
+    }, {
+      if(is_space(i32(b)), {
+        found_ws = true;
+      }, {
+        lang_end = (lang_end + i32(1));
+      });
+    });
   };
 
   if(silent, { return true; });
@@ -67,16 +96,18 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   // Find closing fence
   (next_line : i32) = (start_line + i32(1));
   (found_close : bool) = false;
+  (broke_outdented : bool) = false;
 
-  while ((next_line < end_line) && !(found_close)), {
+  while (((next_line < end_line) && !(found_close)) && !(broke_outdented)), {
     (nbm : i32) = state.*.b_marks.get_unchecked(usize(next_line));
     (nts : i32) = state.*.t_shift.get_unchecked(usize(next_line));
     (nem : i32) = state.*.e_marks.get_unchecked(usize(next_line));
     (npos : i32) = (nbm + nts);
 
     // Non-empty outdented line: stop looking for closing fence
+    // (sCount < blkIndent includes lazy continuation lines with sCount = -1)
     if(((npos < nem) && (state.*.s_count.get_unchecked(usize(next_line)) < state.*.blk_indent)), {
-      next_line = end_line;
+      broke_outdented = true;
     }, {
       // Closing fence: same marker, >= count, nothing else
       if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) < i32(4)), {
@@ -107,10 +138,11 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
     });
   };
 
-  // Content is from line after opening to line before closing (or end)
+  // Content is from line after opening to line before closing (or break point)
   (content_first_line : i32) = (start_line + i32(1));
   (content_last_line : i32) = cond(
     found_close => next_line,
+    broke_outdented => next_line,
     true => end_line
   );
 
@@ -179,6 +211,7 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
 
   state.*.line = cond(
     found_close => (next_line + i32(1)),
+    broke_outdented => next_line,
     true => end_line
   );
   true
