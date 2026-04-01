@@ -1,0 +1,108 @@
+// markdown_yo — Inline backticks (code spans) rule
+//
+// Matches: `code` or ``code with ` inside``
+// The number of opening and closing backticks must match.
+
+{ InlineState, InlineToken } :: import "./state.yo";
+
+inline_backticks :: (fn(state: *(InlineState)) -> bool)({
+  (pos : i32) = state.*.pos;
+  if((pos >= state.*.pos_max), { return false; });
+
+  (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+  if((ch != i32(0x60)), { return false; });
+
+  // Count opening backticks
+  (open_count : i32) = i32(0);
+  (p : i32) = pos;
+  while ((p < state.*.pos_max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x60))), {
+    open_count = (open_count + i32(1));
+    p = (p + i32(1));
+  };
+
+  // Search for matching close
+  (search : i32) = p;
+  (found : bool) = false;
+  (close_start : i32) = i32(0);
+  (close_end : i32) = i32(0);
+
+  while ((search < state.*.pos_max) && !(found)), {
+    if((i32((state.*.src_ptr &+ usize(search)).*) == i32(0x60)), {
+      // Count close backticks
+      (cnt : i32) = i32(0);
+      (cs : i32) = search;
+      while ((cs < state.*.pos_max) && (i32((state.*.src_ptr &+ usize(cs)).*) == i32(0x60))), {
+        cnt = (cnt + i32(1));
+        cs = (cs + i32(1));
+      };
+
+      if((cnt == open_count), {
+        close_start = search;
+        close_end = cs;
+        found = true;
+      }, {
+        search = cs;
+      });
+    }, {
+      search = (search + i32(1));
+    });
+  };
+
+  if(!(found), {
+    // No matching close — treat opening backticks as literal text
+    state.*.pending_end = p;
+    state.*.pos = p;
+    return true;
+  });
+
+  // Found matching close: content is between open end (p) and close start
+  state.*.push_pending();
+  _ := state.*.tokens.push(InlineToken.simple(.CodeInline, i32(0), state.*.level));
+  // Store content range in the token
+  (tok_idx : i32) = (i32(state.*.tokens.len()) - i32(1));
+
+  // Strip one leading space and one trailing space if content starts and ends with space
+  // and content is more than just spaces (CommonMark rule)
+  (content_start : i32) = p;
+  (content_end : i32) = close_start;
+  if(((content_end - content_start) >= i32(2)), {
+    (first : i32) = i32((state.*.src_ptr &+ usize(content_start)).*);
+    (last : i32) = i32((state.*.src_ptr &+ usize((content_end - i32(1)))).*);
+    if(((first == i32(0x20)) && (last == i32(0x20))), {
+      // Check content is not all spaces
+      (all_spaces : bool) = true;
+      (sp : i32) = content_start;
+      while ((sp < content_end) && all_spaces), {
+        if((i32((state.*.src_ptr &+ usize(sp)).*) != i32(0x20)), {
+          all_spaces = false;
+        });
+        sp = (sp + i32(1));
+      };
+      if(!(all_spaces), {
+        content_start = (content_start + i32(1));
+        content_end = (content_end - i32(1));
+      });
+    });
+  });
+
+  // Update token with content range
+  state.*.tokens.set(usize(tok_idx), InlineToken(
+    type_name: .CodeInline,
+    start: content_start,
+    end: content_end,
+    nesting: i32(0),
+    level: state.*.level,
+    info_start: i32(0), info_end: i32(0),
+    title_start: i32(0), title_end: i32(0),
+    markup_char: u8(0x60), markup_len: u8(open_count),
+    content: ``, href: ``, title: ``,
+    block: false, hidden: false
+  ));
+
+  state.*.pos = close_end;
+  state.*.pending_start = state.*.pos;
+  state.*.pending_end = state.*.pos;
+  true
+});
+
+export inline_backticks;

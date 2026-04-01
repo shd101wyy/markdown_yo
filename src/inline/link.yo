@@ -1,0 +1,262 @@
+// markdown_yo — Inline link rule
+//
+// Matches: [text](url "title"), [text][ref], [text][]
+// Also handles images: ![alt](url), ![alt][ref]
+
+{ ArrayList } :: import "std/collections/array_list";
+{ InlineState, InlineToken } :: import "./state.yo";
+{ InlineType } :: import "../types.yo";
+{ is_space } :: import "../common/utils.yo";
+
+// Parse link destination: either <...> or a bare URL
+// Returns end position or -1 on failure
+_parse_link_dest :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
+  (pos : i32) = start;
+  if((pos >= max), { return i32(-1); });
+
+  (ch : i32) = i32((src &+ usize(pos)).*);
+  if((ch == i32(0x3C)), {
+    // <...> form
+    pos = (pos + i32(1));
+    (found : bool) = false;
+    while ((pos < max) && !(found)), {
+      (c : i32) = i32((src &+ usize(pos)).*);
+      if((c == i32(0x0A)), { return i32(-1); });
+      if((c == i32(0x3E)), {
+        found = true;
+      }, {
+        if((c == i32(0x5C)), {
+          pos = (pos + i32(1));
+          if((pos >= max), { return i32(-1); });
+        });
+        pos = (pos + i32(1));
+      });
+    };
+    if(!(found), { return i32(-1); });
+    (pos + i32(1))
+  }, {
+    // Bare URL: no spaces, balanced parens
+    (level : i32) = i32(0);
+    (done : bool) = false;
+    while ((pos < max) && !(done)), {
+      (c : i32) = i32((src &+ usize(pos)).*);
+      if(is_space(c), {
+        done = true;
+      }, {
+        if((c == i32(0x28)), {
+          level = (level + i32(1));
+          if((level > i32(32)), { return i32(-1); });
+        }, {
+          if((c == i32(0x29)), {
+            if((level <= i32(0)), {
+              done = true;
+            }, {
+              level = (level - i32(1));
+            });
+          }, {
+            if((c == i32(0x5C)), {
+              pos = (pos + i32(1));
+              if((pos >= max), { return i32(-1); });
+            });
+          });
+        });
+        if(!(done), { pos = (pos + i32(1)); });
+      });
+    };
+    if((level != i32(0)), { return i32(-1); });
+    pos
+  })
+});
+
+// Parse link title: "...", '...', or (...)
+// Returns end position (after closing quote) or -1
+_parse_link_title :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
+  (pos : i32) = start;
+  if((pos >= max), { return i32(-1); });
+
+  (marker : i32) = i32((src &+ usize(pos)).*);
+  if(((marker != i32(0x22)) && ((marker != i32(0x27)) && (marker != i32(0x28)))), { return i32(-1); });
+
+  (close_marker : i32) = cond(
+    (marker == i32(0x28)) => i32(0x29),
+    true => marker
+  );
+
+  pos = (pos + i32(1));
+  (found : bool) = false;
+  while ((pos < max) && !(found)), {
+    (c : i32) = i32((src &+ usize(pos)).*);
+    if((c == close_marker), {
+      found = true;
+    }, {
+      if((c == i32(0x5C)), {
+        pos = (pos + i32(1));
+      });
+    });
+    pos = (pos + i32(1));
+  };
+  if(!(found), { return i32(-1); });
+  pos
+});
+
+// Find matching ] for an opening [ starting at pos
+_find_close_bracket :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
+  (pos : i32) = start;
+  (level : i32) = i32(1);
+  while ((pos < max) && (level > i32(0))), {
+    (c : i32) = i32((src &+ usize(pos)).*);
+    if((c == i32(0x5C)), {
+      pos = (pos + i32(2));
+    }, {
+      if((c == i32(0x5B)), {
+        level = (level + i32(1));
+        pos = (pos + i32(1));
+      }, {
+        if((c == i32(0x5D)), {
+          level = (level - i32(1));
+          if((level > i32(0)), { pos = (pos + i32(1)); });
+        }, {
+          pos = (pos + i32(1));
+        });
+      });
+    });
+  };
+  if((level == i32(0)), pos, i32(-1))
+});
+
+inline_link :: (fn(state: *(InlineState)) -> bool)({
+  (pos : i32) = state.*.pos;
+  (max : i32) = state.*.pos_max;
+
+  (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+
+  // Check for image prefix ![ or link [
+  (is_image : bool) = false;
+  if((ch == i32(0x21)), {
+    if(((pos + i32(1)) < max), {
+      if((i32((state.*.src_ptr &+ usize((pos + i32(1)))).*) == i32(0x5B)), {
+        is_image = true;
+        pos = (pos + i32(2));
+      }, {
+        return false;
+      });
+    }, {
+      return false;
+    });
+  }, {
+    if((ch == i32(0x5B)), {
+      pos = (pos + i32(1));
+    }, {
+      return false;
+    });
+  });
+
+  // Find matching ]
+  (close_pos : i32) = _find_close_bracket(state.*.src_ptr, pos, max);
+  if((close_pos < i32(0)), { return false; });
+
+  (text_start : i32) = pos;
+  (text_end : i32) = close_pos;
+  (after_close : i32) = (close_pos + i32(1));
+
+  // What follows ]?
+  (href_start : i32) = i32(0);
+  (href_end : i32) = i32(0);
+  (title_start : i32) = i32(0);
+  (title_end : i32) = i32(0);
+  (link_end : i32) = i32(-1);
+
+  if(((after_close < max) && (i32((state.*.src_ptr &+ usize(after_close)).*) == i32(0x28))), {
+    // Inline link: [text](url "title")
+    (p : i32) = (after_close + i32(1));
+
+    // Skip spaces
+    while ((p < max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x20))), {
+      p = (p + i32(1));
+    };
+
+    // Parse destination
+    (dest_start : i32) = p;
+    (dest_result : i32) = _parse_link_dest(state.*.src_ptr, p, max);
+    if((dest_result >= i32(0)), {
+      // Check if destination was <...> form
+      if((i32((state.*.src_ptr &+ usize(dest_start)).*) == i32(0x3C)), {
+        href_start = (dest_start + i32(1));
+        href_end = (dest_result - i32(1));
+      }, {
+        href_start = dest_start;
+        href_end = dest_result;
+      });
+      p = dest_result;
+
+      // Skip spaces
+      (saved_p : i32) = p;
+      while ((p < max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x20))), {
+        p = (p + i32(1));
+      };
+
+      // Try parse title
+      if((p != saved_p), {
+        (title_result : i32) = _parse_link_title(state.*.src_ptr, p, max);
+        if((title_result >= i32(0)), {
+          title_start = (p + i32(1));
+          title_end = (title_result - i32(1));
+          p = title_result;
+        });
+      });
+
+      // Skip trailing spaces
+      while ((p < max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x20))), {
+        p = (p + i32(1));
+      };
+
+      if(((p < max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x29))), {
+        link_end = (p + i32(1));
+      });
+    });
+  });
+
+  // TODO: reference link support [text][ref] and [text][]
+
+  if((link_end < i32(0)), { return false; });
+
+  state.*.push_pending();
+
+  // Emit open token
+  (open_type : InlineType) = cond(
+    is_image => .ImageOpen,
+    true => .LinkOpen
+  );
+  _ := state.*.tokens.push(InlineToken(
+    type_name: open_type,
+    start: href_start, end: href_end,
+    nesting: i32(1), level: state.*.level,
+    info_start: i32(0), info_end: i32(0),
+    title_start: title_start, title_end: title_end,
+    markup_char: u8(0), markup_len: u8(0),
+    content: ``, href: ``, title: ``,
+    block: false, hidden: false
+  ));
+
+  state.*.level = (state.*.level + i32(1));
+
+  // For images: emit text content directly (no nested inline parsing)
+  // For links: the text will be inline-parsed
+  _ := state.*.tokens.push(InlineToken.text(text_start, text_end, state.*.level));
+
+  state.*.level = (state.*.level - i32(1));
+
+  // Emit close token
+  (close_type : InlineType) = cond(
+    is_image => .ImageClose,
+    true => .LinkClose
+  );
+  _ := state.*.tokens.push(InlineToken.simple(close_type, i32(-1), state.*.level));
+
+  state.*.pos = link_end;
+  state.*.pending_start = state.*.pos;
+  state.*.pending_end = state.*.pos;
+  true
+});
+
+export inline_link;

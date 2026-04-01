@@ -1,0 +1,54 @@
+// markdown_yo — Inline escape rule
+//
+// Matches: \X where X is an ASCII punctuation character
+// Produces a text token for the escaped character.
+
+{ InlineState, InlineToken } :: import "./state.yo";
+
+// ASCII punctuation that can be escaped
+_is_escapable :: (fn(ch: i32) -> bool)(
+  ((ch == i32(0x21)) || ((ch == i32(0x22)) || ((ch == i32(0x23)) || ((ch == i32(0x24)) ||
+  ((ch == i32(0x25)) || ((ch == i32(0x26)) || ((ch == i32(0x27)) || ((ch == i32(0x28)) ||
+  ((ch == i32(0x29)) || ((ch == i32(0x2A)) || ((ch == i32(0x2B)) || ((ch == i32(0x2C)) ||
+  ((ch == i32(0x2D)) || ((ch == i32(0x2E)) || ((ch == i32(0x2F)) || ((ch == i32(0x3A)) ||
+  ((ch == i32(0x3B)) || ((ch == i32(0x3C)) || ((ch == i32(0x3D)) || ((ch == i32(0x3E)) ||
+  ((ch == i32(0x3F)) || ((ch == i32(0x40)) || ((ch == i32(0x5B)) || ((ch == i32(0x5C)) ||
+  ((ch == i32(0x5D)) || ((ch == i32(0x5E)) || ((ch == i32(0x5F)) || ((ch == i32(0x60)) ||
+  ((ch == i32(0x7B)) || ((ch == i32(0x7C)) || ((ch == i32(0x7D)) || (ch == i32(0x7E))
+  )))))))))))))))))))))))))))))))
+);
+
+inline_escape :: (fn(state: *(InlineState)) -> bool)({
+  (pos : i32) = state.*.pos;
+  if(((pos + i32(1)) >= state.*.pos_max), { return false; });
+
+  (ch : i32) = i32((state.*.src_ptr &+ usize((pos + i32(1)))).*);
+
+  // Hard break: \<newline>
+  if((ch == i32(0x0A)), {
+    state.*.push_pending();
+    _ := state.*.tokens.push(InlineToken.simple(.Hardbreak, i32(0), state.*.level));
+    state.*.pos = (pos + i32(2));
+    // Skip spaces after newline
+    while ((state.*.pos < state.*.pos_max) && (i32((state.*.src_ptr &+ usize(state.*.pos)).*) == i32(0x20))), {
+      state.*.pos = (state.*.pos + i32(1));
+    };
+    state.*.pending_start = state.*.pos;
+    state.*.pending_end = state.*.pos;
+    return true;
+  });
+
+  if(_is_escapable(ch), {
+    state.*.push_pending();
+    // Emit the escaped character as text (skip the backslash)
+    _ := state.*.tokens.push(InlineToken.text((pos + i32(1)), (pos + i32(2)), state.*.level));
+    state.*.pos = (pos + i32(2));
+    state.*.pending_start = state.*.pos;
+    state.*.pending_end = state.*.pos;
+    return true;
+  });
+
+  false
+});
+
+export inline_escape;

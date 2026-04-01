@@ -3,14 +3,11 @@
 // Matches: # H1 ... ###### H6
 // Closing hashes are optional and stripped.
 
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
 { BlockState } :: import "./state.yo";
 { is_space } :: import "../common/utils.yo";
-
-// Parse inline content for heading and emit to renderer
-// For now, emit as plain escaped text. Will be replaced with full inline parser.
-_parse_heading_inline :: (fn(state: *(BlockState), start: i32, end: i32) -> unit)(
-  state.*.renderer.*.text(start, end)
-);
+{ inline_parse_range } :: import "../inline/parser.yo";
 
 block_heading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
   (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
@@ -71,7 +68,7 @@ block_heading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silen
   state.*.renderer.*.open_heading(level);
   // Parse inline content between pos and content_end
   if((content_end > pos), {
-    _parse_heading_inline(state, pos, content_end);
+    inline_parse_range(state.*.src_ptr, pos, content_end, state.*.env, state.*.renderer, state.*.options);
   });
   state.*.renderer.*.close_heading(level);
 

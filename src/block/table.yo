@@ -7,6 +7,7 @@ open import "std/string";
 { BlockState } :: import "./state.yo";
 { is_space } :: import "../common/utils.yo";
 { TableAlign } :: import "../types.yo";
+{ inline_parse_range } :: import "../inline/parser.yo";
 
 // Parse cells from a table row line and emit td/th tags
 _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayList(TableAlign)), is_header: bool) -> unit)({
@@ -69,13 +70,13 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
     if(is_header, {
       state.*.renderer.*.open_th(align);
       if((cell_end > cell_start), {
-        state.*.renderer.*.text(cell_start, cell_end);
+        inline_parse_range(state.*.src_ptr, cell_start, cell_end, state.*.env, state.*.renderer, state.*.options);
       });
       state.*.renderer.*.close_th();
     }, {
       state.*.renderer.*.open_td(align);
       if((cell_end > cell_start), {
-        state.*.renderer.*.text(cell_start, cell_end);
+        inline_parse_range(state.*.src_ptr, cell_start, cell_end, state.*.env, state.*.renderer, state.*.options);
       });
       state.*.renderer.*.close_td();
     });

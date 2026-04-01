@@ -1,0 +1,104 @@
+// markdown_yo — Inline emphasis marker rule
+//
+// Handles * and _ markers. Pushes a text token for the markers AND a Delimiter
+// entry for later resolution by emphasis_post.
+
+{ ArrayList } :: import "std/collections/array_list";
+{ InlineState, InlineToken } :: import "./state.yo";
+{ Delimiter } :: import "../types.yo";
+{ is_space, is_punct_char } :: import "../common/utils.yo";
+
+// Scan delimiter run for open/close properties (CommonMark §6.2)
+_scan_delims :: (fn(state: *(InlineState), start: i32, marker: u8) -> i32)({
+  (pos : i32) = start;
+  (max : i32) = state.*.pos_max;
+
+  // Count consecutive markers
+  while ((pos < max) && ((state.*.src_ptr &+ usize(pos)).* == marker)), {
+    pos = (pos + i32(1));
+  };
+  (count : i32) = (pos - start);
+
+  // Character before the run (or start-of-string = newline equivalent)
+  (char_before : i32) = cond(
+    (start > i32(0)) => i32((state.*.src_ptr &+ usize((start - i32(1)))).*),
+    true => i32(0x0A)
+  );
+
+  // Character after the run (or end-of-string = newline equivalent)
+  (char_after : i32) = cond(
+    (pos < max) => i32((state.*.src_ptr &+ usize(pos)).*),
+    true => i32(0x0A)
+  );
+
+  (is_last_punct : bool) = is_punct_char(char_before);
+  (is_next_punct : bool) = is_punct_char(char_after);
+  (is_last_ws : bool) = is_space(char_before);
+  (is_next_ws : bool) = is_space(char_after);
+
+  // Left-flanking: not followed by whitespace, and either not followed by punct
+  // or preceded by whitespace or punct
+  (left_flanking : bool) = (!(is_next_ws) && (!(is_next_punct) || (is_last_ws || is_last_punct)));
+
+  // Right-flanking: not preceded by whitespace, and either not preceded by punct
+  // or followed by whitespace or punct
+  (right_flanking : bool) = (!(is_last_ws) && (!(is_last_punct) || (is_next_ws || is_next_punct)));
+
+  (can_open : bool) = false;
+  (can_close : bool) = false;
+
+  if((i32(marker) == i32(0x5F)), {
+    // _ : stricter rules — not intraword
+    can_open = (left_flanking && (!(right_flanking) || is_last_punct));
+    can_close = (right_flanking && (!(left_flanking) || is_next_punct));
+  }, {
+    // * : standard flanking rules
+    can_open = left_flanking;
+    can_close = right_flanking;
+  });
+
+  // Encode: count in bits 0-15, can_open in bit 16, can_close in bit 17
+  (result : i32) = count;
+  if(can_open, { result = (result | i32(0x10000)); });
+  if(can_close, { result = (result | i32(0x20000)); });
+  result
+});
+
+inline_emphasis :: (fn(state: *(InlineState)) -> bool)({
+  (pos : i32) = state.*.pos;
+  (marker : u8) = (state.*.src_ptr &+ usize(pos)).*;
+
+  // Only * and _ handled here
+  if(((i32(marker) != i32(0x2A)) && (i32(marker) != i32(0x5F))), { return false; });
+
+  (scan_result : i32) = _scan_delims(state, pos, marker);
+  (count : i32) = (scan_result & i32(0xFFFF));
+  (can_open : bool) = ((scan_result & i32(0x10000)) != i32(0));
+  (can_close : bool) = ((scan_result & i32(0x20000)) != i32(0));
+
+  if((!(can_open) && !(can_close)), { return false; });
+
+  // Push pending text
+  state.*.push_pending();
+
+  // Add text token for the marker characters
+  _ := state.*.tokens.push(InlineToken.text(pos, (pos + count), state.*.level));
+  (tok_idx : i32) = (i32(state.*.tokens.len()) - i32(1));
+
+  // Add delimiter entry
+  _ := state.*.delimiters.push(Delimiter(
+    marker: marker,
+    length: count,
+    token_idx: tok_idx,
+    end: i32(-1),
+    open: can_open,
+    close: can_close
+  ));
+
+  state.*.pos = (pos + count);
+  state.*.pending_start = state.*.pos;
+  state.*.pending_end = state.*.pos;
+  true
+});
+
+export inline_emphasis;

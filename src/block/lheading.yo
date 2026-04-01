@@ -2,9 +2,12 @@
 //
 // Matches: text followed by === (h1) or --- (h2) underline
 
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
 { BlockState } :: import "./state.yo";
 { is_space } :: import "../common/utils.yo";
 { ParentType } :: import "../types.yo";
+{ inline_parse } :: import "../inline/parser.yo";
 
 // Check if any terminator rule matches at the given line (silent mode)
 _check_paragraph_terminator :: (fn(state: *(BlockState), line: i32, end_line: i32) -> bool)({
@@ -13,9 +16,9 @@ _check_paragraph_terminator :: (fn(state: *(BlockState), line: i32, end_line: i3
   false
 });
 
-// Parse inline content across multiple lines for paragraph/lheading
-// For now: emit text for each line, separated by newlines
-_parse_para_inline :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> unit)({
+// Build inline content string from multiple lines (joined with \n)
+_build_lheading_inline :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> String)({
+  (buf : ArrayList(u8)) = ArrayList(u8).new();
   (line : i32) = start_line;
   while (line < end_line), {
     (bm : i32) = state.*.b_marks.get_unchecked(usize(line));
@@ -31,13 +34,14 @@ _parse_para_inline :: (fn(state: *(BlockState), start_line: i32, end_line: i32) 
 
     if((content_end > content_start), {
       if((line > start_line), {
-        state.*.renderer.*.byte(u8(0x0A));
+        _ := buf.push(u8(0x0A));
       });
-      state.*.renderer.*.text(content_start, content_end);
+      buf.extend_from_ptr((state.*.src_ptr &+ usize(content_start)), usize((content_end - content_start)));
     });
 
     line = (line + i32(1));
   };
+  String.from_bytes(buf)
 });
 
 block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
@@ -112,8 +116,9 @@ block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sile
   // Emit heading
   state.*.renderer.*.open_heading(level);
 
-  // Parse inline content from start_line to next_line
-  _parse_para_inline(state, start_line, next_line);
+  // Build inline content and parse it
+  (content : String) = _build_lheading_inline(state, start_line, next_line);
+  inline_parse(content, state.*.env, state.*.renderer, state.*.options);
 
   state.*.renderer.*.close_heading(level);
 

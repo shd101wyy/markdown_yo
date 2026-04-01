@@ -1,0 +1,103 @@
+// markdown_yo — Inline autolink rule
+//
+// Matches: <http://...>, <https://...>, <email@domain.com>
+
+{ InlineState, InlineToken } :: import "./state.yo";
+{ is_space } :: import "../common/utils.yo";
+
+// Check if character is valid in URI scheme
+_is_scheme_char :: (fn(ch: i32) -> bool)(
+  (((ch >= i32(0x41)) && (ch <= i32(0x5A))) ||
+  (((ch >= i32(0x61)) && (ch <= i32(0x7A))) ||
+  (((ch >= i32(0x30)) && (ch <= i32(0x39))) ||
+  ((ch == i32(0x2E)) || ((ch == i32(0x2B)) || (ch == i32(0x2D)))))))
+);
+
+inline_autolink :: (fn(state: *(InlineState)) -> bool)({
+  (pos : i32) = state.*.pos;
+  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x3C)), { return false; });
+
+  // Find closing >
+  (p : i32) = (pos + i32(1));
+  (found_close : bool) = false;
+  while ((p < state.*.pos_max) && !(found_close)), {
+    (ch : i32) = i32((state.*.src_ptr &+ usize(p)).*);
+    if((ch == i32(0x3E)), {
+      found_close = true;
+    }, {
+      if((is_space(ch) || (ch == i32(0x3C))), {
+        return false;
+      });
+      p = (p + i32(1));
+    });
+  };
+
+  if(!(found_close), { return false; });
+
+  // Content is between < and >
+  (content_start : i32) = (pos + i32(1));
+  (content_end : i32) = p;
+
+  // Check for URI scheme: scheme://...
+  (is_uri : bool) = false;
+  (sp : i32) = content_start;
+  while ((sp < content_end) && _is_scheme_char(i32((state.*.src_ptr &+ usize(sp)).*))) , {
+    sp = (sp + i32(1));
+  };
+
+  // Need at least 2 scheme chars followed by ://
+  if((((sp - content_start) >= i32(2)) && ((sp + i32(2)) < content_end)), {
+    if(((i32((state.*.src_ptr &+ usize(sp)).*) == i32(0x3A)) &&
+       ((i32((state.*.src_ptr &+ usize((sp + i32(1)))).*) == i32(0x2F)) &&
+        (i32((state.*.src_ptr &+ usize((sp + i32(2)))).*) == i32(0x2F)))), {
+      is_uri = true;
+    });
+  });
+
+  // Check for email: contains @ and no spaces
+  (is_email : bool) = false;
+  if(!(is_uri), {
+    (ep : i32) = content_start;
+    (has_at : bool) = false;
+    (valid : bool) = true;
+    while ((ep < content_end) && valid), {
+      (ech : i32) = i32((state.*.src_ptr &+ usize(ep)).*);
+      if((ech == i32(0x40)), {
+        has_at = true;
+      });
+      if(is_space(ech), { valid = false; });
+      ep = (ep + i32(1));
+    };
+    if((has_at && valid), {
+      is_email = true;
+    });
+  });
+
+  if((!(is_uri) && !(is_email)), { return false; });
+
+  state.*.push_pending();
+
+  // Emit link open + text + link close
+  (tok : InlineToken) = InlineToken(
+    type_name: .LinkOpen,
+    start: content_start, end: content_end,
+    nesting: i32(1), level: state.*.level,
+    info_start: content_start, info_end: content_end,
+    title_start: i32(0), title_end: i32(0),
+    markup_char: u8(0x3C), markup_len: u8(0),
+    content: ``, href: ``, title: ``,
+    block: false, hidden: false
+  );
+  _ := state.*.tokens.push(tok);
+
+  _ := state.*.tokens.push(InlineToken.text(content_start, content_end, (state.*.level + i32(1))));
+
+  _ := state.*.tokens.push(InlineToken.simple(.LinkClose, i32(-1), state.*.level));
+
+  state.*.pos = (p + i32(1));
+  state.*.pending_start = state.*.pos;
+  state.*.pending_end = state.*.pos;
+  true
+});
+
+export inline_autolink;

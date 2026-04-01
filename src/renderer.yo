@@ -21,6 +21,38 @@ _write_i32 :: (fn(buf: *(ArrayList(u8)), n: i32) -> unit)({
   _ := buf.*.push(u8((i32(0x30) + (n % i32(10)))));
 });
 
+// Encode a Unicode code point as UTF-8 and HTML-escape it, writing to buf
+_emit_code_point :: (fn(buf: *(ArrayList(u8)), code: i32) -> unit)({
+  cond(
+    (code == i32(0x26)) => append_lit(buf, "&amp;"),
+    (code == i32(0x3C)) => append_lit(buf, "&lt;"),
+    (code == i32(0x3E)) => append_lit(buf, "&gt;"),
+    (code == i32(0x22)) => append_lit(buf, "&quot;"),
+    true => {
+      cond(
+        (code < i32(0x80)) => {
+          _ := buf.*.push(u8(code));
+        },
+        (code < i32(0x800)) => {
+          _ := buf.*.push(u8((i32(0xC0) | (code >> i32(6)))));
+          _ := buf.*.push(u8((i32(0x80) | (code & i32(0x3F)))));
+        },
+        (code < i32(0x10000)) => {
+          _ := buf.*.push(u8((i32(0xE0) | (code >> i32(12)))));
+          _ := buf.*.push(u8((i32(0x80) | ((code >> i32(6)) & i32(0x3F)))));
+          _ := buf.*.push(u8((i32(0x80) | (code & i32(0x3F)))));
+        },
+        true => {
+          _ := buf.*.push(u8((i32(0xF0) | (code >> i32(18)))));
+          _ := buf.*.push(u8((i32(0x80) | ((code >> i32(12)) & i32(0x3F)))));
+          _ := buf.*.push(u8((i32(0x80) | ((code >> i32(6)) & i32(0x3F)))));
+          _ := buf.*.push(u8((i32(0x80) | (code & i32(0x3F)))));
+        }
+      );
+    }
+  );
+});
+
 // ============================================================================
 // HtmlRenderer
 // ============================================================================
@@ -28,6 +60,7 @@ _write_i32 :: (fn(buf: *(ArrayList(u8)), n: i32) -> unit)({
 HtmlRenderer :: struct(
   buf : ArrayList(u8),    // output buffer
   img_nest : i32,         // depth inside <img> alt text (suppress HTML tags)
+  img_title : String,     // saved image title (from open to close)
   options : *(Options),
   src_ptr : *(u8),        // pointer to source bytes for zero-copy slicing
   src_len : i32
@@ -40,6 +73,7 @@ impl(HtmlRenderer,
     Self(
       buf: ArrayList(u8).with_capacity(cap),
       img_nest: i32(0),
+      img_title: ``,
       options: options,
       src_ptr: src_ptr,
       src_len: src_len
@@ -351,10 +385,12 @@ impl(HtmlRenderer,
     self.*.lit("<img src=\"");
     self.*.escaped_string(src);
     self.*.lit("\" alt=\"");
+    self.*.img_title = title;
     self.*.img_nest = (self.*.img_nest + i32(1));
   }),
 
-  close_image : (fn(self: *(Self), title: String) -> unit)({
+  close_image : (fn(self: *(Self)) -> unit)({
+    (title : String) = self.*.img_title;
     if((title.bytes_len() > usize(0)), {
       self.*.lit("\" title=\"");
       self.*.escaped_string(title);
@@ -391,10 +427,47 @@ impl(HtmlRenderer,
     })
   ),
 
-  // Entity: pass through raw entity text (already in correct format)
-  entity : (fn(self: *(Self), start: i32, end: i32) -> unit)(
-    self.*.raw(start, end)
-  ),
+  // Entity: decode and emit
+  entity : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    // Check if it's a numeric entity: &#123; or &#x41;
+    if(((end - start) >= i32(4)), {
+      (c1 : i32) = i32((self.*.src_ptr &+ usize((start + i32(1)))).*);
+      if((c1 == i32(0x23)), {
+        (c2 : i32) = i32((self.*.src_ptr &+ usize((start + i32(2)))).*);
+        if(((c2 == i32(0x78)) || (c2 == i32(0x58))), {
+          // Hex: &#xHHHH;
+          (code : i32) = i32(0);
+          (p : i32) = (start + i32(3));
+          while (p < (end - i32(1))), {
+            (d : i32) = i32((self.*.src_ptr &+ usize(p)).*);
+            code = (code * i32(16));
+            cond(
+              ((d >= i32(0x30)) && (d <= i32(0x39))) => { code = (code + (d - i32(0x30))); },
+              ((d >= i32(0x41)) && (d <= i32(0x46))) => { code = (code + ((d - i32(0x41)) + i32(10))); },
+              ((d >= i32(0x61)) && (d <= i32(0x66))) => { code = (code + ((d - i32(0x61)) + i32(10))); },
+              true => ()
+            );
+            p = (p + i32(1));
+          };
+          _emit_code_point((&self.*.buf), code);
+          return ();
+        }, {
+          // Decimal: &#DDD;
+          (code : i32) = i32(0);
+          (p : i32) = (start + i32(2));
+          while (p < (end - i32(1))), {
+            (d : i32) = i32((self.*.src_ptr &+ usize(p)).*);
+            code = ((code * i32(10)) + (d - i32(0x30)));
+            p = (p + i32(1));
+          };
+          _emit_code_point((&self.*.buf), code);
+          return ();
+        });
+      });
+    });
+    // Named entity — pass through as-is (already valid HTML)
+    self.*.raw(start, end);
+  }),
 
   // Newline in tight paragraph (hidden paragraph open/close)
   hidden_paragraph_open : (fn(self: *(Self)) -> unit)(

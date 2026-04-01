@@ -1,0 +1,47 @@
+// markdown_yo — Inline newline rule
+//
+// Handles hard break (2+ trailing spaces + \n, or \\\n) and soft break (\n).
+
+{ InlineState, InlineToken } :: import "./state.yo";
+
+inline_newline :: (fn(state: *(InlineState)) -> bool)({
+  (pos : i32) = state.*.pos;
+  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x0A)), { return false; });
+
+  state.*.push_pending();
+
+  // Check for hard break: 2+ spaces before the newline
+  (pmax : i32) = (i32(state.*.tokens.len()) - i32(1));
+  (is_hard : bool) = false;
+
+  // Look back from pos for trailing spaces
+  (back : i32) = (pos - i32(1));
+  (space_count : i32) = i32(0);
+  while ((back >= i32(0)) && (i32((state.*.src_ptr &+ usize(back)).*) == i32(0x20))), {
+    space_count = (space_count + i32(1));
+    back = (back - i32(1));
+  };
+
+  if((space_count >= i32(2)), {
+    is_hard = true;
+  });
+
+  if(is_hard, {
+    _ := state.*.tokens.push(InlineToken.simple(.Hardbreak, i32(0), state.*.level));
+  }, {
+    _ := state.*.tokens.push(InlineToken.simple(.Softbreak, i32(0), state.*.level));
+  });
+
+  state.*.pos = (pos + i32(1));
+
+  // Skip spaces after newline
+  while ((state.*.pos < state.*.pos_max) && (i32((state.*.src_ptr &+ usize(state.*.pos)).*) == i32(0x20))), {
+    state.*.pos = (state.*.pos + i32(1));
+  };
+
+  state.*.pending_start = state.*.pos;
+  state.*.pending_end = state.*.pos;
+  true
+});
+
+export inline_newline;

@@ -1,0 +1,63 @@
+// markdown_yo — Inline HTML rule
+//
+// Matches: <tag>, </tag>, <!-- comment -->, etc.
+
+{ InlineState, InlineToken } :: import "./state.yo";
+{ is_space } :: import "../common/utils.yo";
+
+// Check if ch is a valid HTML tag name char
+_is_tag_char :: (fn(ch: i32) -> bool)(
+  (((ch >= i32(0x41)) && (ch <= i32(0x5A))) ||
+  (((ch >= i32(0x61)) && (ch <= i32(0x7A))) ||
+  (((ch >= i32(0x30)) && (ch <= i32(0x39))) ||
+  (ch == i32(0x2D)))))
+);
+
+inline_html :: (fn(state: *(InlineState)) -> bool)({
+  (pos : i32) = state.*.pos;
+  (max : i32) = state.*.pos_max;
+
+  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x3C)), { return false; });
+  if(((pos + i32(1)) >= max), { return false; });
+
+  (ch : i32) = i32((state.*.src_ptr &+ usize((pos + i32(1)))).*);
+
+  // Must start with letter, /, !, or ?
+  (valid_start : bool) = (((ch >= i32(0x41)) && (ch <= i32(0x5A))) ||
+    (((ch >= i32(0x61)) && (ch <= i32(0x7A))) ||
+    ((ch == i32(0x2F)) || ((ch == i32(0x21)) || (ch == i32(0x3F))))));
+
+  if(!(valid_start), { return false; });
+
+  // Find closing >
+  (p : i32) = (pos + i32(2));
+  (found : bool) = false;
+  while ((p < max) && !(found)), {
+    if((i32((state.*.src_ptr &+ usize(p)).*) == i32(0x3E)), {
+      found = true;
+    }, {
+      p = (p + i32(1));
+    });
+  };
+
+  if(!(found), { return false; });
+
+  state.*.push_pending();
+  _ := state.*.tokens.push(InlineToken(
+    type_name: .HtmlInline,
+    start: pos, end: (p + i32(1)),
+    nesting: i32(0), level: state.*.level,
+    info_start: i32(0), info_end: i32(0),
+    title_start: i32(0), title_end: i32(0),
+    markup_char: u8(0), markup_len: u8(0),
+    content: ``, href: ``, title: ``,
+    block: false, hidden: false
+  ));
+
+  state.*.pos = (p + i32(1));
+  state.*.pending_start = state.*.pos;
+  state.*.pending_end = state.*.pos;
+  true
+});
+
+export inline_html;

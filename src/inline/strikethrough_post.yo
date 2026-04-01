@@ -1,0 +1,92 @@
+// markdown_yo — Strikethrough post-processor
+//
+// Matches ~~ delimiter pairs and marks them for rendering.
+
+{ ArrayList } :: import "std/collections/array_list";
+{ InlineState, InlineToken } :: import "./state.yo";
+{ Delimiter } :: import "../types.yo";
+
+strikethrough_post :: (fn(state: *(InlineState)) -> unit)({
+  (max_delim : i32) = i32(state.*.delimiters.len());
+  (closer_idx : i32) = i32(0);
+
+  while (closer_idx < max_delim), {
+    (closer : Delimiter) = state.*.delimiters.get(usize(closer_idx));
+
+    if((closer.close && (i32(closer.marker) == i32(0x7E))), {
+      // Search backwards for matching opener
+      (opener_idx : i32) = (closer_idx - i32(1));
+      (found : bool) = false;
+
+      while ((opener_idx >= i32(0)) && !(found)), {
+        (opener : Delimiter) = state.*.delimiters.get(usize(opener_idx));
+        if(((i32(opener.marker) == i32(0x7E)) && opener.open), {
+          found = true;
+        }, {
+          opener_idx = (opener_idx - i32(1));
+        });
+      };
+
+      if(found, {
+        (opener : Delimiter) = state.*.delimiters.get(usize(opener_idx));
+
+        // Mark the text tokens as zero-length (consumed by ~~)
+        (otok : InlineToken) = state.*.tokens.get(usize(opener.token_idx));
+        state.*.tokens.set(usize(opener.token_idx), InlineToken(
+          type_name: otok.type_name,
+          start: otok.start, end: otok.start,
+          nesting: otok.nesting, level: otok.level,
+          info_start: otok.info_start, info_end: otok.info_end,
+          title_start: otok.title_start, title_end: otok.title_end,
+          markup_char: otok.markup_char, markup_len: otok.markup_len,
+          content: otok.content, href: otok.href, title: otok.title,
+          block: otok.block, hidden: otok.hidden
+        ));
+
+        (ctok : InlineToken) = state.*.tokens.get(usize(closer.token_idx));
+        state.*.tokens.set(usize(closer.token_idx), InlineToken(
+          type_name: ctok.type_name,
+          start: ctok.end, end: ctok.end,
+          nesting: ctok.nesting, level: ctok.level,
+          info_start: ctok.info_start, info_end: ctok.info_end,
+          title_start: ctok.title_start, title_end: ctok.title_end,
+          markup_char: ctok.markup_char, markup_len: ctok.markup_len,
+          content: ctok.content, href: ctok.href, title: ctok.title,
+          block: ctok.block, hidden: ctok.hidden
+        ));
+
+        // Record pairing
+        state.*.delimiters.set(usize(opener_idx), Delimiter(
+          marker: opener.marker, length: i32(0),
+          token_idx: opener.token_idx,
+          end: closer_idx,
+          open: false, close: false
+        ));
+
+        // Clear delimiters between
+        (mid : i32) = (opener_idx + i32(1));
+        while (mid < closer_idx), {
+          (d : Delimiter) = state.*.delimiters.get(usize(mid));
+          state.*.delimiters.set(usize(mid), Delimiter(
+            marker: d.marker, length: i32(0), token_idx: d.token_idx,
+            end: i32(-1), open: false, close: false
+          ));
+          mid = (mid + i32(1));
+        };
+
+        // Clear closer
+        state.*.delimiters.set(usize(closer_idx), Delimiter(
+          marker: closer.marker, length: i32(0),
+          token_idx: closer.token_idx,
+          end: i32(-1), open: false, close: false
+        ));
+      });
+    });
+
+    closer_idx = (closer_idx + i32(1));
+  };
+
+  ()
+});
+
+export strikethrough_post;

@@ -87,7 +87,8 @@ InlineType :: enum(
   StrikethroughClose,
   LinkOpen,
   LinkClose,
-  Image,
+  ImageOpen,
+  ImageClose,
   Entity
 );
 

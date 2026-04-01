@@ -7,6 +7,7 @@ open import "std/string";
 { BlockState } :: import "./state.yo";
 { is_space } :: import "../common/utils.yo";
 { ParentType } :: import "../types.yo";
+{ inline_parse } :: import "../inline/parser.yo";
 
 // Check if a character starts an unordered list marker: -, *, +
 _is_bullet :: (fn(ch: i32) -> bool)(
@@ -41,9 +42,10 @@ _parse_ordered_marker :: (fn(src_ptr: *(u8), pos: i32, max: i32) -> i32)({
   (p + i32(1))
 });
 
-// Emit content for a list item (simplified: just paragraph text)
+// Emit content for a list item using inline parser
 _emit_list_item_content :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> unit)({
-  // For now, always emit as tight (no <p> wrapper)
+  // Build inline content string from all non-empty lines
+  (buf : ArrayList(u8)) = ArrayList(u8).new();
   (line : i32) = start_line;
   (first : bool) = true;
   while (line < end_line), {
@@ -55,14 +57,16 @@ _emit_list_item_content :: (fn(state: *(BlockState), start_line: i32, end_line: 
 
       if((em > cs), {
         if(!(first), {
-          state.*.renderer.*.byte(u8(0x0A));
+          _ := buf.push(u8(0x0A));
         });
-        state.*.renderer.*.text(cs, em);
+        buf.extend_from_ptr((state.*.src_ptr &+ usize(cs)), usize((em - cs)));
         first = false;
       });
     });
     line = (line + i32(1));
   };
+  (content : String) = String.from_bytes(buf);
+  inline_parse(content, state.*.env, state.*.renderer, state.*.options);
 });
 
 block_list :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({

@@ -1,0 +1,149 @@
+// markdown_yo — Emphasis post-processor
+//
+// Matches open/close delimiter pairs and converts them to em/strong tokens.
+// Follows CommonMark "multiple of 3" rule.
+
+{ ArrayList } :: import "std/collections/array_list";
+{ InlineState, InlineToken } :: import "./state.yo";
+{ Delimiter, InlineType } :: import "../types.yo";
+
+emphasis_post :: (fn(state: *(InlineState)) -> unit)({
+  (max_delim : i32) = i32(state.*.delimiters.len());
+  (closer_idx : i32) = i32(0);
+
+  while (closer_idx < max_delim), {
+    (closer : Delimiter) = state.*.delimiters.get(usize(closer_idx));
+
+    // Only process * and _ close delimiters
+    if((closer.close && ((i32(closer.marker) == i32(0x2A)) || (i32(closer.marker) == i32(0x5F)))), {
+      // Search backwards for matching opener
+      (opener_idx : i32) = (closer_idx - i32(1));
+      (found_opener : bool) = false;
+
+      while ((opener_idx >= i32(0)) && !(found_opener)), {
+        (opener : Delimiter) = state.*.delimiters.get(usize(opener_idx));
+
+        if(((opener.marker == closer.marker) && opener.open), {
+          // "Multiple of 3" rule: if close + open is multiple of 3, skip
+          // unless both are multiples of 3
+          (skip : bool) = false;
+          if(((closer.open || opener.close) && (((opener.length + closer.length) % i32(3)) == i32(0))), {
+            if((((opener.length % i32(3)) != i32(0)) || ((closer.length % i32(3)) != i32(0)))), {
+              skip = true;
+            });
+          });
+
+          if(!(skip), {
+            found_opener = true;
+          }, {
+            opener_idx = (opener_idx - i32(1));
+          });
+        }, {
+          opener_idx = (opener_idx - i32(1));
+        });
+      };
+
+      if(found_opener, {
+        (opener : Delimiter) = state.*.delimiters.get(usize(opener_idx));
+
+        // Determine strong or em: use 2 chars for strong if both have >= 2
+        (is_strong : bool) = ((opener.length >= i32(2)) && (closer.length >= i32(2)));
+
+        (consume : i32) = cond(is_strong => i32(2), true => i32(1));
+
+        // Update opener/closer lengths
+        (new_opener : Delimiter) = Delimiter(
+          marker: opener.marker,
+          length: (opener.length - consume),
+          token_idx: opener.token_idx,
+          end: opener.end,
+          open: opener.open,
+          close: opener.close
+        );
+        state.*.delimiters.set(usize(opener_idx), new_opener);
+
+        (new_closer : Delimiter) = Delimiter(
+          marker: closer.marker,
+          length: (closer.length - consume),
+          token_idx: closer.token_idx,
+          end: closer.end,
+          open: closer.open,
+          close: closer.close
+        );
+        state.*.delimiters.set(usize(closer_idx), new_closer);
+
+        // Insert open token just after opener's text token
+        (open_type : InlineType) = cond(is_strong => .StrongOpen, true => .EmOpen);
+        (close_type : InlineType) = cond(is_strong => .StrongClose, true => .EmClose);
+
+        // We mark the text tokens to shrink and insert em/strong tokens
+        // For simplicity: modify the text tokens in place
+        // Opener text: shrink from end
+        (otok : InlineToken) = state.*.tokens.get(usize(opener.token_idx));
+        state.*.tokens.set(usize(opener.token_idx), InlineToken(
+          type_name: otok.type_name,
+          start: otok.start, end: (otok.end - consume),
+          nesting: otok.nesting, level: otok.level,
+          info_start: otok.info_start, info_end: otok.info_end,
+          title_start: otok.title_start, title_end: otok.title_end,
+          markup_char: otok.markup_char, markup_len: otok.markup_len,
+          content: otok.content, href: otok.href, title: otok.title,
+          block: otok.block, hidden: otok.hidden
+        ));
+
+        // Closer text: shrink from start
+        (ctok : InlineToken) = state.*.tokens.get(usize(closer.token_idx));
+        state.*.tokens.set(usize(closer.token_idx), InlineToken(
+          type_name: ctok.type_name,
+          start: (ctok.start + consume), end: ctok.end,
+          nesting: ctok.nesting, level: ctok.level,
+          info_start: ctok.info_start, info_end: ctok.info_end,
+          title_start: ctok.title_start, title_end: ctok.title_end,
+          markup_char: ctok.markup_char, markup_len: ctok.markup_len,
+          content: ctok.content, href: ctok.href, title: ctok.title,
+          block: ctok.block, hidden: ctok.hidden
+        ));
+
+        // Insert em/strong open after opener text and em/strong close before closer text
+        // We'll use a separate pass to insert these
+        // For now, record the pairing in the delimiter
+        (updated_opener : Delimiter) = state.*.delimiters.get(usize(opener_idx));
+        state.*.delimiters.set(usize(opener_idx), Delimiter(
+          marker: updated_opener.marker,
+          length: updated_opener.length,
+          token_idx: updated_opener.token_idx,
+          end: closer_idx,
+          open: updated_opener.open,
+          close: updated_opener.close
+        ));
+
+        // Remove delimiters between opener and closer
+        (mid : i32) = (opener_idx + i32(1));
+        while (mid < closer_idx), {
+          (d : Delimiter) = state.*.delimiters.get(usize(mid));
+          state.*.delimiters.set(usize(mid), Delimiter(
+            marker: d.marker, length: i32(0), token_idx: d.token_idx,
+            end: i32(-1), open: false, close: false
+          ));
+          mid = (mid + i32(1));
+        };
+
+        // If opener is fully consumed, clear it
+        (updated_opener2 : Delimiter) = state.*.delimiters.get(usize(opener_idx));
+        if((updated_opener2.length == i32(0)), {
+          state.*.delimiters.set(usize(opener_idx), Delimiter(
+            marker: updated_opener2.marker, length: i32(0),
+            token_idx: updated_opener2.token_idx,
+            end: updated_opener2.end, open: false, close: false
+          ));
+        });
+      });
+    });
+
+    closer_idx = (closer_idx + i32(1));
+  };
+
+  ()
+});
+
+export emphasis_post;
