@@ -7,6 +7,7 @@
 
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
+{ memmove } :: import "std/libc/string";
 { Options, ParentType } :: import "../types.yo";
 { HtmlRenderer } :: import "../renderer.yo";
 { BlockState } :: import "./state.yo";
@@ -18,7 +19,7 @@ open import "std/string";
 { block_code } :: import "./code.yo";
 { block_fence } :: import "./fence.yo";
 { block_hr } :: import "./hr.yo";
-{ block_blockquote } :: import "./blockquote.yo";
+{ block_blockquote, blockquote_find_end } :: import "./blockquote.yo";
 { block_list, skip_bullet_list_marker, skip_ordered_list_marker, parse_list_number } :: import "./list.yo";
 { block_html } :: import "./html_block.yo";
 { block_table } :: import "./table.yo";
@@ -32,6 +33,12 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
   (line : i32) = start_line;
   (max_nesting : i32) = state.*.options.*.max_nesting;
   (has_empty_lines : bool) = false;
+
+  // Reusable blockquote save buffers — allocated once, reused across all blockquotes
+  (bq_save_bm : ArrayList(i32)) = ArrayList(i32).new();
+  (bq_save_ts : ArrayList(i32)) = ArrayList(i32).new();
+  (bq_save_sc : ArrayList(i32)) = ArrayList(i32).new();
+  (bq_save_bs : ArrayList(i32)) = ArrayList(i32).new();
 
   (tokenize_done : bool) = false;
   while (!(tokenize_done)), {
@@ -79,21 +86,36 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
 
           // 4. Blockquote — handle recursion here to avoid circular import
           if(!(matched), {
-            // First check silent (no state modification)
-            if((block_blockquote(state, line, end_line, true) > i32(0)), {
-              // Save state arrays for the range [line, end_line)
-              (bq_save_bm : ArrayList(i32)) = ArrayList(i32).with_capacity(usize((end_line - line)));
-              (bq_save_ts : ArrayList(i32)) = ArrayList(i32).with_capacity(usize((end_line - line)));
-              (bq_save_sc : ArrayList(i32)) = ArrayList(i32).with_capacity(usize((end_line - line)));
-              (bq_save_bs : ArrayList(i32)) = ArrayList(i32).with_capacity(usize((end_line - line)));
-              (bq_si : i32) = line;
-              while (bq_si < end_line), {
-                _ := bq_save_bm.push(state.*.b_marks.get_unchecked(usize(bq_si)));
-                _ := bq_save_ts.push(state.*.t_shift.get_unchecked(usize(bq_si)));
-                _ := bq_save_sc.push(state.*.s_count.get_unchecked(usize(bq_si)));
-                _ := bq_save_bs.push(state.*.bs_count.get_unchecked(usize(bq_si)));
-                bq_si = (bq_si + i32(1));
-              };
+            // Dry-run scan: compute bq_end without modifying state
+            (bq_end_scan : i32) = blockquote_find_end(state, line, end_line);
+            if((bq_end_scan > line), {
+              // Save state arrays only for [line, bq_end_scan + 1) — the modified range
+              // +1 because the terminating line (bq_end_scan) may also be modified
+              (bq_save_end : i32) = cond(
+                ((bq_end_scan + i32(1)) <= end_line) => (bq_end_scan + i32(1)),
+                true => end_line
+              );
+              (bq_range : usize) = usize((bq_save_end - line));
+              bq_save_bm.clear();
+              bq_save_ts.clear();
+              bq_save_sc.clear();
+              bq_save_bs.clear();
+              match(state.*.b_marks.ptr(),
+                .Some(p) => bq_save_bm.extend_from_ptr((p &+ usize(line)), bq_range),
+                .None => ()
+              );
+              match(state.*.t_shift.ptr(),
+                .Some(p) => bq_save_ts.extend_from_ptr((p &+ usize(line)), bq_range),
+                .None => ()
+              );
+              match(state.*.s_count.ptr(),
+                .Some(p) => bq_save_sc.extend_from_ptr((p &+ usize(line)), bq_range),
+                .None => ()
+              );
+              match(state.*.bs_count.ptr(),
+                .Some(p) => bq_save_bs.extend_from_ptr((p &+ usize(line)), bq_range),
+                .None => ()
+              );
 
               // Now call non-silent — modifies state arrays, returns bq_end
               (bq_end : i32) = block_blockquote(state, line, end_line, false);
@@ -122,16 +144,44 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               state.*.line = inner_end;
               state.*.blk_indent = old_blk_indent;
 
-              // Restore state arrays
-              (bq_ri : i32) = line;
-              while (bq_ri < end_line), {
-                (ridx : usize) = usize((bq_ri - line));
-                state.*.b_marks.set(usize(bq_ri), bq_save_bm.get_unchecked(ridx));
-                state.*.t_shift.set(usize(bq_ri), bq_save_ts.get_unchecked(ridx));
-                state.*.s_count.set(usize(bq_ri), bq_save_sc.get_unchecked(ridx));
-                state.*.bs_count.set(usize(bq_ri), bq_save_bs.get_unchecked(ridx));
-                bq_ri = (bq_ri + i32(1));
-              };
+              // Restore state arrays [line, bq_save_end) — only the blockquote range
+              (bq_restore_bytes : usize) = (bq_range * sizeof(i32));
+              match(state.*.b_marks.ptr(),
+                .Some(dst) => match(bq_save_bm.ptr(),
+                  .Some(src) => {
+                    _ := memmove(*(void)((dst &+ usize(line))), *(void)(src), bq_restore_bytes);
+                  },
+                  .None => ()
+                ),
+                .None => ()
+              );
+              match(state.*.t_shift.ptr(),
+                .Some(dst) => match(bq_save_ts.ptr(),
+                  .Some(src) => {
+                    _ := memmove(*(void)((dst &+ usize(line))), *(void)(src), bq_restore_bytes);
+                  },
+                  .None => ()
+                ),
+                .None => ()
+              );
+              match(state.*.s_count.ptr(),
+                .Some(dst) => match(bq_save_sc.ptr(),
+                  .Some(src) => {
+                    _ := memmove(*(void)((dst &+ usize(line))), *(void)(src), bq_restore_bytes);
+                  },
+                  .None => ()
+                ),
+                .None => ()
+              );
+              match(state.*.bs_count.ptr(),
+                .Some(dst) => match(bq_save_bs.ptr(),
+                  .Some(src) => {
+                    _ := memmove(*(void)((dst &+ usize(line))), *(void)(src), bq_restore_bytes);
+                  },
+                  .None => ()
+                ),
+                .None => ()
+              );
 
               matched = true;
             });

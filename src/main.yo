@@ -35,11 +35,7 @@ _read_file :: (fn(path: String) -> Option(String))({
       });
 
       buf := ArrayList(u8).with_capacity(usize(size));
-      (i : int) = int(0);
-      while (i < size), {
-        _ := buf.push(u8(0));
-        i = (i + int(1));
-      };
+      buf.resize_with_byte(usize(size), int(0));
 
       (n : usize) = match(buf.ptr(),
         .Some(p) => fread(*(void)(p), usize(1), usize(size), f),
@@ -47,18 +43,8 @@ _read_file :: (fn(path: String) -> Option(String))({
       );
       _ := fclose(f);
 
-      result := ArrayList(u8).with_capacity(n);
-      (j : usize) = usize(0);
-      while (j < n), {
-        match(buf.get(j),
-          .Some(b) => {
-            _ := result.push(b);
-          },
-          .None => ()
-        );
-        j = (j + usize(1));
-      };
-      .Some(String.from_bytes(result))
+      buf.set_len(n);
+      .Some(String.from_bytes(buf))
     }
   )
 });
@@ -67,11 +53,7 @@ _read_file :: (fn(path: String) -> Option(String))({
 _read_stdin :: (fn() -> String)({
   buf := ArrayList(u8).with_capacity(usize(4096));
   chunk := ArrayList(u8).with_capacity(usize(4096));
-  (i : usize) = usize(0);
-  while (i < usize(4096)), {
-    _ := chunk.push(u8(0));
-    i = (i + usize(1));
-  };
+  chunk.resize_with_byte(usize(4096), int(0));
 
   while runtime(true), {
     (n : usize) = match(chunk.ptr(),
@@ -81,16 +63,10 @@ _read_stdin :: (fn() -> String)({
     if((n == usize(0)), {
       return String.from_bytes(buf);
     });
-    (j : usize) = usize(0);
-    while (j < n), {
-      match(chunk.get(j),
-        .Some(b) => {
-          _ := buf.push(b);
-        },
-        .None => ()
-      );
-      j = (j + usize(1));
-    };
+    match(chunk.ptr(),
+      .Some(p) => buf.extend_from_ptr(p, n),
+      .None => ()
+    );
   };
   String.from_bytes(buf)
 });

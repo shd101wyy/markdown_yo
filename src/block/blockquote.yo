@@ -155,4 +155,65 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
   next_line
 });
 
-export block_blockquote;
+// Dry-run scan: compute bq_end without modifying state arrays.
+// Returns bq_end (line AFTER blockquote) or -1 if no match.
+// Each iteration reads a DIFFERENT next_line, so skipping the set() calls
+// doesn't affect subsequent iterations' reads.
+blockquote_find_end :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> i32)({
+  (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
+  (ts : i32) = state.*.t_shift.get_unchecked(usize(start_line));
+  (em : i32) = state.*.e_marks.get_unchecked(usize(start_line));
+  (pos : i32) = (bm + ts);
+
+  if(((state.*.s_count.get_unchecked(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return i32(-1); });
+  if((pos >= em), { return i32(-1); });
+  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x3E)), { return i32(-1); });
+
+  (next_line : i32) = start_line;
+  (last_line_empty : bool) = false;
+
+  (scanning : bool) = true;
+  while ((next_line < end_line) && scanning), {
+    (nbm : i32) = state.*.b_marks.get_unchecked(usize(next_line));
+    (nts : i32) = state.*.t_shift.get_unchecked(usize(next_line));
+    (nem : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+    (npos : i32) = (nbm + nts);
+    (nsc : i32) = state.*.s_count.get_unchecked(usize(next_line));
+
+    (is_outdented : bool) = (nsc < state.*.blk_indent);
+
+    if((npos >= nem), { scanning = false; }, {
+
+    if(((i32((state.*.src_ptr &+ usize(npos)).*) == i32(0x3E)) && !(is_outdented)), {
+      last_line_empty = false;
+      next_line = (next_line + i32(1));
+    }, {
+      if(last_line_empty, {
+        scanning = false;
+      }, {
+        (terminated : bool) = false;
+        if(!(terminated), { if(block_fence(state, next_line, end_line, true), { terminated = true; }); });
+        if(!(terminated), {
+          if(((npos < nem) && ((i32((state.*.src_ptr &+ usize(npos)).*) == i32(0x3E)) && ((nsc - state.*.blk_indent) < i32(4)))), {
+            terminated = true;
+          });
+        });
+        if(!(terminated), { if(block_hr(state, next_line, end_line, true), { terminated = true; }); });
+        if(!(terminated), { if(block_list(state, next_line, end_line, true), { terminated = true; }); });
+        if(!(terminated), { if((state.*.options.*.html && block_html(state, next_line, end_line, true)), { terminated = true; }); });
+        if(!(terminated), { if(block_heading(state, next_line, end_line, true), { terminated = true; }); });
+
+        if(terminated, {
+          scanning = false;
+        }, {
+          next_line = (next_line + i32(1));
+        });
+      });
+    });
+    });
+  };
+
+  next_line
+});
+
+export block_blockquote, blockquote_find_end;

@@ -5,9 +5,17 @@
 
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
+{ memmove } :: import "std/libc/string";
 { Options, TableAlign } :: import "./types.yo";
 { escape_html_buf, append_raw_buf, append_lit } :: import "./common/utils.yo";
 { decode_named_entity } :: import "./common/entities.yo";
+
+// In-place move: copy `count` bytes from s+src_off to s+dst_off (skip when equal)
+_memmove_inline :: (fn(s: *(u8), dst_off: usize, src_off: usize, count: usize) -> unit)(
+  if((dst_off != src_off), {
+    _ := memmove(*(void)((s &+ dst_off)), *(void)((s &+ src_off)), count);
+  })
+);
 
 // Helper: write i32 as decimal ASCII digits to buffer
 _write_i32 :: (fn(buf: *(ArrayList(u8)), n: i32) -> unit)({
@@ -900,6 +908,7 @@ impl(HtmlRenderer,
   // Remove <p> and </p>\n from buffer starting at `from_pos`.
   // Only removes direct-child paragraphs of list items (at the correct nesting level).
   // Tracks nesting depth so paragraphs inside blockquotes/sublists are preserved.
+  // Uses in-place compaction: two-pointer scan over [from_pos, end) only.
   mark_tight_paragraphs : (fn(self: *(Self), from_pos: usize) -> unit)({
     (src_buf : *(ArrayList(u8))) = (&self.*.buf);
     (total : usize) = src_buf.*.len();
@@ -909,200 +918,209 @@ impl(HtmlRenderer,
     if(maybe_ptr.is_none(), { return (); });
     (s : *(u8)) = maybe_ptr.unwrap();
 
-    (dst : ArrayList(u8)) = ArrayList(u8).with_capacity(total);
-
-    // Copy bytes before from_pos
-    if((from_pos > usize(0)), {
-      dst.extend_from_ptr(s, from_pos);
-    });
-
+    // In-place compaction: read from `ri`, write to `wi`, both start at from_pos
+    (ri : usize) = from_pos;
+    (wi : usize) = from_pos;
     (depth : i32) = i32(0);
-    (i : usize) = from_pos;
 
-    while (i < total), {
-      (ch : u8) = (s &+ i).*;
+    while (ri < total), {
+      (ch : u8) = (s &+ ri).*;
+      (remaining : usize) = (total - ri);
 
       if((ch == u8(0x3C)), {
-        // Check for nesting depth changes: <blockquote>, </blockquote>, <ol>, </ol>, <ul>, </ul>, <pre>, </pre>
-        // Also check <li>, </li> for depth tracking
-        (remaining : usize) = (total - i);
+        // --- Depth tracking tags (copy in-place) ---
 
-        // </blockquote>\n (14 bytes)
+        // </blockquote>\n = 14 bytes: 0x3C 2F 62 6C 6F 63 6B 71 75 6F 74 65 3E 0A
         if(((remaining >= usize(14)) &&
-            (((s &+ (i + usize(1))).* == u8(0x2F)) &&
-             (((s &+ (i + usize(2))).* == u8(0x62)) &&
-              (((s &+ (i + usize(3))).* == u8(0x6C)) &&
-               (((s &+ (i + usize(4))).* == u8(0x6F)) &&
-                (((s &+ (i + usize(5))).* == u8(0x63)) &&
-                 (((s &+ (i + usize(6))).* == u8(0x6B)) &&
-                  (((s &+ (i + usize(7))).* == u8(0x71)) &&
-                   (((s &+ (i + usize(8))).* == u8(0x75)) &&
-                    (((s &+ (i + usize(9))).* == u8(0x6F)) &&
-                     (((s &+ (i + usize(10))).* == u8(0x74)) &&
-                      (((s &+ (i + usize(11))).* == u8(0x65)) &&
-                       ((s &+ (i + usize(12))).* == u8(0x3E)))))))))))))), {
+            (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
+             (((s &+ (ri + usize(2))).* == u8(0x62)) &&
+              (((s &+ (ri + usize(3))).* == u8(0x6C)) &&
+               (((s &+ (ri + usize(4))).* == u8(0x6F)) &&
+                (((s &+ (ri + usize(5))).* == u8(0x63)) &&
+                 (((s &+ (ri + usize(6))).* == u8(0x6B)) &&
+                  (((s &+ (ri + usize(7))).* == u8(0x71)) &&
+                   (((s &+ (ri + usize(8))).* == u8(0x75)) &&
+                    (((s &+ (ri + usize(9))).* == u8(0x6F)) &&
+                     (((s &+ (ri + usize(10))).* == u8(0x74)) &&
+                      (((s &+ (ri + usize(11))).* == u8(0x65)) &&
+                       ((s &+ (ri + usize(12))).* == u8(0x3E)))))))))))))), {
           depth = (depth - i32(1));
-          dst.extend_from_ptr((s &+ i), usize(14));
-          i = (i + usize(14));
+          _memmove_inline(s, wi, ri, usize(14));
+          ri = (ri + usize(14));
+          wi = (wi + usize(14));
         }, if(((remaining >= usize(13)) &&
-            (((s &+ (i + usize(1))).* == u8(0x62)) &&
-             (((s &+ (i + usize(2))).* == u8(0x6C)) &&
-              (((s &+ (i + usize(3))).* == u8(0x6F)) &&
-               (((s &+ (i + usize(4))).* == u8(0x63)) &&
-                (((s &+ (i + usize(5))).* == u8(0x6B)) &&
-                 (((s &+ (i + usize(6))).* == u8(0x71)) &&
-                  (((s &+ (i + usize(7))).* == u8(0x75)) &&
-                   (((s &+ (i + usize(8))).* == u8(0x6F)) &&
-                    (((s &+ (i + usize(9))).* == u8(0x74)) &&
-                     (((s &+ (i + usize(10))).* == u8(0x65)) &&
-                      ((s &+ (i + usize(11))).* == u8(0x3E))))))))))))), {
-          // <blockquote>\n (13 bytes)
+            (((s &+ (ri + usize(1))).* == u8(0x62)) &&
+             (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
+              (((s &+ (ri + usize(3))).* == u8(0x6F)) &&
+               (((s &+ (ri + usize(4))).* == u8(0x63)) &&
+                (((s &+ (ri + usize(5))).* == u8(0x6B)) &&
+                 (((s &+ (ri + usize(6))).* == u8(0x71)) &&
+                  (((s &+ (ri + usize(7))).* == u8(0x75)) &&
+                   (((s &+ (ri + usize(8))).* == u8(0x6F)) &&
+                    (((s &+ (ri + usize(9))).* == u8(0x74)) &&
+                     (((s &+ (ri + usize(10))).* == u8(0x65)) &&
+                      ((s &+ (ri + usize(11))).* == u8(0x3E))))))))))))), {
+          // <blockquote>\n
           depth = (depth + i32(1));
-          dst.extend_from_ptr((s &+ i), usize(13));
-          i = (i + usize(13));
+          _memmove_inline(s, wi, ri, usize(13));
+          ri = (ri + usize(13));
+          wi = (wi + usize(13));
         }, if(((remaining >= usize(5)) &&
-            (((s &+ (i + usize(1))).* == u8(0x2F)) &&
-             (((s &+ (i + usize(2))).* == u8(0x6F)) &&
-              (((s &+ (i + usize(3))).* == u8(0x6C)) &&
-               ((s &+ (i + usize(4))).* == u8(0x3E)))))), {
+            (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
+             (((s &+ (ri + usize(2))).* == u8(0x6F)) &&
+              (((s &+ (ri + usize(3))).* == u8(0x6C)) &&
+               ((s &+ (ri + usize(4))).* == u8(0x3E)))))), {
           // </ol>
           depth = (depth - i32(1));
-          dst.extend_from_ptr((s &+ i), usize(5));
-          i = (i + usize(5));
+          _memmove_inline(s, wi, ri, usize(5));
+          ri = (ri + usize(5));
+          wi = (wi + usize(5));
         }, if(((remaining >= usize(5)) &&
-            (((s &+ (i + usize(1))).* == u8(0x2F)) &&
-             (((s &+ (i + usize(2))).* == u8(0x75)) &&
-              (((s &+ (i + usize(3))).* == u8(0x6C)) &&
-               ((s &+ (i + usize(4))).* == u8(0x3E)))))), {
+            (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
+             (((s &+ (ri + usize(2))).* == u8(0x75)) &&
+              (((s &+ (ri + usize(3))).* == u8(0x6C)) &&
+               ((s &+ (ri + usize(4))).* == u8(0x3E)))))), {
           // </ul>
           depth = (depth - i32(1));
-          dst.extend_from_ptr((s &+ i), usize(5));
-          i = (i + usize(5));
+          _memmove_inline(s, wi, ri, usize(5));
+          ri = (ri + usize(5));
+          wi = (wi + usize(5));
         }, if(((remaining >= usize(4)) &&
-            (((s &+ (i + usize(1))).* == u8(0x6F)) &&
-             (((s &+ (i + usize(2))).* == u8(0x6C)) &&
-              ((s &+ (i + usize(3))).* == u8(0x3E))))), {
+            (((s &+ (ri + usize(1))).* == u8(0x6F)) &&
+             (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
+              ((s &+ (ri + usize(3))).* == u8(0x3E))))), {
           // <ol>
           depth = (depth + i32(1));
-          dst.extend_from_ptr((s &+ i), usize(4));
-          i = (i + usize(4));
+          _memmove_inline(s, wi, ri, usize(4));
+          ri = (ri + usize(4));
+          wi = (wi + usize(4));
         }, if(((remaining >= usize(4)) &&
-            (((s &+ (i + usize(1))).* == u8(0x75)) &&
-             (((s &+ (i + usize(2))).* == u8(0x6C)) &&
-              ((s &+ (i + usize(3))).* == u8(0x3E))))), {
+            (((s &+ (ri + usize(1))).* == u8(0x75)) &&
+             (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
+              ((s &+ (ri + usize(3))).* == u8(0x3E))))), {
           // <ul>
           depth = (depth + i32(1));
-          dst.extend_from_ptr((s &+ i), usize(4));
-          i = (i + usize(4));
+          _memmove_inline(s, wi, ri, usize(4));
+          ri = (ri + usize(4));
+          wi = (wi + usize(4));
         }, if(((remaining >= usize(6)) &&
-            (((s &+ (i + usize(1))).* == u8(0x2F)) &&
-             (((s &+ (i + usize(2))).* == u8(0x70)) &&
-              (((s &+ (i + usize(3))).* == u8(0x72)) &&
-               (((s &+ (i + usize(4))).* == u8(0x65)) &&
-                ((s &+ (i + usize(5))).* == u8(0x3E))))))), {
+            (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
+             (((s &+ (ri + usize(2))).* == u8(0x70)) &&
+              (((s &+ (ri + usize(3))).* == u8(0x72)) &&
+               (((s &+ (ri + usize(4))).* == u8(0x65)) &&
+                ((s &+ (ri + usize(5))).* == u8(0x3E))))))), {
           // </pre>
           depth = (depth - i32(1));
-          dst.extend_from_ptr((s &+ i), usize(6));
-          i = (i + usize(6));
+          _memmove_inline(s, wi, ri, usize(6));
+          ri = (ri + usize(6));
+          wi = (wi + usize(6));
         }, if(((remaining >= usize(5)) &&
-            (((s &+ (i + usize(1))).* == u8(0x70)) &&
-             (((s &+ (i + usize(2))).* == u8(0x72)) &&
-              (((s &+ (i + usize(3))).* == u8(0x65)) &&
-               ((s &+ (i + usize(4))).* == u8(0x3E)))))), {
+            (((s &+ (ri + usize(1))).* == u8(0x70)) &&
+             (((s &+ (ri + usize(2))).* == u8(0x72)) &&
+              (((s &+ (ri + usize(3))).* == u8(0x65)) &&
+               ((s &+ (ri + usize(4))).* == u8(0x3E)))))), {
           // <pre>
           depth = (depth + i32(1));
-          dst.extend_from_ptr((s &+ i), usize(5));
-          i = (i + usize(5));
+          _memmove_inline(s, wi, ri, usize(5));
+          ri = (ri + usize(5));
+          wi = (wi + usize(5));
         }, if(((remaining >= usize(14)) &&
-            (((s &+ (i + usize(1))).* == u8(0x6F)) &&
-             (((s &+ (i + usize(2))).* == u8(0x6C)) &&
-              (((s &+ (i + usize(3))).* == u8(0x20)) &&
-               (((s &+ (i + usize(4))).* == u8(0x73)) &&
-                ((s &+ (i + usize(5))).* == u8(0x74))))))), {
-          // <ol start=... — starts with "ol s" — increment depth
+            (((s &+ (ri + usize(1))).* == u8(0x6F)) &&
+             (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
+              (((s &+ (ri + usize(3))).* == u8(0x20)) &&
+               (((s &+ (ri + usize(4))).* == u8(0x73)) &&
+                ((s &+ (ri + usize(5))).* == u8(0x74))))))), {
+          // <ol start=... — increment depth
           depth = (depth + i32(1));
-          _ := dst.push(ch);
-          i = (i + usize(1));
+          (s &+ wi).* = ch;
+          ri = (ri + usize(1));
+          wi = (wi + usize(1));
         }, {
-          // Check for </p>\n</li> at depth 0 (10 bytes) — MUST check before </p>\n
+          // --- Paragraph removal at depth 0 ---
+
+          // Check for </p>\n</li> (10 bytes) — replace with just </li> (5 bytes)
           if((((depth == i32(0)) && (remaining >= usize(10))) &&
-              (((s &+ (i + usize(1))).* == u8(0x2F)) &&
-               (((s &+ (i + usize(2))).* == u8(0x70)) &&
-                (((s &+ (i + usize(3))).* == u8(0x3E)) &&
-                 (((s &+ (i + usize(4))).* == u8(0x0A)) &&
-                  (((s &+ (i + usize(5))).* == u8(0x3C)) &&
-                   (((s &+ (i + usize(6))).* == u8(0x2F)) &&
-                    (((s &+ (i + usize(7))).* == u8(0x6C)) &&
-                     (((s &+ (i + usize(8))).* == u8(0x69)) &&
-                      ((s &+ (i + usize(9))).* == u8(0x3E))))))))))), {
-            // Replace </p>\n</li> with </li> at depth 0
-            dst.extend_from_ptr((s &+ (i + usize(5))), usize(5));
-            i = (i + usize(10));
+              (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
+               (((s &+ (ri + usize(2))).* == u8(0x70)) &&
+                (((s &+ (ri + usize(3))).* == u8(0x3E)) &&
+                 (((s &+ (ri + usize(4))).* == u8(0x0A)) &&
+                  (((s &+ (ri + usize(5))).* == u8(0x3C)) &&
+                   (((s &+ (ri + usize(6))).* == u8(0x2F)) &&
+                    (((s &+ (ri + usize(7))).* == u8(0x6C)) &&
+                     (((s &+ (ri + usize(8))).* == u8(0x69)) &&
+                      ((s &+ (ri + usize(9))).* == u8(0x3E))))))))))), {
+            // Copy </li> (from ri+5, 5 bytes)
+            _memmove_inline(s, wi, (ri + usize(5)), usize(5));
+            ri = (ri + usize(10));
+            wi = (wi + usize(5));
           }, if((((depth == i32(0)) && (remaining >= usize(5))) &&
-              (((s &+ (i + usize(1))).* == u8(0x2F)) &&
-               (((s &+ (i + usize(2))).* == u8(0x70)) &&
-                (((s &+ (i + usize(3))).* == u8(0x3E)) &&
-                 ((s &+ (i + usize(4))).* == u8(0x0A)))))), {
-            // Replace </p>\n with \n at depth 0
-            _ := dst.push(u8(0x0A));
-            i = (i + usize(5));
+              (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
+               (((s &+ (ri + usize(2))).* == u8(0x70)) &&
+                (((s &+ (ri + usize(3))).* == u8(0x3E)) &&
+                 ((s &+ (ri + usize(4))).* == u8(0x0A)))))), {
+            // </p>\n → just \n
+            (s &+ wi).* = u8(0x0A);
+            ri = (ri + usize(5));
+            wi = (wi + usize(1));
           }, {
-            _ := dst.push(ch);
-            i = (i + usize(1));
+            // Not a special tag — copy byte
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
+            wi = (wi + usize(1));
           }));
         })))))))))
       }, if((ch == u8(0x0A)), {
         // Check for \n<p> at depth 0
-        (remaining : usize) = (total - i);
         if((((depth == i32(0)) && (remaining >= usize(4))) &&
-            (((s &+ (i + usize(1))).* == u8(0x3C)) &&
-             (((s &+ (i + usize(2))).* == u8(0x70)) &&
-              ((s &+ (i + usize(3))).* == u8(0x3E))))), {
-          // \n<p> found at depth 0.
-          // Only skip the \n when dst ends with <li> (opening tag).
-          // Otherwise keep the \n (e.g., after </h2>\n<p>baz, keep the \n).
-          (dl : usize) = dst.len();
-          if(((dl >= usize(4)) &&
-              ((dst.get_unchecked((dl - usize(4))) == u8(0x3C)) &&
-               ((dst.get_unchecked((dl - usize(3))) == u8(0x6C)) &&
-                ((dst.get_unchecked((dl - usize(2))) == u8(0x69)) &&
-                 (dst.get_unchecked((dl - usize(1))) == u8(0x3E)))))), {
-            // After <li>: skip \n<p> entirely (4 bytes)
-            i = (i + usize(4));
+            (((s &+ (ri + usize(1))).* == u8(0x3C)) &&
+             (((s &+ (ri + usize(2))).* == u8(0x70)) &&
+              ((s &+ (ri + usize(3))).* == u8(0x3E))))), {
+          // \n<p> at depth 0
+          // Only skip the \n when previous output ends with <li>
+          if(((wi >= usize(4)) &&
+              (((s &+ (wi - usize(4))).* == u8(0x3C)) &&
+               (((s &+ (wi - usize(3))).* == u8(0x6C)) &&
+                (((s &+ (wi - usize(2))).* == u8(0x69)) &&
+                 ((s &+ (wi - usize(1))).* == u8(0x3E)))))), {
+            // After <li>: skip \n<p> entirely
+            ri = (ri + usize(4));
           }, {
-            // After other content: keep \n, skip <p> only (skip 3 bytes for <p>)
-            _ := dst.push(u8(0x0A));
-            i = (i + usize(4));
+            // After other content: keep \n, skip <p>
+            (s &+ wi).* = u8(0x0A);
+            ri = (ri + usize(4));
+            wi = (wi + usize(1));
           });
         }, {
-          // Check for empty tight item: dst ends with <li> and next is \n</li>
-          (dl : usize) = dst.len();
-          if(((((depth == i32(0)) && (dl >= usize(4))) &&
+          // Check for empty tight item: output ends with <li> and next is \n</li>
+          if(((((depth == i32(0)) && (wi >= usize(4))) &&
               (remaining >= usize(6))) &&
-               ((dst.get_unchecked((dl - usize(4))) == u8(0x3C)) &&
-                ((dst.get_unchecked((dl - usize(3))) == u8(0x6C)) &&
-                 ((dst.get_unchecked((dl - usize(2))) == u8(0x69)) &&
-                  ((dst.get_unchecked((dl - usize(1))) == u8(0x3E)) &&
-                   (((s &+ (i + usize(1))).* == u8(0x3C)) &&
-                    (((s &+ (i + usize(2))).* == u8(0x2F)) &&
-                     (((s &+ (i + usize(3))).* == u8(0x6C)) &&
-                      (((s &+ (i + usize(4))).* == u8(0x69)) &&
-                       ((s &+ (i + usize(5))).* == u8(0x3E))))))))))), {
+               (((s &+ (wi - usize(4))).* == u8(0x3C)) &&
+                (((s &+ (wi - usize(3))).* == u8(0x6C)) &&
+                 (((s &+ (wi - usize(2))).* == u8(0x69)) &&
+                  (((s &+ (wi - usize(1))).* == u8(0x3E)) &&
+                   (((s &+ (ri + usize(1))).* == u8(0x3C)) &&
+                    (((s &+ (ri + usize(2))).* == u8(0x2F)) &&
+                     (((s &+ (ri + usize(3))).* == u8(0x6C)) &&
+                      (((s &+ (ri + usize(4))).* == u8(0x69)) &&
+                       ((s &+ (ri + usize(5))).* == u8(0x3E))))))))))), {
             // Skip \n for empty tight item
-            i = (i + usize(1));
+            ri = (ri + usize(1));
           }, {
-            _ := dst.push(u8(0x0A));
-            i = (i + usize(1));
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
+            wi = (wi + usize(1));
           });
         });
       }, {
-        _ := dst.push(ch);
-        i = (i + usize(1));
+        // Default: copy byte
+        (s &+ wi).* = ch;
+        ri = (ri + usize(1));
+        wi = (wi + usize(1));
       }));
     };
 
-    // Replace the buffer
-    self.*.buf = dst;
+    // Truncate buffer to compacted size
+    src_buf.*.set_len(wi);
   })
 );
 
