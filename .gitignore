@@ -1,0 +1,30 @@
+# Build output
+*.dSYM/
+*.o
+yo-out/
+a.out
+a.out.c
+/markdown_it
+/markdown_it.c
+/markdown_it_debug*
+
+# Binaries
+bench_binary
+bench_debug
+bench_o2
+bench_o2g
+bench_noinline
+bench_profile
+
+# Generated files
+node_modules
+package-lock.json
+tmp
+
+# Benchmark data
+bench_*.md
+
+# OS files
+.DS_Store
+.devenv*
+Thumbs.db
