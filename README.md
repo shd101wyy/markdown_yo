@@ -17,6 +17,7 @@ markdown_yo uses a **hybrid SAX + token** architecture:
 - **Renderer** — Pure callback receiver. The `HtmlRenderer` exposes SAX-style methods (`open_paragraph()`, `text()`, `open_link()`, etc.) that write directly to a pre-allocated output buffer (~1.5× input size).
 
 Key design choices for performance:
+
 - **Zero-copy** — all content references are `str` slices into the source buffer
 - **Value-type tokens** — `InlineToken` is a plain struct with no reference counting
 - **No intermediate AST** — block parsing skips token allocation entirely
@@ -35,17 +36,17 @@ This is in contrast to [markdown_it_yo](https://github.com/shd101wyy/markdown_it
 
 Comparison against markdown-it (Node.js) — median of 10 runs, 3 warmup:
 
-| Input Size | markdown-it (JS) | Native | Speedup | WASM | Speedup |
-|------------|-------------------|--------|---------|------|---------|
-| 64 KB      | 1.8 ms            | 1.0 ms  | 1.9×   | 12.5 ms | 0.1× |
-| 256 KB     | 6.5 ms            | 3.6 ms  | 1.8×   | 12.7 ms | 0.5× |
-| 1 MB       | 28.7 ms           | 14.0 ms | 2.0×   | 19.7 ms | 1.5× |
-| 5 MB       | 152.0 ms          | 69.7 ms | 2.2×   | 88.2 ms | 1.7× |
-| 20 MB      | 707.5 ms          | 283.3 ms | 2.5×  | 350.0 ms | 2.0× |
+| Input Size | markdown-it (JS) | Native   | Speedup | WASM     | Speedup |
+| ---------- | ---------------- | -------- | ------- | -------- | ------- |
+| 64 KB      | 1.8 ms           | 1.0 ms   | 1.9×    | 12.5 ms  | 0.1×    |
+| 256 KB     | 6.5 ms           | 3.6 ms   | 1.8×    | 12.7 ms  | 0.5×    |
+| 1 MB       | 28.7 ms          | 14.0 ms  | 2.0×    | 19.7 ms  | 1.5×    |
+| 5 MB       | 152.0 ms         | 69.7 ms  | 2.2×    | 88.2 ms  | 1.7×    |
+| 20 MB      | 707.5 ms         | 283.3 ms | 2.5×    | 350.0 ms | 2.0×    |
 
-*Native: Apple M4, macOS, clang -O2 -flto. WASM: Emscripten, Node.js, -O2 -flto.*
-*Native and WASM times use `--repeat 20` to amortize process/WASM startup.*
-*WASM overhead at small sizes (64K, 256K) is dominated by Node.js WASM compilation startup (~12ms).*
+_Native: Apple M4, macOS, clang -O2 -flto. WASM: Emscripten, Node.js, -O2 -flto._
+_Native and WASM times use `--repeat 20` to amortize process/WASM startup._
+_WASM overhead at small sizes (64K, 256K) is dominated by Node.js WASM compilation startup (~12ms)._
 
 ## Build
 
