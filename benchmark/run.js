@@ -25,8 +25,33 @@ const skipWasm = args.includes('--no-wasm');
 
 // Paths
 const samplesDir = path.join(__dirname, 'samples');
-const nativeBin = path.join(__dirname, '..', 'yo-out', 'aarch64-macos', 'bin', 'markdown_yo');
-const wasmJs = path.join(__dirname, '..', 'yo-out', 'wasm32-emscripten', 'bin', 'markdown_yo_wasm.js');
+
+// Discover native binary — search yo-out/<target>/bin/
+const yoOutDir = path.join(__dirname, '..', 'yo-out');
+let nativeBin = null;
+if (fs.existsSync(yoOutDir)) {
+  for (const target of fs.readdirSync(yoOutDir)) {
+    if (target.startsWith('wasm')) continue;
+    const candidate = path.join(yoOutDir, target, 'bin', 'markdown_yo');
+    if (fs.existsSync(candidate)) {
+      nativeBin = candidate;
+      break;
+    }
+  }
+}
+
+// Discover WASM binary
+let wasmJs = null;
+if (fs.existsSync(yoOutDir)) {
+  for (const target of fs.readdirSync(yoOutDir)) {
+    if (!target.startsWith('wasm')) continue;
+    const candidate = path.join(yoOutDir, target, 'bin', 'markdown_yo_wasm.js');
+    if (fs.existsSync(candidate)) {
+      wasmJs = candidate;
+      break;
+    }
+  }
+}
 
 // Generate samples if missing
 if (!fs.existsSync(samplesDir) || fs.readdirSync(samplesDir).length === 0) {
@@ -35,14 +60,14 @@ if (!fs.existsSync(samplesDir) || fs.readdirSync(samplesDir).length === 0) {
 }
 
 // Check native binary
-if (!fs.existsSync(nativeBin)) {
-  console.error(`Native binary not found at ${nativeBin}`);
+if (!nativeBin) {
+  console.error('Native binary not found in yo-out/*/bin/markdown_yo');
   console.error('Build with: yo build');
   process.exit(1);
 }
 
 // Check WASM binary
-const hasWasm = !skipWasm && fs.existsSync(wasmJs);
+const hasWasm = !skipWasm && wasmJs !== null;
 if (!skipWasm && !hasWasm) {
   console.log('WASM binary not found — skipping WASM benchmarks.');
   console.log(`Build with: yo build wasm\n`);

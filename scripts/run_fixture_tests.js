@@ -34,7 +34,7 @@ if (fs.existsSync(yoOutDir)) {
 }
 if (!yoBin) {
   console.error(
-    `ERROR: Binary not found in yo-out/*/bin/markdown_it_yo\nRun \`yo build\` first.`,
+    `ERROR: Binary not found in yo-out/*/bin/markdown_yo\nRun \`yo build\` first.`,
   );
   process.exit(1);
 }

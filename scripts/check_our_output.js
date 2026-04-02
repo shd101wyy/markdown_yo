@@ -1,8 +1,21 @@
 const md = require('markdown-it')();
 const { execSync } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 const content = fs.readFileSync('tests/fixtures/commonmark/good.txt', 'utf8');
 const lines = content.split('\n');
+
+// Discover binary dynamically
+const yoOutDir = path.join(__dirname, '..', 'yo-out');
+let yoBin = null;
+if (fs.existsSync(yoOutDir)) {
+  for (const target of fs.readdirSync(yoOutDir)) {
+    if (target.startsWith('wasm')) continue;
+    const candidate = path.join(yoOutDir, target, 'bin', 'markdown_yo');
+    if (fs.existsSync(candidate)) { yoBin = candidate; break; }
+  }
+}
+if (!yoBin) { console.error('Binary not found. Run yo build first.'); process.exit(1); }
 
 const mismatchLines = [2427,2813,2826,2840,7607,7899,8556,9033,9044,9133];
 
@@ -34,7 +47,7 @@ while (i < lines.length) {
         const mdExpected = md.render(input).replace(/\n$/, '');
         try {
           const ourOutput = execSync(
-            `printf '%s' ${JSON.stringify(input)} | ./yo-out/aarch64-macos/bin/markdown_yo --commonmark -`,
+            `printf '%s' ${JSON.stringify(input)} | ${yoBin} --commonmark -`,
             { encoding: 'utf8', timeout: 5000 }
           ).replace(/\n$/, '');
           if (ourOutput === mdExpected) {
