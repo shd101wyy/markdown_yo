@@ -55,7 +55,7 @@ const markdownit = require('markdown-it');
 let samples = fs.readdirSync(samplesDir)
   .filter(f => f.endsWith('.md'))
   .sort((a, b) => {
-    const sizeOrder = { '64K': 0, '256K': 1, '1M': 2, '5M': 3 };
+    const sizeOrder = { '64K': 0, '256K': 1, '1M': 2, '5M': 3, '20M': 4 };
     const getSize = name => {
       const m = name.match(/sample_(\w+)\.md/);
       return m ? (sizeOrder[m[1]] ?? 99) : 99;

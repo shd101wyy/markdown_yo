@@ -30,3 +30,5 @@ bench_*.md
 Thumbs.db
 
 markdown_yo*
+# Benchmark samples (generated)
+benchmark/samples/

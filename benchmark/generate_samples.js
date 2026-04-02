@@ -61,6 +61,7 @@ const sizes = [
   { name: '256K', bytes: 256 * 1024 },
   { name: '1M',   bytes: 1024 * 1024 },
   { name: '5M',   bytes: 5 * 1024 * 1024 },
+  { name: '20M',  bytes: 20 * 1024 * 1024 },
 ];
 
 for (const { name, bytes } of sizes) {

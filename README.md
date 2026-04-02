@@ -1,11 +1,15 @@
 # markdown_yo
 
-A high-performance markdown-to-HTML converter written in [Yo](https://github.com/nicolo-ribaudo/yo-lang), ported from [markdown-it](https://github.com/markdown-it/markdown-it).
+A high-performance markdown-to-HTML converter written in [Yo](https://github.com/nicolo-ribaudo/yo-lang).
+
+Inspired by [markdown-it](https://github.com/markdown-it/markdown-it) (parsing rules & test fixtures), [md4c](https://github.com/mity/md4c) (performance-focused C design), and [markdown-wasm](https://github.com/nicolo-ribaudo/markdown-wasm) (WASM compilation target).
+
+> **See also:** [markdown_it_yo](https://github.com/nicolo-ribaudo/markdown_it_yo) — a separate 1:1 direct port of markdown-it to Yo. markdown_yo is a **custom implementation** optimized for speed, while markdown_it_yo faithfully mirrors the original JS architecture for easier maintenance.
 
 ## Features
 
 - **98.8% CommonMark compatibility** — 671/679 fixture tests passing
-- **2× faster than markdown-it** (native), **1.7× faster** (WASM at 5MB)
+- **2× faster than markdown-it** (native), **1.7× faster** (WASM at 5 MB)
 - Compiles to native executables (macOS, Linux) and WebAssembly
 - Full support: CommonMark, tables, strikethrough, typographer, smartquotes, HTML blocks
 
@@ -15,10 +19,9 @@ Comparison against markdown-it (Node.js) — median of 10 runs, 3 warmup:
 
 | Input Size | markdown-it (JS) | Native | Speedup | WASM | Speedup |
 |------------|-------------------|--------|---------|------|---------|
-| 64 KB      | 1.9 ms            | 1.0 ms | 1.8×    | —    | —       |
-| 256 KB     | 7.1 ms            | 3.7 ms | 1.9×    | 12.9 ms | 0.6× |
-| 1 MB       | 29.4 ms           | 14.3 ms | 2.1×   | 20.4 ms | 1.4× |
-| 5 MB       | 153.8 ms          | 71.8 ms | 2.1×   | 90.0 ms | 1.7× |
+| 1 MB       | 31.1 ms           | 13.8 ms | 2.3×   | 19.8 ms | 1.6× |
+| 5 MB       | 154.5 ms          | 68.6 ms | 2.3×   | 87.8 ms | 1.8× |
+| 20 MB      | 682.7 ms          | 280.8 ms | 2.4×  | 348.5 ms | 2.0× |
 
 *Native: Apple M4, macOS, clang -O2 -flto. WASM: Emscripten, Node.js, -O2 -flto.*
 *Native and WASM times use `--repeat 20` to amortize process/WASM startup.*
@@ -76,3 +79,9 @@ node benchmark/run.js --size 1M
 # Skip WASM
 node benchmark/run.js --no-wasm
 ```
+
+## Acknowledgments
+
+- [markdown-it](https://github.com/markdown-it/markdown-it) by Vitaly Puzrin and Alex Kocharin — parsing rules, test fixtures, and CommonMark compliance strategy
+- [md4c](https://github.com/mity/md4c) by Martin Mitáš — inspiration for performance-focused C design
+- [markdown-wasm](https://github.com/nicolo-ribaudo/markdown-wasm) — inspiration for WASM compilation target
