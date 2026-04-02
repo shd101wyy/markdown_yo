@@ -6,6 +6,24 @@ Inspired by [markdown-it](https://github.com/markdown-it/markdown-it) (parsing r
 
 > **See also:** [markdown_it_yo](https://github.com/nicolo-ribaudo/markdown_it_yo) — a separate 1:1 direct port of markdown-it to Yo. markdown_yo is a **custom implementation** optimized for speed, while markdown_it_yo faithfully mirrors the original JS architecture for easier maintenance.
 
+## Architecture
+
+markdown_yo uses a **hybrid SAX + token** architecture:
+
+- **Block parser** — SAX-style (streaming). Block rules (paragraph, heading, list, blockquote, code block, table, etc.) call renderer methods **directly** during parsing — no intermediate block token objects are allocated. For example, the heading rule calls `renderer.open_heading(level)` and `renderer.close_heading(level)` inline.
+
+- **Inline parser** — Token accumulation. Inline rules (emphasis, links, code spans, etc.) push lightweight `InlineToken` value-type structs (~40 bytes each) into a reusable buffer. A post-processing pass resolves delimiter pairs (emphasis, strikethrough), then walks the token buffer calling renderer methods.
+
+- **Renderer** — Pure callback receiver. The `HtmlRenderer` exposes SAX-style methods (`open_paragraph()`, `text()`, `open_link()`, etc.) that write directly to a pre-allocated output buffer (~1.5× input size).
+
+Key design choices for performance:
+- **Zero-copy** — all content references are `str` slices into the source buffer
+- **Value-type tokens** — `InlineToken` is a plain struct with no reference counting
+- **No intermediate AST** — block parsing skips token allocation entirely
+- **In-place operations** — tight paragraph compaction, bulk memory copies
+
+This is in contrast to [markdown_it_yo](https://github.com/nicolo-ribaudo/markdown_it_yo), which faithfully mirrors markdown-it's Token-based AST architecture.
+
 ## Features
 
 - **98.8% CommonMark compatibility** — 671/679 fixture tests passing
