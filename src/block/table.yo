@@ -18,9 +18,9 @@ open import "std/string";
 // Parse cells from a table row line and emit td/th tags.
 // Matches markdown-it's escapedSplit: \| strips the backslash but keeps the pipe in the cell.
 _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayList(TableAlign)), is_header: bool) -> unit)({
-  (bm : i32) = state.*.b_marks.get_unchecked(usize(line));
-  (ts : i32) = state.*.t_shift.get_unchecked(usize(line));
-  (em : i32) = state.*.e_marks.get_unchecked(usize(line));
+  (bm : i32) = state.*.b_marks(usize(line));
+  (ts : i32) = state.*.t_shift(usize(line));
+  (em : i32) = state.*.e_marks(usize(line));
   (pos : i32) = (bm + ts);
   (col_count : i32) = i32(aligns.*.len());
   (src : *(u8)) = state.*.src_ptr;
@@ -89,7 +89,7 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
       };
     });
 
-    (align : TableAlign) = aligns.*.get_unchecked(usize(col));
+    (align : TableAlign) = aligns.*(usize(col));
     (cell_len : usize) = (cb_end - cb_start);
 
     if(is_header, {
@@ -117,12 +117,12 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   if(((start_line + i32(1)) >= end_line), { return false; });
 
   // Must not be indented >3 spaces
-  if(((state.*.s_count.get_unchecked(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return false; });
+  if(((state.*.s_count(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return false; });
 
   // First line must contain a pipe
-  (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
-  (ts : i32) = state.*.t_shift.get_unchecked(usize(start_line));
-  (em : i32) = state.*.e_marks.get_unchecked(usize(start_line));
+  (bm : i32) = state.*.b_marks(usize(start_line));
+  (ts : i32) = state.*.t_shift(usize(start_line));
+  (em : i32) = state.*.e_marks(usize(start_line));
   (pos : i32) = (bm + ts);
 
   (has_pipe : bool) = false;
@@ -138,12 +138,12 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
 
   // Second line is separator: must contain only |, -, :, spaces
   (sep_line : i32) = (start_line + i32(1));
-  (sep_bm : i32) = state.*.b_marks.get_unchecked(usize(sep_line));
-  (sep_ts : i32) = state.*.t_shift.get_unchecked(usize(sep_line));
-  (sep_em : i32) = state.*.e_marks.get_unchecked(usize(sep_line));
+  (sep_bm : i32) = state.*.b_marks(usize(sep_line));
+  (sep_ts : i32) = state.*.t_shift(usize(sep_line));
+  (sep_em : i32) = state.*.e_marks(usize(sep_line));
   (sep_pos : i32) = (sep_bm + sep_ts);
 
-  if(((state.*.s_count.get_unchecked(usize(sep_line)) - state.*.blk_indent) >= i32(4)), { return false; });
+  if(((state.*.s_count(usize(sep_line)) - state.*.blk_indent) >= i32(4)), { return false; });
 
   // Check first two chars of separator line for list ambiguity
   // If first char is '-' and second char is space, reject (list takes precedence)
@@ -288,8 +288,8 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   (has_body : bool) = false;
   (table_done : bool) = false;
 
-  while ((((row_line < end_line) && !(state.*.is_empty(row_line))) && (state.*.s_count.get_unchecked(usize(row_line)) >= state.*.blk_indent)) && !(table_done)), {
-    if(((state.*.s_count.get_unchecked(usize(row_line)) - state.*.blk_indent) >= i32(4)), {
+  while ((((row_line < end_line) && !(state.*.is_empty(row_line))) && (state.*.s_count(usize(row_line)) >= state.*.blk_indent)) && !(table_done)), {
+    if(((state.*.s_count(usize(row_line)) - state.*.blk_indent) >= i32(4)), {
       // 4+ space indent: stop table, let main parser handle as code block
       table_done = true;
     }, {

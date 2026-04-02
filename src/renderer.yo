@@ -159,7 +159,7 @@ _typographer_text :: (fn(buf: *(ArrayList(u8)), src: *(u8), start: i32, end: i32
           true => {
             // Check last byte in buf
             if((buf.*.len() > usize(0)), {
-              i32(buf.*.get_unchecked((buf.*.len() - usize(1))))
+              i32(buf.*((buf.*.len() - usize(1))))
             }, { i32(0) })
           }
         );
@@ -581,11 +581,11 @@ impl(HtmlRenderer,
     // This handles empty list items: <li>\n</li> → <li></li>
     (bl : usize) = self.*.buf.len();
     if(((bl >= usize(5)) &&
-        ((self.*.buf.get_unchecked((bl - usize(5))) == u8(0x3C)) &&
-         ((self.*.buf.get_unchecked((bl - usize(4))) == u8(0x6C)) &&
-          ((self.*.buf.get_unchecked((bl - usize(3))) == u8(0x69)) &&
-           ((self.*.buf.get_unchecked((bl - usize(2))) == u8(0x3E)) &&
-            (self.*.buf.get_unchecked((bl - usize(1))) == u8(0x0A))))))), {
+        ((self.*.buf((bl - usize(5))) == u8(0x3C)) &&
+         ((self.*.buf((bl - usize(4))) == u8(0x6C)) &&
+          ((self.*.buf((bl - usize(3))) == u8(0x69)) &&
+           ((self.*.buf((bl - usize(2))) == u8(0x3E)) &&
+            (self.*.buf((bl - usize(1))) == u8(0x0A))))))), {
       // Truncate the trailing \n after <li>
       self.*.buf.set_len((bl - usize(1)));
     });

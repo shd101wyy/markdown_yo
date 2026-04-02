@@ -18,9 +18,9 @@ _build_inline_string :: (fn(state: *(BlockState), start_line: i32, end_line: i32
   (buf : ArrayList(u8)) = ArrayList(u8).new();
   (line : i32) = start_line;
   while (line < end_line), {
-    (bm : i32) = state.*.b_marks.get_unchecked(usize(line));
-    (ts : i32) = state.*.t_shift.get_unchecked(usize(line));
-    (em : i32) = state.*.e_marks.get_unchecked(usize(line));
+    (bm : i32) = state.*.b_marks(usize(line));
+    (ts : i32) = state.*.t_shift(usize(line));
+    (em : i32) = state.*.e_marks(usize(line));
     (content_start : i32) = (bm + ts);
     (content_end : i32) = em;
 
@@ -35,7 +35,7 @@ _build_inline_string :: (fn(state: *(BlockState), start_line: i32, end_line: i32
   };
 
   // Trim trailing spaces from the final line
-  while ((buf.len() > usize(0)) && (buf.get_unchecked((buf.len() - usize(1))) == u8(0x20))), {
+  while ((buf.len() > usize(0)) && (buf((buf.len() - usize(1))) == u8(0x20))), {
     buf._length = (buf._length - usize(1));
   };
 
@@ -52,11 +52,11 @@ block_paragraph :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
   (searching : bool) = true;
   while (((next_line < end_line) && !(state.*.is_empty(next_line))) && searching), {
     // Lazy continuation for deeply indented lines
-    if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+    if(((state.*.s_count(usize(next_line)) - state.*.blk_indent) > i32(3)), {
       next_line = (next_line + i32(1));
     }, {
       // Blockquote quirk
-      if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+      if((state.*.s_count(usize(next_line)) < i32(0)), {
         next_line = (next_line + i32(1));
       }, {
         // Check if any terminator rule matches

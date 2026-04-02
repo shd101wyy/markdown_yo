@@ -19,13 +19,13 @@
 // Returns bq_end (the line AFTER the blockquote), or -1 if no match.
 // If silent, returns 1 on match, -1 on no match (does not modify state).
 block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> i32)({
-  (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
-  (ts : i32) = state.*.t_shift.get_unchecked(usize(start_line));
-  (em : i32) = state.*.e_marks.get_unchecked(usize(start_line));
+  (bm : i32) = state.*.b_marks(usize(start_line));
+  (ts : i32) = state.*.t_shift(usize(start_line));
+  (em : i32) = state.*.e_marks(usize(start_line));
   (pos : i32) = (bm + ts);
 
   // Must not be indented >3 spaces
-  if(((state.*.s_count.get_unchecked(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return i32(-1); });
+  if(((state.*.s_count(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return i32(-1); });
 
   // Check >
   if((pos >= em), { return i32(-1); });
@@ -39,11 +39,11 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
 
   (scanning : bool) = true;
   while ((next_line < end_line) && scanning), {
-    (nbm : i32) = state.*.b_marks.get_unchecked(usize(next_line));
-    (nts : i32) = state.*.t_shift.get_unchecked(usize(next_line));
-    (nem : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+    (nbm : i32) = state.*.b_marks(usize(next_line));
+    (nts : i32) = state.*.t_shift(usize(next_line));
+    (nem : i32) = state.*.e_marks(usize(next_line));
     (npos : i32) = (nbm + nts);
-    (nsc : i32) = state.*.s_count.get_unchecked(usize(next_line));
+    (nsc : i32) = state.*.s_count(usize(next_line));
 
     (is_outdented : bool) = (nsc < state.*.blk_indent);
 
@@ -70,7 +70,7 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
         }, {
           if((ch == i32(0x09)), {
             space_after_marker = true;
-            if((((state.*.bs_count.get_unchecked(usize(next_line)) + initial) % i32(4)) == i32(3)), {
+            if((((state.*.bs_count(usize(next_line)) + initial) % i32(4)) == i32(3)), {
               npos = (npos + i32(1));
               initial = (initial + i32(1));
             }, {
@@ -83,7 +83,7 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
       (offset : i32) = initial;
 
       // Update bMarks — point to content after "> "
-      state.*.b_marks.set(usize(next_line), npos);
+      &(state.*.b_marks(usize(next_line))).* = npos;
 
       // Scan remaining whitespace to calculate sCount
       (ws_scanning : bool) = true;
@@ -91,7 +91,7 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
         (wch : i32) = i32((state.*.src_ptr &+ usize(npos)).*);
         if(is_space(wch), {
           if((wch == i32(0x09)), {
-            offset = (offset + (i32(4) - (((offset + state.*.bs_count.get_unchecked(usize(next_line))) + cond(adjust_tab => i32(1), true => i32(0))) % i32(4))));
+            offset = (offset + (i32(4) - (((offset + state.*.bs_count(usize(next_line))) + cond(adjust_tab => i32(1), true => i32(0))) % i32(4))));
           }, {
             offset = (offset + i32(1));
           });
@@ -104,13 +104,13 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
       last_line_empty = (npos >= nem);
 
       // Update bsCount
-      state.*.bs_count.set(usize(next_line), ((nsc + i32(1)) + cond(space_after_marker => i32(1), true => i32(0))));
+      &(state.*.bs_count(usize(next_line))).* = ((nsc + i32(1)) + cond(space_after_marker => i32(1), true => i32(0)));
 
       // sCount = offset - initial (leading whitespace of content)
-      state.*.s_count.set(usize(next_line), (offset - initial));
+      &(state.*.s_count(usize(next_line))).* = (offset - initial);
 
       // tShift relative to new bMarks
-      state.*.t_shift.set(usize(next_line), (npos - state.*.b_marks.get_unchecked(usize(next_line))));
+      &(state.*.t_shift(usize(next_line))).* = (npos - state.*.b_marks(usize(next_line)));
 
       next_line = (next_line + i32(1));
     }, {
@@ -138,13 +138,13 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
 
           // If blkIndent was non-zero, re-adjust sCount for terminating line
           if((state.*.blk_indent != i32(0)), {
-            state.*.s_count.set(usize(next_line), (nsc - state.*.blk_indent));
+            &(state.*.s_count(usize(next_line))).* = (nsc - state.*.blk_indent);
           });
 
           scanning = false;
         }, {
           // Lazy continuation — set sCount to -1 (paragraph continuation marker)
-          state.*.s_count.set(usize(next_line), i32(-1));
+          &(state.*.s_count(usize(next_line))).* = i32(-1);
           next_line = (next_line + i32(1));
         });
       });
@@ -160,12 +160,12 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
 // Each iteration reads a DIFFERENT next_line, so skipping the set() calls
 // doesn't affect subsequent iterations' reads.
 blockquote_find_end :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> i32)({
-  (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
-  (ts : i32) = state.*.t_shift.get_unchecked(usize(start_line));
-  (em : i32) = state.*.e_marks.get_unchecked(usize(start_line));
+  (bm : i32) = state.*.b_marks(usize(start_line));
+  (ts : i32) = state.*.t_shift(usize(start_line));
+  (em : i32) = state.*.e_marks(usize(start_line));
   (pos : i32) = (bm + ts);
 
-  if(((state.*.s_count.get_unchecked(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return i32(-1); });
+  if(((state.*.s_count(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return i32(-1); });
   if((pos >= em), { return i32(-1); });
   if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x3E)), { return i32(-1); });
 
@@ -174,11 +174,11 @@ blockquote_find_end :: (fn(state: *(BlockState), start_line: i32, end_line: i32)
 
   (scanning : bool) = true;
   while ((next_line < end_line) && scanning), {
-    (nbm : i32) = state.*.b_marks.get_unchecked(usize(next_line));
-    (nts : i32) = state.*.t_shift.get_unchecked(usize(next_line));
-    (nem : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+    (nbm : i32) = state.*.b_marks(usize(next_line));
+    (nts : i32) = state.*.t_shift(usize(next_line));
+    (nem : i32) = state.*.e_marks(usize(next_line));
     (npos : i32) = (nbm + nts);
-    (nsc : i32) = state.*.s_count.get_unchecked(usize(next_line));
+    (nsc : i32) = state.*.s_count(usize(next_line));
 
     (is_outdented : bool) = (nsc < state.*.blk_indent);
 

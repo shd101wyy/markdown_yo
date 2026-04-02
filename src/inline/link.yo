@@ -153,7 +153,7 @@ validate_link_url :: (fn(src: *(u8), start: i32, end_pos: i32) -> bool)({
 
   (result : bool) = cond(
     (decoded.len() == usize(0)) => true,
-    true => _check_protocol(decoded.get_ptr(usize(0)), i32(decoded.len()))
+    true => _check_protocol(&(decoded(usize(0))), i32(decoded.len()))
   );
   decoded.dispose();
   result
@@ -396,7 +396,7 @@ _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
     });
   };
   // Trim trailing space
-  if(((result._length > usize(0)) && (result.get_unchecked((result._length - usize(1))) == u8(0x20))), {
+  if(((result._length > usize(0)) && (result((result._length - usize(1))) == u8(0x20))), {
     result._length = (result._length - usize(1));
   });
   String.from_bytes(result)
@@ -409,7 +409,7 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
   (closer_idx : i32) = start_idx;
 
   while (closer_idx < end_idx), {
-    (closer : Delimiter) = state.*.delimiters.get_unchecked(usize(closer_idx));
+    (closer : Delimiter) = state.*.delimiters(usize(closer_idx));
     (is_em_marker : bool) = ((i32(closer.marker) == i32(0x2A)) || (i32(closer.marker) == i32(0x5F)));
     (is_strike : bool) = (i32(closer.marker) == i32(0x7E));
 
@@ -421,7 +421,7 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
 
         // Only search back to start_idx — don't cross link scope boundary
         while ((opener_idx >= start_idx) && !(found)), {
-          (opener : Delimiter) = state.*.delimiters.get_unchecked(usize(opener_idx));
+          (opener : Delimiter) = state.*.delimiters(usize(opener_idx));
           if(((opener.marker == closer.marker) && (opener.open && (opener.length > i32(0)))), {
             (skip : bool) = false;
             if(is_em_marker, {
@@ -442,7 +442,7 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
         };
 
         if(found, {
-          (opener : Delimiter) = state.*.delimiters.get_unchecked(usize(opener_idx));
+          (opener : Delimiter) = state.*.delimiters(usize(opener_idx));
           (consume : i32) = cond(
             is_strike => i32(2),
             ((opener.length >= i32(2)) && (closer.length >= i32(2))) => i32(2),
@@ -462,8 +462,8 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
           ));
 
           // Shrink opener text token from end
-          (otok : InlineToken) = state.*.tokens.get_unchecked(usize(opener.token_idx));
-          state.*.tokens.set(usize(opener.token_idx), InlineToken(
+          (otok : InlineToken) = state.*.tokens(usize(opener.token_idx));
+&(          state.*.tokens(usize(opener.token_idx))).* = InlineToken(
             type_name: otok.type_name,
             start: otok.start, end: (otok.end - consume),
             nesting: otok.nesting, level: otok.level,
@@ -472,11 +472,11 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
             markup_char: otok.markup_char, markup_len: otok.markup_len,
             content: otok.content, href: otok.href, title: otok.title,
             block: otok.block, hidden: otok.hidden
-          ));
+          );
 
           // Shrink closer text token from start
-          (ctok : InlineToken) = state.*.tokens.get_unchecked(usize(closer.token_idx));
-          state.*.tokens.set(usize(closer.token_idx), InlineToken(
+          (ctok : InlineToken) = state.*.tokens(usize(closer.token_idx));
+&(          state.*.tokens(usize(closer.token_idx))).* = InlineToken(
             type_name: ctok.type_name,
             start: (ctok.start + consume), end: ctok.end,
             nesting: ctok.nesting, level: ctok.level,
@@ -485,10 +485,10 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
             markup_char: ctok.markup_char, markup_len: ctok.markup_len,
             content: ctok.content, href: ctok.href, title: ctok.title,
             block: ctok.block, hidden: ctok.hidden
-          ));
+          );
 
           // Update delimiter lengths
-          state.*.delimiters.set(usize(opener_idx), Delimiter(
+&(          state.*.delimiters(usize(opener_idx))).* = Delimiter(
             marker: opener.marker,
             length: (opener.length - consume),
             token_idx: opener.token_idx,
@@ -496,9 +496,9 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
             jump: i32(0),
             open: opener.open,
             close: opener.close
-          ));
+          );
           (new_closer_len : i32) = (closer.length - consume);
-          state.*.delimiters.set(usize(closer_idx), Delimiter(
+&(          state.*.delimiters(usize(closer_idx))).* = Delimiter(
             marker: closer.marker,
             length: new_closer_len,
             token_idx: closer.token_idx,
@@ -506,17 +506,17 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
             jump: i32(0),
             open: closer.open,
             close: closer.close
-          ));
-          closer = state.*.delimiters.get_unchecked(usize(closer_idx));
+          );
+          closer = state.*.delimiters(usize(closer_idx));
 
           // Clear delimiters between opener and closer
           (mid : i32) = (opener_idx + i32(1));
           while (mid < closer_idx), {
-            (d : Delimiter) = state.*.delimiters.get_unchecked(usize(mid));
-            state.*.delimiters.set(usize(mid), Delimiter(
+            (d : Delimiter) = state.*.delimiters(usize(mid));
+&(            state.*.delimiters(usize(mid))).* = Delimiter(
               marker: d.marker, length: i32(0), token_idx: d.token_idx,
               end: i32(-1), jump: i32(0), open: false, close: false
-            ));
+            );
             mid = (mid + i32(1));
           };
 
@@ -603,7 +603,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
   (marker_idx : i32) = (i32(state.*.link_markers.len()) - i32(1));
   (found_marker : bool) = false;
   while ((marker_idx >= i32(0)) && !(found_marker)), {
-    if(state.*.link_markers.get_unchecked(usize(marker_idx)).active, {
+    if(state.*.link_markers(usize(marker_idx)).active, {
       found_marker = true;
     }, {
       marker_idx = (marker_idx - i32(1));
@@ -615,7 +615,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
     return false;
   });
 
-  (marker : LinkMarker) = state.*.link_markers.get_unchecked(usize(marker_idx));
+  (marker : LinkMarker) = state.*.link_markers(usize(marker_idx));
   (is_image : bool) = marker.is_image;
 
   (after_close : i32) = (pos + i32(1));
@@ -723,14 +723,14 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
 
     if(!(is_ref), {
       // Could not resolve — deactivate this marker
-      state.*.link_markers.get_ptr(usize(marker_idx)).*.active = false;
+      &(state.*.link_markers(usize(marker_idx))).*.active = false;
       return false;
     });
   });
 
   if(!(is_ref), {
     if(!(validate_link_url(state.*.src_ptr, href_start, href_end)), {
-      state.*.link_markers.get_ptr(usize(marker_idx)).*.active = false;
+      &(state.*.link_markers(usize(marker_idx))).*.active = false;
       return false;
     });
   });
@@ -759,7 +759,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
   );
 
   if(is_ref, {
-    (tok_ptr : *(InlineToken)) = state.*.tokens.get_ptr(usize(open_token_idx));
+    (tok_ptr : *(InlineToken)) = &(state.*.tokens(usize(open_token_idx)));
     tok_ptr.* = InlineToken(
       type_name: open_type,
       start: i32(0), end: i32(0),
@@ -771,7 +771,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
       block: false, hidden: false
     );
   }, {
-    (tok_ptr : *(InlineToken)) = state.*.tokens.get_ptr(usize(open_token_idx));
+    (tok_ptr : *(InlineToken)) = &(state.*.tokens(usize(open_token_idx)));
     tok_ptr.* = InlineToken(
       type_name: open_type,
       start: href_start, end: href_end,
@@ -795,8 +795,9 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
   if(!(is_image), {
     (i : i32) = i32(0);
     while (i < marker_idx), {
-      if(!(state.*.link_markers.get_unchecked(usize(i)).is_image), {
-        state.*.link_markers.get_ptr(usize(i)).*.active = false;
+      (is_img : bool) = state.*.link_markers(usize(i)).is_image;
+      if(!(is_img), {
+        &(state.*.link_markers(usize(i))).*.active = false;
       });
       i = (i + i32(1));
     };

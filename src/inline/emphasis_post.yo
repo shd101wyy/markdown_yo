@@ -61,7 +61,7 @@ emphasis_post :: (fn(state: *(InlineState)) -> unit)({
           open: opener.open,
           close: opener.close
         );
-        state.*.delimiters.set(usize(opener_idx), new_opener);
+        &(state.*.delimiters(usize(opener_idx))).* = new_opener;
 
         (new_closer : Delimiter) = Delimiter(
           marker: closer.marker,
@@ -72,7 +72,7 @@ emphasis_post :: (fn(state: *(InlineState)) -> unit)({
           open: closer.open,
           close: closer.close
         );
-        state.*.delimiters.set(usize(closer_idx), new_closer);
+        &(state.*.delimiters(usize(closer_idx))).* = new_closer;
 
         // Insert open token just after opener's text token
         (open_type : InlineType) = cond(is_strong => .StrongOpen, true => .EmOpen);
@@ -82,7 +82,7 @@ emphasis_post :: (fn(state: *(InlineState)) -> unit)({
         // For simplicity: modify the text tokens in place
         // Opener text: shrink from end
         (otok : InlineToken) = state.*.tokens.get(usize(opener.token_idx));
-        state.*.tokens.set(usize(opener.token_idx), InlineToken(
+&(        state.*.tokens(usize(opener.token_idx))).* = InlineToken(
           type_name: otok.type_name,
           start: otok.start, end: (otok.end - consume),
           nesting: otok.nesting, level: otok.level,
@@ -91,11 +91,11 @@ emphasis_post :: (fn(state: *(InlineState)) -> unit)({
           markup_char: otok.markup_char, markup_len: otok.markup_len,
           content: otok.content, href: otok.href, title: otok.title,
           block: otok.block, hidden: otok.hidden
-        ));
+        );
 
         // Closer text: shrink from start
         (ctok : InlineToken) = state.*.tokens.get(usize(closer.token_idx));
-        state.*.tokens.set(usize(closer.token_idx), InlineToken(
+&(        state.*.tokens(usize(closer.token_idx))).* = InlineToken(
           type_name: ctok.type_name,
           start: (ctok.start + consume), end: ctok.end,
           nesting: ctok.nesting, level: ctok.level,
@@ -104,13 +104,13 @@ emphasis_post :: (fn(state: *(InlineState)) -> unit)({
           markup_char: ctok.markup_char, markup_len: ctok.markup_len,
           content: ctok.content, href: ctok.href, title: ctok.title,
           block: ctok.block, hidden: ctok.hidden
-        ));
+        );
 
         // Insert em/strong open after opener text and em/strong close before closer text
         // We'll use a separate pass to insert these
         // For now, record the pairing in the delimiter
         (updated_opener : Delimiter) = state.*.delimiters.get(usize(opener_idx));
-        state.*.delimiters.set(usize(opener_idx), Delimiter(
+&(        state.*.delimiters(usize(opener_idx))).* = Delimiter(
           marker: updated_opener.marker,
           length: updated_opener.length,
           token_idx: updated_opener.token_idx,
@@ -118,27 +118,27 @@ emphasis_post :: (fn(state: *(InlineState)) -> unit)({
           jump: i32(0),
           open: updated_opener.open,
           close: updated_opener.close
-        ));
+        );
 
         // Remove delimiters between opener and closer
         (mid : i32) = (opener_idx + i32(1));
         while (mid < closer_idx), {
           (d : Delimiter) = state.*.delimiters.get(usize(mid));
-          state.*.delimiters.set(usize(mid), Delimiter(
+&(          state.*.delimiters(usize(mid))).* = Delimiter(
             marker: d.marker, length: i32(0), token_idx: d.token_idx,
             end: i32(-1), jump: i32(0), open: false, close: false
-          ));
+          );
           mid = (mid + i32(1));
         };
 
         // If opener is fully consumed, clear it
         (updated_opener2 : Delimiter) = state.*.delimiters.get(usize(opener_idx));
         if((updated_opener2.length == i32(0)), {
-          state.*.delimiters.set(usize(opener_idx), Delimiter(
+&(          state.*.delimiters(usize(opener_idx))).* = Delimiter(
             marker: updated_opener2.marker, length: i32(0),
             token_idx: updated_opener2.token_idx,
             end: updated_opener2.end, jump: i32(0), open: false, close: false
-          ));
+          );
         });
       });
     });

@@ -154,7 +154,7 @@ _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
       }))))))))));
     });
   };
-  if(((result.len() > usize(0)) && (result.get_unchecked((result.len() - usize(1))) == u8(0x20))), {
+  if(((result.len() > usize(0)) && (result((result.len() - usize(1))) == u8(0x20))), {
     _ := result.pop();
   });
 
@@ -202,14 +202,14 @@ _unescape_range :: (fn(src: *(u8), start: i32, end: i32) -> String)({
 
 block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
   (src : *(u8)) = state.*.src_ptr;
-  (bm : i32) = state.*.b_marks.get_unchecked(usize(start_line));
-  (ts : i32) = state.*.t_shift.get_unchecked(usize(start_line));
-  (em : i32) = state.*.e_marks.get_unchecked(usize(start_line));
+  (bm : i32) = state.*.b_marks(usize(start_line));
+  (ts : i32) = state.*.t_shift(usize(start_line));
+  (em : i32) = state.*.e_marks(usize(start_line));
   (next_line : i32) = (start_line + i32(1));
   (end_l : i32) = state.*.line_max;
 
   // Must not be indented >3 spaces
-  if(((state.*.s_count.get_unchecked(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return false; });
+  if(((state.*.s_count(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return false; });
 
   (initial_pos : i32) = (bm + ts);
   if((initial_pos >= em), { return false; });
@@ -257,10 +257,10 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
         // Try to extend to next line
         if(((next_line < end_l) && !(state.*.is_empty(next_line))), {
           (is_cont : bool) = false;
-          if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+          if(((state.*.s_count(usize(next_line)) - state.*.blk_indent) > i32(3)), {
             is_cont = true;
           });
-          if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+          if((state.*.s_count(usize(next_line)) < i32(0)), {
             is_cont = true;
           });
           if((!(is_cont) && _try_block_terminate(state, next_line, end_l)), {
@@ -268,9 +268,9 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
             ()
           }, {
             // Extend: append next line content
-            (nl_bm : i32) = state.*.b_marks.get_unchecked(usize(next_line));
-            (nl_ts : i32) = state.*.t_shift.get_unchecked(usize(next_line));
-            (nl_em : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+            (nl_bm : i32) = state.*.b_marks(usize(next_line));
+            (nl_ts : i32) = state.*.t_shift(usize(next_line));
+            (nl_em : i32) = state.*.e_marks(usize(next_line));
             (np : i32) = (nl_bm + nl_ts);
             (nl_copy_end : i32) = cond(
               (nl_em < state.*.src_len) => (nl_em + i32(1)),
@@ -293,18 +293,18 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
             // Escaped newline: try to extend
             if(((next_line < end_l) && !(state.*.is_empty(next_line))), {
               (is_cont2 : bool) = false;
-              if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+              if(((state.*.s_count(usize(next_line)) - state.*.blk_indent) > i32(3)), {
                 is_cont2 = true;
               });
-              if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+              if((state.*.s_count(usize(next_line)) < i32(0)), {
                 is_cont2 = true;
               });
               if((!(is_cont2) && _try_block_terminate(state, next_line, end_l)), {
                 ()
               }, {
-                (nl_bm2 : i32) = state.*.b_marks.get_unchecked(usize(next_line));
-                (nl_ts2 : i32) = state.*.t_shift.get_unchecked(usize(next_line));
-                (nl_em2 : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+                (nl_bm2 : i32) = state.*.b_marks(usize(next_line));
+                (nl_ts2 : i32) = state.*.t_shift(usize(next_line));
+                (nl_em2 : i32) = state.*.e_marks(usize(next_line));
                 (np2 : i32) = (nl_bm2 + nl_ts2);
                 (nl_ce2 : i32) = cond(
                   (nl_em2 < state.*.src_len) => (nl_em2 + i32(1)),
@@ -343,18 +343,18 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
       // Try to extend
       if(((next_line < end_l) && !(state.*.is_empty(next_line))), {
         (is_cont3 : bool) = false;
-        if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+        if(((state.*.s_count(usize(next_line)) - state.*.blk_indent) > i32(3)), {
           is_cont3 = true;
         });
-        if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+        if((state.*.s_count(usize(next_line)) < i32(0)), {
           is_cont3 = true;
         });
         if((!(is_cont3) && _try_block_terminate(state, next_line, end_l)), {
           ws1_done = true;
         }, {
-          (nl_bm3 : i32) = state.*.b_marks.get_unchecked(usize(next_line));
-          (nl_ts3 : i32) = state.*.t_shift.get_unchecked(usize(next_line));
-          (nl_em3 : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+          (nl_bm3 : i32) = state.*.b_marks(usize(next_line));
+          (nl_ts3 : i32) = state.*.t_shift(usize(next_line));
+          (nl_em3 : i32) = state.*.e_marks(usize(next_line));
           (np3 : i32) = (nl_bm3 + nl_ts3);
           (nl_ce3 : i32) = cond(
             (nl_em3 < state.*.src_len) => (nl_em3 + i32(1)),
@@ -465,18 +465,18 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
     if((ch == i32(0x0A)), {
       if(((next_line < end_l) && !(state.*.is_empty(next_line))), {
         (is_cont4 : bool) = false;
-        if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+        if(((state.*.s_count(usize(next_line)) - state.*.blk_indent) > i32(3)), {
           is_cont4 = true;
         });
-        if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+        if((state.*.s_count(usize(next_line)) < i32(0)), {
           is_cont4 = true;
         });
         if((!(is_cont4) && _try_block_terminate(state, next_line, end_l)), {
           ws2_done = true;
         }, {
-          (nl_bm4 : i32) = state.*.b_marks.get_unchecked(usize(next_line));
-          (nl_ts4 : i32) = state.*.t_shift.get_unchecked(usize(next_line));
-          (nl_em4 : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+          (nl_bm4 : i32) = state.*.b_marks(usize(next_line));
+          (nl_ts4 : i32) = state.*.t_shift(usize(next_line));
+          (nl_em4 : i32) = state.*.e_marks(usize(next_line));
           (np4 : i32) = (nl_bm4 + nl_ts4);
           (nl_ce4 : i32) = cond(
             (nl_em4 < state.*.src_len) => (nl_em4 + i32(1)),
@@ -538,18 +538,18 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
             // Try to extend for multiline title
             if(((next_line < end_l) && !(state.*.is_empty(next_line))), {
               (is_cont5 : bool) = false;
-              if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+              if(((state.*.s_count(usize(next_line)) - state.*.blk_indent) > i32(3)), {
                 is_cont5 = true;
               });
-              if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+              if((state.*.s_count(usize(next_line)) < i32(0)), {
                 is_cont5 = true;
               });
               if((!(is_cont5) && _try_block_terminate(state, next_line, end_l)), {
                 title_scan_done = true;
               }, {
-                (nl_bm5 : i32) = state.*.b_marks.get_unchecked(usize(next_line));
-                (nl_ts5 : i32) = state.*.t_shift.get_unchecked(usize(next_line));
-                (nl_em5 : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+                (nl_bm5 : i32) = state.*.b_marks(usize(next_line));
+                (nl_ts5 : i32) = state.*.t_shift(usize(next_line));
+                (nl_em5 : i32) = state.*.e_marks(usize(next_line));
                 (np5 : i32) = (nl_bm5 + nl_ts5);
                 (nl_ce5 : i32) = cond(
                   (nl_em5 < state.*.src_len) => (nl_em5 + i32(1)),
@@ -575,18 +575,18 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
                 // Backslash before newline in title — extend to next line
                 if(((next_line < end_l) && !(state.*.is_empty(next_line))), {
                   (is_cont6 : bool) = false;
-                  if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+                  if(((state.*.s_count(usize(next_line)) - state.*.blk_indent) > i32(3)), {
                     is_cont6 = true;
                   });
-                  if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+                  if((state.*.s_count(usize(next_line)) < i32(0)), {
                     is_cont6 = true;
                   });
                   if((!(is_cont6) && _try_block_terminate(state, next_line, end_l)), {
                     title_scan_done = true;
                   }, {
-                    (nl_bm6 : i32) = state.*.b_marks.get_unchecked(usize(next_line));
-                    (nl_ts6 : i32) = state.*.t_shift.get_unchecked(usize(next_line));
-                    (nl_em6 : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+                    (nl_bm6 : i32) = state.*.b_marks(usize(next_line));
+                    (nl_ts6 : i32) = state.*.t_shift(usize(next_line));
+                    (nl_em6 : i32) = state.*.e_marks(usize(next_line));
                     (np6 : i32) = (nl_bm6 + nl_ts6);
                     (nl_ce6 : i32) = cond(
                       (nl_em6 < state.*.src_len) => (nl_em6 + i32(1)),

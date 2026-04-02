@@ -15,9 +15,9 @@ _build_lheading_inline :: (fn(state: *(BlockState), start_line: i32, end_line: i
   (buf : ArrayList(u8)) = ArrayList(u8).new();
   (line : i32) = start_line;
   while (line < end_line), {
-    (bm : i32) = state.*.b_marks.get_unchecked(usize(line));
-    (ts : i32) = state.*.t_shift.get_unchecked(usize(line));
-    (em : i32) = state.*.e_marks.get_unchecked(usize(line));
+    (bm : i32) = state.*.b_marks(usize(line));
+    (ts : i32) = state.*.t_shift(usize(line));
+    (em : i32) = state.*.e_marks(usize(line));
     (content_start : i32) = (bm + ts);
 
     // Trim trailing spaces
@@ -40,7 +40,7 @@ _build_lheading_inline :: (fn(state: *(BlockState), start_line: i32, end_line: i
 
 block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
   // Must not be indented >3 spaces
-  if(((state.*.s_count.get_unchecked(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return false; });
+  if(((state.*.s_count(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return false; });
 
   (old_parent_type : ParentType) = state.*.parent_type;
   state.*.parent_type = .Paragraph;
@@ -51,15 +51,15 @@ block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sile
 
   (searching : bool) = true;
   while (((next_line < end_line) && !(state.*.is_empty(next_line))) && searching), {
-    if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+    if(((state.*.s_count(usize(next_line)) - state.*.blk_indent) > i32(3)), {
       // Lazy continuation
       next_line = (next_line + i32(1));
     }, {
       // Check for underline
       (found_underline : bool) = false;
-      if((state.*.s_count.get_unchecked(usize(next_line)) >= state.*.blk_indent), {
-        (pos : i32) = (state.*.b_marks.get_unchecked(usize(next_line)) + state.*.t_shift.get_unchecked(usize(next_line)));
-        (max : i32) = state.*.e_marks.get_unchecked(usize(next_line));
+      if((state.*.s_count(usize(next_line)) >= state.*.blk_indent), {
+        (pos : i32) = (state.*.b_marks(usize(next_line)) + state.*.t_shift(usize(next_line)));
+        (max : i32) = state.*.e_marks(usize(next_line));
 
         if((pos < max), {
           (marker : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
@@ -88,7 +88,7 @@ block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sile
         searching = false;
       }, {
         // Blockquote quirk: sCount < 0 means continuation line
-        if((state.*.s_count.get_unchecked(usize(next_line)) < i32(0)), {
+        if((state.*.s_count(usize(next_line)) < i32(0)), {
           next_line = (next_line + i32(1));
         }, {
           // Check terminator rules (silent mode)

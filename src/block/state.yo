@@ -147,9 +147,9 @@ impl(BlockState,
 
   // Check if a line is empty (only whitespace)
   is_empty : (fn(self: *(Self), line: i32) -> bool)({
-    (bm : i32) = self.*.b_marks.get_unchecked(usize(line));
-    (ts : i32) = self.*.t_shift.get_unchecked(usize(line));
-    ((bm + ts) >= self.*.e_marks.get_unchecked(usize(line)))
+    (bm : i32) = self.*.b_marks(usize(line));
+    (ts : i32) = self.*.t_shift(usize(line));
+    ((bm + ts) >= self.*.e_marks(usize(line)))
   }),
 
   // Skip whitespace from position `from` on line `line`, return new position

@@ -32,7 +32,7 @@ strikethrough_post :: (fn(state: *(InlineState)) -> unit)({
 
         // Mark the text tokens as zero-length (consumed by ~~)
         (otok : InlineToken) = state.*.tokens.get(usize(opener.token_idx));
-        state.*.tokens.set(usize(opener.token_idx), InlineToken(
+&(        state.*.tokens(usize(opener.token_idx))).* = InlineToken(
           type_name: otok.type_name,
           start: otok.start, end: otok.start,
           nesting: otok.nesting, level: otok.level,
@@ -41,10 +41,10 @@ strikethrough_post :: (fn(state: *(InlineState)) -> unit)({
           markup_char: otok.markup_char, markup_len: otok.markup_len,
           content: otok.content, href: otok.href, title: otok.title,
           block: otok.block, hidden: otok.hidden
-        ));
+        );
 
         (ctok : InlineToken) = state.*.tokens.get(usize(closer.token_idx));
-        state.*.tokens.set(usize(closer.token_idx), InlineToken(
+&(        state.*.tokens(usize(closer.token_idx))).* = InlineToken(
           type_name: ctok.type_name,
           start: ctok.end, end: ctok.end,
           nesting: ctok.nesting, level: ctok.level,
@@ -53,34 +53,34 @@ strikethrough_post :: (fn(state: *(InlineState)) -> unit)({
           markup_char: ctok.markup_char, markup_len: ctok.markup_len,
           content: ctok.content, href: ctok.href, title: ctok.title,
           block: ctok.block, hidden: ctok.hidden
-        ));
+        );
 
         // Record pairing
-        state.*.delimiters.set(usize(opener_idx), Delimiter(
+&(        state.*.delimiters(usize(opener_idx))).* = Delimiter(
           marker: opener.marker, length: i32(0),
           token_idx: opener.token_idx,
           end: closer_idx,
           jump: i32(0),
           open: false, close: false
-        ));
+        );
 
         // Clear delimiters between
         (mid : i32) = (opener_idx + i32(1));
         while (mid < closer_idx), {
           (d : Delimiter) = state.*.delimiters.get(usize(mid));
-          state.*.delimiters.set(usize(mid), Delimiter(
+&(          state.*.delimiters(usize(mid))).* = Delimiter(
             marker: d.marker, length: i32(0), token_idx: d.token_idx,
             end: i32(-1), jump: i32(0), open: false, close: false
-          ));
+          );
           mid = (mid + i32(1));
         };
 
         // Clear closer
-        state.*.delimiters.set(usize(closer_idx), Delimiter(
+&(        state.*.delimiters(usize(closer_idx))).* = Delimiter(
           marker: closer.marker, length: i32(0),
           token_idx: closer.token_idx,
           end: i32(-1), jump: i32(0), open: false, close: false
-        ));
+        );
       });
     });
 

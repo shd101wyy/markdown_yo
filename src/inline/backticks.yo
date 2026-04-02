@@ -90,7 +90,7 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
   });
 
   // Update token with content range
-  state.*.tokens.set(usize(tok_idx), InlineToken(
+&(  state.*.tokens(usize(tok_idx))).* = InlineToken(
     type_name: .CodeInline,
     start: content_start,
     end: content_end,
@@ -101,7 +101,7 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
     markup_char: u8(0x60), markup_len: u8(open_count),
     content: ``, href: ``, title: ``,
     block: false, hidden: false
-  ));
+  );
 
   state.*.pos = close_end;
   state.*.pending_start = state.*.pos;

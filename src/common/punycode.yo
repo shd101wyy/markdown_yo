@@ -127,10 +127,10 @@ punycode_decode :: (fn(input: str) -> Option(String))({
     _ := output.push(i32(0));
     (shift : i32) = (i32(output.len()) - i32(1));
     while (shift > i_val), {
-      output.set(usize(shift), output.get_unchecked(usize((shift - i32(1)))));
+      &(output(usize(shift))).* = output(usize((shift - i32(1))));
       shift = (shift - i32(1));
     };
-    output.set(usize(i_val), n);
+    &(output(usize(i_val))).* = n;
     i_val = (i_val + i32(1));
   };
 
@@ -138,7 +138,7 @@ punycode_decode :: (fn(input: str) -> Option(String))({
   (result : ArrayList(u8)) = ArrayList(u8).new();
   (r : i32) = i32(0);
   while (r < i32(output.len())), {
-    (cp : i32) = output.get_unchecked(usize(r));
+    (cp : i32) = output(usize(r));
     if((cp < i32(0x80)), {
       _ := result.push(u8(cp));
     }, if((cp < i32(0x800)), {
@@ -194,7 +194,7 @@ punycode_encode :: (fn(input: str) -> String)({
   (basic_count : i32) = i32(0);
   (c : i32) = i32(0);
   while (c < i32(codepoints.len())), {
-    (cp : i32) = codepoints.get_unchecked(usize(c));
+    (cp : i32) = codepoints(usize(c));
     if((cp < i32(0x80)), {
       _ := result.push(u8(cp));
       basic_count = (basic_count + i32(1));
@@ -218,7 +218,7 @@ punycode_encode :: (fn(input: str) -> String)({
     (m : i32) = i32(0x10FFFF);
     (s : i32) = i32(0);
     while (s < total), {
-      (cp : i32) = codepoints.get_unchecked(usize(s));
+      (cp : i32) = codepoints(usize(s));
       if(((cp >= n) && (cp < m)), {
         m = cp;
       });
@@ -230,7 +230,7 @@ punycode_encode :: (fn(input: str) -> String)({
 
     (s2 : i32) = i32(0);
     while (s2 < total), {
-      (cp : i32) = codepoints.get_unchecked(usize(s2));
+      (cp : i32) = codepoints(usize(s2));
       if((cp < n), {
         delta = (delta + i32(1));
       });

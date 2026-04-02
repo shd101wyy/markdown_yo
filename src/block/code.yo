@@ -6,7 +6,7 @@
 
 block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
   // Must be indented by 4+
-  if(((state.*.s_count.get_unchecked(usize(start_line)) - state.*.blk_indent) < i32(4)), {
+  if(((state.*.s_count(usize(start_line)) - state.*.blk_indent) < i32(4)), {
     return false;
   });
 
@@ -19,7 +19,7 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
     if(state.*.is_empty(next_line), {
       next_line = (next_line + i32(1));
     }, {
-      if(((state.*.s_count.get_unchecked(usize(next_line)) - state.*.blk_indent) >= i32(4)), {
+      if(((state.*.s_count(usize(next_line)) - state.*.blk_indent) >= i32(4)), {
         last = next_line;
         next_line = (next_line + i32(1));
       }, {
@@ -36,18 +36,18 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
   (indent : i32) = (i32(4) + state.*.blk_indent);
   (line : i32) = start_line;
   while (line <= last), {
-    (bm : i32) = state.*.b_marks.get_unchecked(usize(line));
-    (em : i32) = state.*.e_marks.get_unchecked(usize(line));
+    (bm : i32) = state.*.b_marks(usize(line));
+    (em : i32) = state.*.e_marks(usize(line));
 
     // Strip up to `indent` columns (tab-aware, tShift-aware)
     // Characters within tShift count as indent even if non-space (e.g. list markers)
     (first : i32) = bm;
     (col : i32) = i32(0);
-    (line_tshift : i32) = state.*.t_shift.get_unchecked(usize(line));
+    (line_tshift : i32) = state.*.t_shift(usize(line));
     while ((first < em) && (col < indent)), {
       (ch : u8) = (state.*.src_ptr &+ usize(first)).*;
       if((ch == u8(0x09)), {
-        col = (col + (i32(4) - ((col + state.*.bs_count.get_unchecked(usize(line))) % i32(4))));
+        col = (col + (i32(4) - ((col + state.*.bs_count(usize(line))) % i32(4))));
         first = (first + i32(1));
       }, if((ch == u8(0x20)), {
         col = (col + i32(1));
@@ -72,7 +72,7 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
     });
 
     state.*.renderer.*.escaped(first, em);
-    if((state.*.e_marks.get_unchecked(usize(line)) < state.*.src_len), {
+    if((state.*.e_marks(usize(line)) < state.*.src_len), {
       state.*.renderer.*.byte(u8(0x0A));
     });
 

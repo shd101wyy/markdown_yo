@@ -63,7 +63,7 @@ _compute_consumed :: (fn(pairs: *(ArrayList(_Pair)), tok_idx: i32) -> i32)({
   (count : i32) = i32(pairs.*.len());
   (i : i32) = i32(0);
   while (i < count), {
-    (p : _Pair) = pairs.*.get_unchecked(usize(i));
+    (p : _Pair) = pairs.*(usize(i));
     if((p.opener_tok == tok_idx), { opener = (opener + p.consume); });
     if((p.closer_tok == tok_idx), { closer = (closer + p.consume); });
     i = (i + i32(1));
@@ -93,10 +93,10 @@ _process_smartquotes :: (fn(
   };
   (pi : i32) = i32(0);
   while (pi < i32(pairs.*.len())), {
-    (p : _Pair) = pairs.*.get_unchecked(usize(pi));
+    (p : _Pair) = pairs.*(usize(pi));
     (ti : i32) = (p.opener_tok + i32(1));
     while (ti < p.closer_tok), {
-      levels.set(usize(ti), (levels.get_unchecked(usize(ti)) + i32(1)));
+      &(levels(usize(ti))).* = (levels(usize(ti)) + i32(1));
       ti = (ti + i32(1));
     };
     pi = (pi + i32(1));
@@ -104,11 +104,11 @@ _process_smartquotes :: (fn(
 
   (tok_i : i32) = i32(0);
   while (tok_i < tok_count), {
-    (tok : InlineToken) = tokens.*.get_unchecked(usize(tok_i));
-    (this_level : i32) = (tok.level + levels.get_unchecked(usize(tok_i)));
+    (tok : InlineToken) = tokens.*(usize(tok_i));
+    (this_level : i32) = (tok.level + levels(usize(tok_i)));
 
     // Prune stack: remove entries with level > thisLevel
-    while ((i32(stack.len()) > i32(0)) && (stack.get_unchecked(usize((i32(stack.len()) - i32(1)))).level > this_level)), {
+    while ((i32(stack.len()) > i32(0)) && (stack(usize((i32(stack.len()) - i32(1)))).level > this_level)), {
       _ := stack.pop();
     };
 
@@ -139,7 +139,7 @@ _process_smartquotes :: (fn(
             (bj : i32) = (tok_i - i32(1));
             (back_done : bool) = false;
             while (((bj >= i32(0)) && !(back_done))), {
-              (prev : InlineToken) = tokens.*.get_unchecked(usize(bj));
+              (prev : InlineToken) = tokens.*(usize(bj));
               (pt : i32) = i32(prev.type_name);
               cond(
                 ((pt == i32(InlineType.Softbreak)) || (pt == i32(InlineType.Hardbreak))) => {
@@ -175,7 +175,7 @@ _process_smartquotes :: (fn(
             (fj : i32) = (tok_i + i32(1));
             (fwd_done : bool) = false;
             while (((fj < tok_count) && !(fwd_done))), {
-              (nxt : InlineToken) = tokens.*.get_unchecked(usize(fj));
+              (nxt : InlineToken) = tokens.*(usize(fj));
               (nt : i32) = i32(nxt.type_name);
               cond(
                 ((nt == i32(InlineType.Softbreak)) || (nt == i32(InlineType.Hardbreak))) => {
@@ -257,7 +257,7 @@ _process_smartquotes :: (fn(
             if(can_close, {
               (sj : i32) = (i32(stack.len()) - i32(1));
               while (((sj >= i32(0)) && !(matched))), {
-                (entry : _SQEntry) = stack.get_unchecked(usize(sj));
+                (entry : _SQEntry) = stack(usize(sj));
                 if((entry.level < this_level), {
                   sj = i32(-1);
                 }, {
@@ -317,7 +317,7 @@ _emit_text_with_sq :: (fn(
     (repl_count : i32) = i32(replaces.*.len());
     (ri : i32) = i32(0);
     while (ri < repl_count), {
-      (r : _SQReplace) = replaces.*.get_unchecked(usize(ri));
+      (r : _SQReplace) = replaces.*(usize(ri));
       if(((r.byte_pos >= cur) && (r.byte_pos < end)), {
         if(((next_pos == i32(-1)) || (r.byte_pos < next_pos)), {
           next_pos = r.byte_pos;
@@ -364,10 +364,10 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(_Pair))) -> unit
   (closer_idx : i32) = i32(0);
 
   while (closer_idx < max_delim), {
-    (closer : Delimiter) = state.*.delimiters.get_unchecked(usize(closer_idx));
+    (closer : Delimiter) = state.*.delimiters(usize(closer_idx));
 
     // Track delimiter runs: consecutive tokens with same marker
-    if(((closer_idx == i32(0)) || ((i32(state.*.delimiters.get_unchecked(usize(header_idx)).marker) != i32(closer.marker)) || (last_token_idx != (closer.token_idx - i32(1))))), {
+    if(((closer_idx == i32(0)) || ((i32(state.*.delimiters(usize(header_idx)).marker) != i32(closer.marker)) || (last_token_idx != (closer.token_idx - i32(1))))), {
       header_idx = closer_idx;
     });
     last_token_idx = closer.token_idx;
@@ -385,7 +385,7 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(_Pair))) -> unit
           (found : bool) = false;
 
           while ((opener_idx >= i32(0)) && !(found)), {
-            (opener : Delimiter) = state.*.delimiters.get_unchecked(usize(opener_idx));
+            (opener : Delimiter) = state.*.delimiters(usize(opener_idx));
 
             if(((opener.marker == closer.marker) && (opener.open && (opener.length > i32(0)))), {
               // Multiple of 3 rule (emphasis only)
@@ -409,7 +409,7 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(_Pair))) -> unit
           };
 
           if(found, {
-            (opener : Delimiter) = state.*.delimiters.get_unchecked(usize(opener_idx));
+            (opener : Delimiter) = state.*.delimiters(usize(opener_idx));
 
             (consume : i32) = cond(
               is_strike => i32(2),
@@ -431,7 +431,7 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(_Pair))) -> unit
             ));
 
             // Update opener
-            state.*.delimiters.set(usize(opener_idx), Delimiter(
+&(            state.*.delimiters(usize(opener_idx))).* = Delimiter(
               marker: opener.marker,
               length: (opener.length - consume),
               token_idx: opener.token_idx,
@@ -439,11 +439,11 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(_Pair))) -> unit
               jump: i32(0),
               open: opener.open,
               close: opener.close
-            ));
+            );
 
             // Update closer
             (new_closer_len : i32) = (closer.length - consume);
-            state.*.delimiters.set(usize(closer_idx), Delimiter(
+&(            state.*.delimiters(usize(closer_idx))).* = Delimiter(
               marker: closer.marker,
               length: new_closer_len,
               token_idx: closer.token_idx,
@@ -451,17 +451,17 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(_Pair))) -> unit
               jump: i32(0),
               open: closer.open,
               close: closer.close
-            ));
-            closer = state.*.delimiters.get_unchecked(usize(closer_idx));
+            );
+            closer = state.*.delimiters(usize(closer_idx));
 
             // Clear delimiters between opener and closer
             (mid : i32) = (opener_idx + i32(1));
             while (mid < closer_idx), {
-              (d : Delimiter) = state.*.delimiters.get_unchecked(usize(mid));
-              state.*.delimiters.set(usize(mid), Delimiter(
+              (d : Delimiter) = state.*.delimiters(usize(mid));
+&(              state.*.delimiters(usize(mid))).* = Delimiter(
                 marker: d.marker, length: i32(0), token_idx: d.token_idx,
                 end: i32(-1), jump: i32(0), open: false, close: false
-              ));
+              );
               mid = (mid + i32(1));
             };
 
@@ -574,7 +574,7 @@ inline_render :: (fn(state: *(InlineState)) -> unit)({
   (rp_count : i32) = i32(state.*.resolved_pairs.len());
   (rp_idx : i32) = i32(0);
   while (rp_idx < rp_count), {
-    (ep : EmphasisPair) = state.*.resolved_pairs.get_unchecked(usize(rp_idx));
+    (ep : EmphasisPair) = state.*.resolved_pairs(usize(rp_idx));
     _ := pairs.push(_Pair(
       opener_tok: ep.opener_tok,
       closer_tok: ep.closer_tok,
@@ -594,7 +594,7 @@ inline_render :: (fn(state: *(InlineState)) -> unit)({
   // AFTER the closing tag, not before it. Swap them (matching markdown-it).
   (si : i32) = i32(0);
   while (si < tok_count), {
-    (tok_s : InlineToken) = state.*.tokens.get_unchecked(usize(si));
+    (tok_s : InlineToken) = state.*.tokens(usize(si));
     if(((i32(tok_s.type_name) == i32(InlineType.Text)) && (((tok_s.end - tok_s.start) == i32(1)) && ((state.*.src_ptr &+ usize(tok_s.start)).* == u8(0x7E)))), {
       // Look ahead for consecutive strikethrough closer tokens
       (sj : i32) = (si + i32(1));
@@ -603,7 +603,7 @@ inline_render :: (fn(state: *(InlineState)) -> unit)({
         (is_strike_closer : bool) = false;
         (pi2 : i32) = i32(0);
         while (pi2 < pair_count), {
-          (p2 : _Pair) = pairs.get_unchecked(usize(pi2));
+          (p2 : _Pair) = pairs(usize(pi2));
           if(((p2.closer_tok == sj) && (p2.pair_type == i32(3))), {
             is_strike_closer = true;
           });
@@ -614,22 +614,22 @@ inline_render :: (fn(state: *(InlineState)) -> unit)({
       (sj_last : i32) = (sj - i32(1));
       if((sj_last > si), {
         // Swap tokens[si] and tokens[sj_last]
-        (tmp_tok : InlineToken) = state.*.tokens.get_unchecked(usize(si));
-        state.*.tokens.set(usize(si), state.*.tokens.get_unchecked(usize(sj_last)));
-        state.*.tokens.set(usize(sj_last), tmp_tok);
+        (tmp_tok : InlineToken) = state.*.tokens(usize(si));
+        &(state.*.tokens(usize(si))).* = state.*.tokens(usize(sj_last));
+        &(state.*.tokens(usize(sj_last))).* = tmp_tok;
         // Update pair references for swapped positions
         (ui : i32) = i32(0);
         while (ui < pair_count), {
-          (pp : _Pair) = pairs.get_unchecked(usize(ui));
+          (pp : _Pair) = pairs(usize(ui));
           (new_opener : i32) = pp.opener_tok;
           (new_closer : i32) = pp.closer_tok;
           if((pp.opener_tok == si), { new_opener = sj_last; }, if((pp.opener_tok == sj_last), { new_opener = si; }));
           if((pp.closer_tok == si), { new_closer = sj_last; }, if((pp.closer_tok == sj_last), { new_closer = si; }));
           if(((new_opener != pp.opener_tok) || (new_closer != pp.closer_tok)), {
-            pairs.set(usize(ui), _Pair(
+&(            pairs(usize(ui))).* = _Pair(
               opener_tok: new_opener, closer_tok: new_closer,
               consume: pp.consume, pair_type: pp.pair_type
-            ));
+            );
           });
           ui = (ui + i32(1));
         };
@@ -660,7 +660,7 @@ inline_render :: (fn(state: *(InlineState)) -> unit)({
     // Close tags go in forward pair order (inner → outer)
     (ci : i32) = i32(0);
     while (ci < pair_count), {
-      (p : _Pair) = pairs.get_unchecked(usize(ci));
+      (p : _Pair) = pairs(usize(ci));
       if((p.closer_tok == tok_idx), {
         _emit_close_tag(renderer, p.pair_type);
       });
@@ -668,7 +668,7 @@ inline_render :: (fn(state: *(InlineState)) -> unit)({
     };
 
     // Compute remaining text range for this token
-    (tok : InlineToken) = state.*.tokens.get_unchecked(usize(tok_idx));
+    (tok : InlineToken) = state.*.tokens(usize(tok_idx));
     (is_delimiter_text : bool) = false;
     (opener_consumed : i32) = i32(0);
     (closer_consumed : i32) = i32(0);
@@ -676,7 +676,7 @@ inline_render :: (fn(state: *(InlineState)) -> unit)({
     // Sum consumption from all pairs at this token
     (pi : i32) = i32(0);
     while (pi < pair_count), {
-      (p : _Pair) = pairs.get_unchecked(usize(pi));
+      (p : _Pair) = pairs(usize(pi));
       if((p.opener_tok == tok_idx), {
         opener_consumed = (opener_consumed + p.consume);
         is_delimiter_text = true;
@@ -715,7 +715,7 @@ inline_render :: (fn(state: *(InlineState)) -> unit)({
     // Open tags go in reverse pair order (outer → inner)
     (oi : i32) = (pair_count - i32(1));
     while (oi >= i32(0)), {
-      (p : _Pair) = pairs.get_unchecked(usize(oi));
+      (p : _Pair) = pairs(usize(oi));
       if((p.opener_tok == tok_idx), {
         _emit_open_tag(renderer, p.pair_type);
       });
