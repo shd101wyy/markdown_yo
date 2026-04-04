@@ -12,12 +12,41 @@
 { block_html } :: import "./html_block.yo";
 { block_table } :: import "./table.yo";
 
+// Fast pre-check: can the first non-space char of a line start any block rule?
+// Block starters: # * + - . < > ` ~ _ | 0-9
+// Returns false if the line CANNOT start a block, allowing us to skip 7 rule checks.
+_could_start_block :: (fn(ch: i32) -> bool)(
+  cond(
+    (ch == i32(0x23)) => true,  // # heading
+    (ch == i32(0x2A)) => true,  // * hr/list
+    (ch == i32(0x2B)) => true,  // + list
+    (ch == i32(0x2D)) => true,  // - hr/list
+    (ch == i32(0x3C)) => true,  // < html
+    (ch == i32(0x3E)) => true,  // > blockquote
+    (ch == i32(0x60)) => true,  // ` fence
+    (ch == i32(0x7E)) => true,  // ~ fence
+    (ch == i32(0x5F)) => true,  // _ hr
+    (ch == i32(0x7C)) => true,  // | table
+    ((ch >= i32(0x30)) && (ch <= i32(0x39))) => true,  // 0-9 ordered list
+    true => false
+  )
+);
+
 // Check if any terminator rule matches at the given line
 _try_block_terminate :: (fn(state: *(BlockState), line: i32, end_line: i32) -> bool)({
-  // Table
+  // Table — must check first because header line can start with any character
   if((state.*.options.*.enable_table && block_table(state, line, end_line, true)), {
     return true;
   });
+
+  // Fast reject: check if first non-space char could start any non-table block rule
+  (bm : i32) = state.*.b_marks(usize(line));
+  (ts : i32) = state.*.t_shift(usize(line));
+  (em : i32) = state.*.e_marks(usize(line));
+  (first_pos : i32) = (bm + ts);
+  if((first_pos >= em), { return false; });
+  (first_ch : i32) = i32((state.*.src_ptr &+ usize(first_pos)).*);
+  if(!(_could_start_block(first_ch)), { return false; });
 
   // Fence
   if(block_fence(state, line, end_line, true), { return true; });
@@ -44,6 +73,15 @@ _try_block_terminate :: (fn(state: *(BlockState), line: i32, end_line: i32) -> b
 // These are rules whose alt chains include 'list' in markdown-it:
 // fence, blockquote, hr, html_block, heading
 _try_list_terminate :: (fn(state: *(BlockState), line: i32, end_line: i32) -> bool)({
+  // Fast reject: check if first non-space char could start any block rule
+  (bm : i32) = state.*.b_marks(usize(line));
+  (ts : i32) = state.*.t_shift(usize(line));
+  (em : i32) = state.*.e_marks(usize(line));
+  (first_pos : i32) = (bm + ts);
+  if((first_pos >= em), { return false; });
+  (first_ch : i32) = i32((state.*.src_ptr &+ usize(first_pos)).*);
+  if(!(_could_start_block(first_ch)), { return false; });
+
   if(block_fence(state, line, end_line, true), { return true; });
   if((block_blockquote(state, line, end_line, true) > i32(0)), { return true; });
   if(block_hr(state, line, end_line, true), { return true; });

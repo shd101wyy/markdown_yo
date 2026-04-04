@@ -29,6 +29,7 @@ _is_inline_special :: (fn(ch: u8) -> bool)(
 
 // Shared dispatch loop for inline parsing
 _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
+  (table : *(u8)) = state.*.special_table;
   // Main dispatch loop: try each inline rule at current position
   while (state.*.pos < state.*.pos_max), {
     (matched : bool) = false;
@@ -83,16 +84,12 @@ _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
       true => ()
     );
 
-    // If no rule matched, scan forward to next special char (batch text runs)
+    // If no rule matched, scan forward to next special char (lookup table)
     if(!(matched), {
       (scan : i32) = (state.*.pos + i32(1));
-      (scanning : bool) = true;
-      while (((scan < state.*.pos_max) && scanning)), {
-        if(_is_inline_special((state.*.src_ptr &+ usize(scan)).*), {
-          scanning = false;
-        }, {
-          scan = (scan + i32(1));
-        });
+      (src : *(u8)) = state.*.src_ptr;
+      while ((scan < state.*.pos_max) && ((table &+ usize((src &+ usize(scan)).*)).* == u8(0))), {
+        scan = (scan + i32(1));
       };
       state.*.pending_end = scan;
       state.*.pos = scan;
@@ -120,9 +117,28 @@ inline_parse :: (fn(inline_state: *(InlineState), src: String) -> unit)({
 inline_parse_range :: (fn(inline_state: *(InlineState), src_ptr: *(u8), start: i32, end: i32) -> unit)({
   if((end <= start), { return (); });
 
-  (len : i32) = (end - start);
-  inline_state.*.reset_for_ptr((src_ptr &+ usize(start)), len);
-  _inline_dispatch(inline_state);
+  // Fast path: pre-scan for special chars. If none found, emit text directly
+  // without tokenizing (avoids token push, pairs resolution, render dispatch).
+  (table : *(u8)) = inline_state.*.special_table;
+  (p : i32) = start;
+  (has_special : bool) = false;
+  while ((p < end) && !(has_special)), {
+    if(((table &+ usize((src_ptr &+ usize(p)).*)).* != u8(0)), {
+      has_special = true;
+    });
+    p = (p + i32(1));
+  };
+
+  if((!(has_special) && !(inline_state.*.options.*.typographer)), {
+    // Pure text — emit directly to renderer using absolute source offsets.
+    // The renderer's src_ptr already points to the original document source,
+    // and start/end are absolute offsets, so we can call text() directly.
+    inline_state.*.renderer.*.text(start, end);
+  }, {
+    (len : i32) = (end - start);
+    inline_state.*.reset_for_ptr((src_ptr &+ usize(start)), len);
+    _inline_dispatch(inline_state);
+  });
 });
 
 export inline_parse, inline_parse_range, _is_inline_special;

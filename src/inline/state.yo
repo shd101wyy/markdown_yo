@@ -5,6 +5,9 @@
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
 { HashMap } :: import "std/collections/hash_map";
+{ GlobalAllocator } :: import "std/allocator";
+{ calloc, free } :: GlobalAllocator;
+{ memset } :: import "std/libc/string.yo";
 { Options, Env, Delimiter, InlineType, LinkMarker, EmphasisPair } :: import "../types.yo";
 { HtmlRenderer } :: import "../renderer.yo";
 { is_space } :: import "../common/utils.yo";
@@ -53,6 +56,30 @@ impl(InlineToken,
   )
 );
 
+// Initialize a 256-byte lookup table for inline special characters.
+// Returns a *(u8) where table[ch] != 0 means ch is special.
+_init_special_table :: (fn() -> *(u8))({
+  (ptr : *(u8)) = match(calloc(usize(256), usize(1)),
+    .Some(p) => *(u8)(p),
+    .None => { assert(false, "calloc failed"); *(u8)("") }
+  );
+  // 0x0A = newline, 0x21 = !, 0x26 = &, 0x2A = *
+  // 0x3C = <, 0x5B = [, 0x5C = \, 0x5D = ]
+  // 0x5F = _, 0x60 = `, 0x7E = ~
+  (ptr &+ usize(0x0A)).* = u8(1);
+  (ptr &+ usize(0x21)).* = u8(1);
+  (ptr &+ usize(0x26)).* = u8(1);
+  (ptr &+ usize(0x2A)).* = u8(1);
+  (ptr &+ usize(0x3C)).* = u8(1);
+  (ptr &+ usize(0x5B)).* = u8(1);
+  (ptr &+ usize(0x5C)).* = u8(1);
+  (ptr &+ usize(0x5D)).* = u8(1);
+  (ptr &+ usize(0x5F)).* = u8(1);
+  (ptr &+ usize(0x60)).* = u8(1);
+  (ptr &+ usize(0x7E)).* = u8(1);
+  ptr
+});
+
 InlineState :: struct(
   src : Option(String),      // inline content string (None for range-based parsing)
   src_ptr : *(u8),         // raw pointer for fast access
@@ -81,7 +108,10 @@ InlineState :: struct(
 
   env : *(Env),
   renderer : *(HtmlRenderer),
-  options : *(Options)
+  options : *(Options),
+
+  // 256-byte lookup table: table[ch] != 0 means ch is an inline special character
+  special_table : *(u8)
 );
 
 impl(InlineState,
@@ -107,7 +137,8 @@ impl(InlineState,
       token_strings: ArrayList(String).with_capacity(usize(4)),
       env: env,
       renderer: renderer,
-      options: options
+      options: options,
+      special_table: _init_special_table()
     )
   ),
 

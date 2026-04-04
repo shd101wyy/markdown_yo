@@ -653,75 +653,86 @@ inline_render :: (fn(state: *(InlineState)) -> unit)({
 
   // Phase 2: Walk tokens, consulting pairs for insertions
   (tok_idx : i32) = i32(0);
-  while (tok_idx < tok_count), {
-    // Collect pairs where this token is a closer (emit close tags first)
-    // Close tags go in forward pair order (inner → outer)
-    (ci : i32) = i32(0);
-    while (ci < pair_count), {
-      (p : _Pair) = pairs(usize(ci));
-      if((p.closer_tok == tok_idx), {
-        _emit_close_tag(renderer, p.pair_type);
-      });
-      ci = (ci + i32(1));
+
+  // Fast path: no pairs and no smartquotes — just emit tokens directly
+  if(((pair_count == i32(0)) && !(has_sq)), {
+    while (tok_idx < tok_count), {
+      (tok : InlineToken) = state.*.tokens(usize(tok_idx));
+      _emit_inline_token(renderer, (&tok), state.*.src_ptr, state);
+      tok_idx = (tok_idx + i32(1));
     };
-
-    // Compute remaining text range for this token
-    (tok : InlineToken) = state.*.tokens(usize(tok_idx));
-    (is_delimiter_text : bool) = false;
-    (opener_consumed : i32) = i32(0);
-    (closer_consumed : i32) = i32(0);
-
-    // Sum consumption from all pairs at this token
-    (pi : i32) = i32(0);
-    while (pi < pair_count), {
-      (p : _Pair) = pairs(usize(pi));
-      if((p.opener_tok == tok_idx), {
-        opener_consumed = (opener_consumed + p.consume);
-        is_delimiter_text = true;
-      });
-      if((p.closer_tok == tok_idx), {
-        closer_consumed = (closer_consumed + p.consume);
-        is_delimiter_text = true;
-      });
-      pi = (pi + i32(1));
-    };
-
-    if(is_delimiter_text, {
-      // Emit remaining text (marker chars not consumed by pairs)
-      (new_start : i32) = (tok.start + closer_consumed);
-      (new_end : i32) = (tok.end - opener_consumed);
-      if((new_end > new_start), {
-        if(has_sq, {
-          _emit_text_with_sq(renderer, new_start, new_end, (&sq_replaces));
-        }, {
-          renderer.*.text(new_start, new_end);
+  }, {
+    // Slow path: handle pairs and smartquotes
+    while (tok_idx < tok_count), {
+      // Collect pairs where this token is a closer (emit close tags first)
+      // Close tags go in forward pair order (inner → outer)
+      (ci : i32) = i32(0);
+      while (ci < pair_count), {
+        (p : _Pair) = pairs(usize(ci));
+        if((p.closer_tok == tok_idx), {
+          _emit_close_tag(renderer, p.pair_type);
         });
-      });
-    }, {
-      // For Text tokens with smartquotes, use replacement-aware emission
-      if((has_sq && (i32(tok.type_name) == i32(InlineType.Text))), {
-        if((tok.end > tok.start), {
-          _emit_text_with_sq(renderer, tok.start, tok.end, (&sq_replaces));
+        ci = (ci + i32(1));
+      };
+
+      // Compute remaining text range for this token
+      (tok : InlineToken) = state.*.tokens(usize(tok_idx));
+      (is_delimiter_text : bool) = false;
+      (opener_consumed : i32) = i32(0);
+      (closer_consumed : i32) = i32(0);
+
+      // Sum consumption from all pairs at this token
+      (pi : i32) = i32(0);
+      while (pi < pair_count), {
+        (p : _Pair) = pairs(usize(pi));
+        if((p.opener_tok == tok_idx), {
+          opener_consumed = (opener_consumed + p.consume);
+          is_delimiter_text = true;
+        });
+        if((p.closer_tok == tok_idx), {
+          closer_consumed = (closer_consumed + p.consume);
+          is_delimiter_text = true;
+        });
+        pi = (pi + i32(1));
+      };
+
+      if(is_delimiter_text, {
+        // Emit remaining text (marker chars not consumed by pairs)
+        (new_start : i32) = (tok.start + closer_consumed);
+        (new_end : i32) = (tok.end - opener_consumed);
+        if((new_end > new_start), {
+          if(has_sq, {
+            _emit_text_with_sq(renderer, new_start, new_end, (&sq_replaces));
+          }, {
+            renderer.*.text(new_start, new_end);
+          });
         });
       }, {
-        // Normal token — dispatch by type
-        _emit_inline_token(renderer, (&tok), state.*.src_ptr, state);
+        // For Text tokens with smartquotes, use replacement-aware emission
+        if((has_sq && (i32(tok.type_name) == i32(InlineType.Text))), {
+          if((tok.end > tok.start), {
+            _emit_text_with_sq(renderer, tok.start, tok.end, (&sq_replaces));
+          });
+        }, {
+          // Normal token — dispatch by type
+          _emit_inline_token(renderer, (&tok), state.*.src_ptr, state);
+        });
       });
-    });
 
-    // Collect pairs where this token is an opener (emit open tags after text)
-    // Open tags go in reverse pair order (outer → inner)
-    (oi : i32) = (pair_count - i32(1));
-    while (oi >= i32(0)), {
-      (p : _Pair) = pairs(usize(oi));
-      if((p.opener_tok == tok_idx), {
-        _emit_open_tag(renderer, p.pair_type);
-      });
-      oi = (oi - i32(1));
+      // Collect pairs where this token is an opener (emit open tags after text)
+      // Open tags go in reverse pair order (outer → inner)
+      (oi : i32) = (pair_count - i32(1));
+      while (oi >= i32(0)), {
+        (p : _Pair) = pairs(usize(oi));
+        if((p.opener_tok == tok_idx), {
+          _emit_open_tag(renderer, p.pair_type);
+        });
+        oi = (oi - i32(1));
+      };
+
+      tok_idx = (tok_idx + i32(1));
     };
-
-    tok_idx = (tok_idx + i32(1));
-  };
+  });
 
   // Restore renderer's original source pointer
   renderer.*.src_ptr = saved_src_ptr;

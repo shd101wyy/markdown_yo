@@ -40,6 +40,7 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
     (seg_start : i32) = pos;
     (found_pipe : bool) = false;
 
+    (has_special : bool) = false;
     while ((pos < em) && !(found_pipe)), {
       (ch : i32) = i32((src &+ usize(pos)).*);
       if((ch == i32(0x7C)), {
@@ -58,6 +59,10 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
           });
           seg_start = pos;
         });
+      });
+      // Track inline-special chars during parsing to avoid second scan
+      if((!(has_special) && _is_inline_special(u8(ch))), {
+        has_special = true;
       });
       is_escaped = (ch == i32(0x5C));
       if(!(found_pipe), {
@@ -101,16 +106,6 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
       (cb_ptr : *(u8)) = cell_buf.*.ptr().unwrap();
       (cell_ptr : *(u8)) = (cb_ptr &+ cb_start);
       (cell_len_i32 : i32) = i32(cell_len);
-
-      // Fast path: if cell has no inline-special chars, emit escaped text directly
-      (has_special : bool) = false;
-      (si : usize) = usize(0);
-      while (((si < cell_len) && !(has_special))), {
-        if(_is_inline_special((cell_ptr &+ si).*), {
-          has_special = true;
-        });
-        si = (si + usize(1));
-      };
 
       if(has_special, {
         inline_parse_range((&state.*._inline_state), cell_ptr, i32(0), cell_len_i32);
@@ -175,6 +170,7 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
 
   // Parse separator line to extract alignment
   (aligns : ArrayList(TableAlign)) = ArrayList(TableAlign).new();
+  (sep_col_count : i32) = i32(0);
   (valid_sep : bool) = true;
 
   // Skip leading pipe
@@ -233,23 +229,26 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
 
         // Record alignment
         if(valid_sep, {
-          (align : TableAlign) = cond(
-            (left_colon && right_colon) => .Center,
-            right_colon => .Right,
-            left_colon => .Left,
-            true => .None
-          );
-          _ := aligns.push(align);
+          sep_col_count = (sep_col_count + i32(1));
+          if(!(silent), {
+            (align : TableAlign) = cond(
+              (left_colon && right_colon) => .Center,
+              right_colon => .Right,
+              left_colon => .Left,
+              true => .None
+            );
+            _ := aligns.push(align);
+          });
         });
       });
     });
   };
 
-  if((!(valid_sep) || (aligns.len() == usize(0))), { return false; });
+  if((!(valid_sep) || (sep_col_count == i32(0))), { return false; });
 
   // Count header columns — must match separator column count
   // Uses same logic as escapedSplit: only tracks \| escapes, no backticks
-  (col_count : i32) = i32(aligns.len());
+  (col_count : i32) = sep_col_count;
   (header_cols : i32) = i32(0);
   {
     (hp : i32) = pos;
