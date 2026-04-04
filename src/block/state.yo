@@ -6,6 +6,7 @@
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
 { HashMap } :: import "std/collections/hash_map";
+{ memchr } :: import "std/libc/string";
 { Options, ParentType, Reference, Env } :: import "../types.yo";
 { HtmlRenderer } :: import "../renderer.yo";
 { InlineState } :: import "../inline/state.yo";
@@ -217,65 +218,70 @@ impl(BlockState,
       .None => *(u8)("")
     );
 
-    // Single-pass: precompute line markers AND check if normalization needed
+    // Fast check: does input need normalization? (\r or \0 present)
+    // Use memchr for SIMD-accelerated scan of entire input
+    (needs_normalize : bool) = false;
+    match(memchr(*(void)(src_p), int(0x0D), usize(len)),
+      .Some(_) => { needs_normalize = true; },
+      .None => ()
+    );
+    if(!(needs_normalize), {
+      match(memchr(*(void)(src_p), int(0x00), usize(len)),
+        .Some(_) => { needs_normalize = true; },
+        .None => ()
+      );
+    });
+    if(needs_normalize, {
+      (norm_src : String) = _normalize_source(src_p, len);
+      return _build_block_state_from_normalized(norm_src, env, renderer, options);
+    });
+
+    // Line scanning: precompute line markers
     (pos : i32) = i32(0);
     (indent : i32) = i32(0);
     (offset : i32) = i32(0);
     (line_start : i32) = i32(0);
     (indent_found : bool) = false;
-    (needs_normalize : bool) = false;
     (line_has_pipe : bool) = false;
 
     while (pos < len), {
       (ch : u8) = (src_p &+ usize(pos)).*;
 
-      cond(
-        (ch == u8(0x0A)) => {
-          _ := b_marks.push(line_start);
-          _ := e_marks.push(pos);
-          if(!(indent_found), {
-            _ := t_shift.push((pos - line_start));
-            _ := s_count.push(i32(0));
-          }, {
-            _ := t_shift.push(offset);
-            _ := s_count.push(indent);
-          });
-          _ := bs_count.push(i32(0));
-          _ := pipe_flags.push(cond(line_has_pipe => u8(1), true => u8(0)));
+      if((ch == u8(0x0A)), {
+        _ := b_marks.push(line_start);
+        _ := e_marks.push(pos);
+        if(!(indent_found), {
+          _ := t_shift.push((pos - line_start));
+          _ := s_count.push(i32(0));
+        }, {
+          _ := t_shift.push(offset);
+          _ := s_count.push(indent);
+        });
+        _ := bs_count.push(i32(0));
+        _ := pipe_flags.push(cond(line_has_pipe => u8(1), true => u8(0)));
 
-          line_start = (pos + i32(1));
-          indent = i32(0);
-          offset = i32(0);
-          indent_found = false;
-          line_has_pipe = false;
-          pos = (pos + i32(1));
-        },
-
-        ((ch == u8(0x0D)) || (ch == u8(0x00))) => {
-          needs_normalize = true;
-          pos = (pos + i32(1));
-        },
-
-        true => {
-          if(!(indent_found), {
-            cond(
-              (ch == u8(0x20)) => {
-                indent = (indent + i32(1));
-                offset = (offset + i32(1));
-              },
-              (ch == u8(0x09)) => {
-                indent = (indent + (i32(4) - (indent % i32(4))));
-                offset = (offset + i32(1));
-              },
-              true => {
-                indent_found = true;
-              }
-            );
-          });
-          if((ch == u8(0x7C)), { line_has_pipe = true; });
-          pos = (pos + i32(1));
-        }
-      );
+        line_start = (pos + i32(1));
+        indent = i32(0);
+        offset = i32(0);
+        indent_found = false;
+        line_has_pipe = false;
+      }, {
+        if(!(indent_found), {
+          cond(
+            (ch == u8(0x20)) => {
+              indent = (indent + i32(1));
+              offset = (offset + i32(1));
+            },
+            (ch == u8(0x09)) => {
+              indent = (indent + (i32(4) - (indent % i32(4))));
+              offset = (offset + i32(1));
+            },
+            true => { indent_found = true; }
+          );
+        });
+        if((ch == u8(0x7C)), { line_has_pipe = true; });
+      });
+      pos = (pos + i32(1));
     };
 
     // Handle last line
@@ -290,12 +296,6 @@ impl(BlockState,
     });
     _ := bs_count.push(i32(0));
     _ := pipe_flags.push(cond(line_has_pipe => u8(1), true => u8(0)));
-
-    // If normalization needed, normalize and rebuild line markers
-    if(needs_normalize, {
-      (norm_src : String) = _normalize_source(src_p, len);
-      return _build_block_state_from_normalized(norm_src, env, renderer, options);
-    });
 
     (line_count : i32) = (i32(b_marks.len()) - i32(1));
 
