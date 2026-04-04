@@ -102,6 +102,9 @@ InlineState :: struct(
   link_markers : ArrayList(LinkMarker),
   resolved_pairs : ArrayList(EmphasisPair),
 
+  // Reusable render-phase buffer for delimiter pair resolution
+  _render_pairs : ArrayList(EmphasisPair),
+
   // Side storage for token strings (content/href/title)
   // Tokens reference these by index (content_idx/href_idx/title_idx)
   token_strings : ArrayList(String),
@@ -134,6 +137,7 @@ impl(InlineState,
       link_level: i32(0),
       link_markers: ArrayList(LinkMarker).with_capacity(usize(8)),
       resolved_pairs: ArrayList(EmphasisPair).with_capacity(usize(8)),
+      _render_pairs: ArrayList(EmphasisPair).with_capacity(usize(8)),
       token_strings: ArrayList(String).with_capacity(usize(4)),
       env: env,
       renderer: renderer,
