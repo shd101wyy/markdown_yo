@@ -16,12 +16,19 @@ BlockState :: struct(
   src_ptr : *(u8),         // raw pointer for fast byte access
   src_len : i32,           // total byte length
 
-  // Line markers (precomputed)
+  // Line markers (precomputed) — ArrayLists own the memory
   b_marks : ArrayList(i32),   // byte position of line start
   e_marks : ArrayList(i32),   // byte position of line end (before newline)
   t_shift : ArrayList(i32),   // first non-space offset from b_marks
   s_count : ArrayList(i32),   // indentation (spaces, tabs expanded to 4)
   bs_count : ArrayList(i32),  // blockquote compensation
+
+  // Cached raw pointers for unchecked O(1) access (set after line scan)
+  _bm : *(i32),
+  _em : *(i32),
+  _ts : *(i32),
+  _sc : *(i32),
+  _bs : *(i32),
 
   line : i32,                 // current line being parsed
   line_max : i32,             // total number of lines
@@ -162,6 +169,9 @@ _build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(
     src: src, src_ptr: src_p, src_len: len,
     b_marks: b_marks, e_marks: e_marks, t_shift: t_shift,
     s_count: s_count, bs_count: bs_count,
+    _bm: b_marks._ptr.unwrap(), _em: e_marks._ptr.unwrap(),
+    _ts: t_shift._ptr.unwrap(), _sc: s_count._ptr.unwrap(),
+    _bs: bs_count._ptr.unwrap(),
     line: i32(0), line_max: line_count,
     blk_indent: i32(0), tight: false,
     dd_indent: i32(-1), list_indent: i32(-1),
@@ -277,6 +287,9 @@ impl(BlockState,
       t_shift: t_shift,
       s_count: s_count,
       bs_count: bs_count,
+      _bm: b_marks._ptr.unwrap(), _em: e_marks._ptr.unwrap(),
+      _ts: t_shift._ptr.unwrap(), _sc: s_count._ptr.unwrap(),
+      _bs: bs_count._ptr.unwrap(),
       line: i32(0),
       line_max: line_count,
       blk_indent: i32(0),
@@ -292,11 +305,34 @@ impl(BlockState,
     )
   }),
 
+  // Unchecked line marker accessors — raw pointer offset, no bounds/NULL check
+  bm : (fn(self: *(Self), line: i32) -> i32)((self.*._bm &+ usize(line)).*),
+  em : (fn(self: *(Self), line: i32) -> i32)((self.*._em &+ usize(line)).*),
+  ts : (fn(self: *(Self), line: i32) -> i32)((self.*._ts &+ usize(line)).*),
+  sc : (fn(self: *(Self), line: i32) -> i32)((self.*._sc &+ usize(line)).*),
+  bs : (fn(self: *(Self), line: i32) -> i32)((self.*._bs &+ usize(line)).*),
+
+  set_bm : (fn(self: *(Self), line: i32, val: i32) -> unit)({
+    (self.*._bm &+ usize(line)).* = val;
+  }),
+  set_em : (fn(self: *(Self), line: i32, val: i32) -> unit)({
+    (self.*._em &+ usize(line)).* = val;
+  }),
+  set_ts : (fn(self: *(Self), line: i32, val: i32) -> unit)({
+    (self.*._ts &+ usize(line)).* = val;
+  }),
+  set_sc : (fn(self: *(Self), line: i32, val: i32) -> unit)({
+    (self.*._sc &+ usize(line)).* = val;
+  }),
+  set_bs : (fn(self: *(Self), line: i32, val: i32) -> unit)({
+    (self.*._bs &+ usize(line)).* = val;
+  }),
+
   // Check if a line is empty (only whitespace)
   is_empty : (fn(self: *(Self), line: i32) -> bool)({
-    (bm : i32) = self.*.b_marks(usize(line));
-    (ts : i32) = self.*.t_shift(usize(line));
-    ((bm + ts) >= self.*.e_marks(usize(line)))
+    (bm_v : i32) = self.bm(line);
+    (ts_v : i32) = self.ts(line);
+    ((bm_v + ts_v) >= self.em(line))
   }),
 
   // Skip whitespace from position `from` on line `line`, return new position

@@ -10,13 +10,13 @@ open import "std/string";
 { try_decode_entity } :: import "../common/unescape.yo";
 
 block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
-  (bm : i32) = state.*.b_marks(usize(start_line));
-  (ts : i32) = state.*.t_shift(usize(start_line));
-  (em : i32) = state.*.e_marks(usize(start_line));
+  (bm : i32) = state.bm(start_line);
+  (ts : i32) = state.ts(start_line);
+  (em : i32) = state.em(start_line);
   (pos : i32) = (bm + ts);
 
   // Must not be indented >3 spaces
-  if(((state.*.s_count(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return false; });
+  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return false; });
 
   if((pos >= em), { return false; });
 
@@ -91,7 +91,7 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   if(silent, { return true; });
 
   // Save fence indent for content stripping (getLines logic)
-  (fence_indent : i32) = state.*.s_count(usize(start_line));
+  (fence_indent : i32) = state.sc(start_line);
 
   // Find closing fence
   (next_line : i32) = (start_line + i32(1));
@@ -99,18 +99,18 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   (broke_outdented : bool) = false;
 
   while (((next_line < end_line) && !(found_close)) && !(broke_outdented)), {
-    (nbm : i32) = state.*.b_marks(usize(next_line));
-    (nts : i32) = state.*.t_shift(usize(next_line));
-    (nem : i32) = state.*.e_marks(usize(next_line));
+    (nbm : i32) = state.bm(next_line);
+    (nts : i32) = state.ts(next_line);
+    (nem : i32) = state.em(next_line);
     (npos : i32) = (nbm + nts);
 
     // Non-empty outdented line: stop looking for closing fence
     // (sCount < blkIndent includes lazy continuation lines with sCount = -1)
-    if(((npos < nem) && (state.*.s_count(usize(next_line)) < state.*.blk_indent)), {
+    if(((npos < nem) && (state.sc(next_line) < state.*.blk_indent)), {
       broke_outdented = true;
     }, {
       // Closing fence: same marker, >= count, nothing else
-      if(((state.*.s_count(usize(next_line)) - state.*.blk_indent) < i32(4)), {
+      if(((state.sc(next_line) - state.*.blk_indent) < i32(4)), {
         if((npos < nem), {
           (nch : u8) = (state.*.src_ptr &+ usize(npos)).*;
           if((nch == marker), {
@@ -160,17 +160,17 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   // Emit content with indent stripping (markdown-it getLines logic)
   (cl : i32) = content_first_line;
   while (cl < content_last_line), {
-    (line_start : i32) = state.*.b_marks(usize(cl));
-    (line_end : i32) = state.*.e_marks(usize(cl));
+    (line_start : i32) = state.bm(cl);
+    (line_end : i32) = state.em(cl);
 
     // Strip up to fence_indent columns (tab-aware, tShift-aware)
     (first : i32) = line_start;
     (col : i32) = i32(0);
-    (line_tshift : i32) = state.*.t_shift(usize(cl));
+    (line_tshift : i32) = state.ts(cl);
     while ((first < line_end) && (col < fence_indent)), {
       (ch : u8) = (state.*.src_ptr &+ usize(first)).*;
       if((ch == u8(0x09)), {
-        col = (col + (i32(4) - ((col + state.*.bs_count(usize(cl))) % i32(4))));
+        col = (col + (i32(4) - ((col + state.bs(cl)) % i32(4))));
         first = (first + i32(1));
       }, if((ch == u8(0x20)), {
         col = (col + i32(1));
@@ -197,7 +197,7 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
 
     // Emit escaped content + newline (only if source has a newline at this position)
     r.*.escaped(first, line_end);
-    if((state.*.e_marks(usize(cl)) < state.*.src_len), {
+    if((state.em(cl) < state.*.src_len), {
       r.*.byte(u8(0x0A));
     });
 

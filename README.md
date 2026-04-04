@@ -1,6 +1,6 @@
 # markdown_yo
 
-A high-performance markdown-to-HTML converter written in [Yo](https://github.com/shd101wyy/yo-lang).
+A high-performance markdown-to-HTML converter written in [Yo](https://github.com/shd101wyy/Yo).
 
 Inspired by [markdown-it](https://github.com/markdown-it/markdown-it) (parsing rules & test fixtures), [md4c](https://github.com/mity/md4c) (performance-focused C design), and [markdown-wasm](https://github.com/shd101wyy/markdown-wasm) (WASM compilation target).
 

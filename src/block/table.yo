@@ -18,9 +18,9 @@ open import "std/string";
 // Parse cells from a table row line and emit td/th tags.
 // Matches markdown-it's escapedSplit: \| strips the backslash but keeps the pipe in the cell.
 _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayList(TableAlign)), is_header: bool, cell_buf: *(ArrayList(u8))) -> unit)({
-  (bm : i32) = state.*.b_marks(usize(line));
-  (ts : i32) = state.*.t_shift(usize(line));
-  (em : i32) = state.*.e_marks(usize(line));
+  (bm : i32) = state.bm(line);
+  (ts : i32) = state.ts(line);
+  (em : i32) = state.em(line);
   (pos : i32) = (bm + ts);
   (col_count : i32) = i32(aligns.*.len());
   (src : *(u8)) = state.*.src_ptr;
@@ -129,12 +129,12 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   if(((start_line + i32(1)) >= end_line), { return false; });
 
   // Must not be indented >3 spaces
-  if(((state.*.s_count(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return false; });
+  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return false; });
 
   // First line must contain a pipe
-  (bm : i32) = state.*.b_marks(usize(start_line));
-  (ts : i32) = state.*.t_shift(usize(start_line));
-  (em : i32) = state.*.e_marks(usize(start_line));
+  (bm : i32) = state.bm(start_line);
+  (ts : i32) = state.ts(start_line);
+  (em : i32) = state.em(start_line);
   (pos : i32) = (bm + ts);
 
   (has_pipe : bool) = false;
@@ -150,12 +150,12 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
 
   // Second line is separator: must contain only |, -, :, spaces
   (sep_line : i32) = (start_line + i32(1));
-  (sep_bm : i32) = state.*.b_marks(usize(sep_line));
-  (sep_ts : i32) = state.*.t_shift(usize(sep_line));
-  (sep_em : i32) = state.*.e_marks(usize(sep_line));
+  (sep_bm : i32) = state.bm(sep_line);
+  (sep_ts : i32) = state.ts(sep_line);
+  (sep_em : i32) = state.em(sep_line);
   (sep_pos : i32) = (sep_bm + sep_ts);
 
-  if(((state.*.s_count(usize(sep_line)) - state.*.blk_indent) >= i32(4)), { return false; });
+  if(((state.sc(sep_line) - state.*.blk_indent) >= i32(4)), { return false; });
 
   // Check first two chars of separator line for list ambiguity
   // If first char is '-' and second char is space, reject (list takes precedence)
@@ -307,13 +307,13 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   (has_body : bool) = false;
   (table_done : bool) = false;
 
-  while ((((row_line < end_line) && !(state.*.is_empty(row_line))) && (state.*.s_count(usize(row_line)) >= state.*.blk_indent)) && !(table_done)), {
-    if(((state.*.s_count(usize(row_line)) - state.*.blk_indent) >= i32(4)), {
+  while ((((row_line < end_line) && !(state.*.is_empty(row_line))) && (state.sc(row_line) >= state.*.blk_indent)) && !(table_done)), {
+    if(((state.sc(row_line) - state.*.blk_indent) >= i32(4)), {
       // 4+ space indent: stop table, let main parser handle as code block
       table_done = true;
     }, {
       // Short-circuit: if line starts with |, it can't be a fence/heading/hr/etc.
-      (row_first_ch : i32) = i32((state.*.src_ptr &+ usize((state.*.b_marks(usize(row_line)) + state.*.t_shift(usize(row_line))))).*);
+      (row_first_ch : i32) = i32((state.*.src_ptr &+ usize((state.bm(row_line) + state.ts(row_line)))).*);
       (is_terminator : bool) = cond(
         (row_first_ch == i32(0x7C)) => false,
         true => ((((((block_fence(state, row_line, end_line, true)

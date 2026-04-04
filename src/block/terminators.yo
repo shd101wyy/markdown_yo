@@ -40,9 +40,9 @@ _try_block_terminate :: (fn(state: *(BlockState), line: i32, end_line: i32) -> b
   });
 
   // Fast reject: check if first non-space char could start any non-table block rule
-  (bm : i32) = state.*.b_marks(usize(line));
-  (ts : i32) = state.*.t_shift(usize(line));
-  (em : i32) = state.*.e_marks(usize(line));
+  (bm : i32) = state.bm(line);
+  (ts : i32) = state.ts(line);
+  (em : i32) = state.em(line);
   (first_pos : i32) = (bm + ts);
   if((first_pos >= em), { return false; });
   (first_ch : i32) = i32((state.*.src_ptr &+ usize(first_pos)).*);
@@ -74,9 +74,9 @@ _try_block_terminate :: (fn(state: *(BlockState), line: i32, end_line: i32) -> b
 // fence, blockquote, hr, html_block, heading
 _try_list_terminate :: (fn(state: *(BlockState), line: i32, end_line: i32) -> bool)({
   // Fast reject: check if first non-space char could start any block rule
-  (bm : i32) = state.*.b_marks(usize(line));
-  (ts : i32) = state.*.t_shift(usize(line));
-  (em : i32) = state.*.e_marks(usize(line));
+  (bm : i32) = state.bm(line);
+  (ts : i32) = state.ts(line);
+  (em : i32) = state.em(line);
   (first_pos : i32) = (bm + ts);
   if((first_pos >= em), { return false; });
   (first_ch : i32) = i32((state.*.src_ptr &+ usize(first_pos)).*);

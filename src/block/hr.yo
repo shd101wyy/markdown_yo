@@ -6,13 +6,13 @@
 { is_space } :: import "../common/utils.yo";
 
 block_hr :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
-  (bm : i32) = state.*.b_marks(usize(start_line));
-  (ts : i32) = state.*.t_shift(usize(start_line));
-  (em : i32) = state.*.e_marks(usize(start_line));
+  (bm : i32) = state.bm(start_line);
+  (ts : i32) = state.ts(start_line);
+  (em : i32) = state.em(start_line);
   (pos : i32) = (bm + ts);
 
   // Must not be indented >3 spaces
-  if(((state.*.s_count(usize(start_line)) - state.*.blk_indent) >= i32(4)), { return false; });
+  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return false; });
 
   if((pos >= em), { return false; });
 

@@ -52,7 +52,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
 
     // Termination condition for nested calls (blockquote, list items):
     if(!(tokenize_done), {
-      if((state.*.s_count(usize(line)) < state.*.blk_indent), {
+      if((state.sc(line) < state.*.blk_indent), {
         tokenize_done = true;
       });
     });
@@ -100,22 +100,10 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               bq_save_ts.clear();
               bq_save_sc.clear();
               bq_save_bs.clear();
-              match(state.*.b_marks.ptr(),
-                .Some(p) => bq_save_bm.extend_from_ptr((p &+ usize(line)), bq_range),
-                .None => ()
-              );
-              match(state.*.t_shift.ptr(),
-                .Some(p) => bq_save_ts.extend_from_ptr((p &+ usize(line)), bq_range),
-                .None => ()
-              );
-              match(state.*.s_count.ptr(),
-                .Some(p) => bq_save_sc.extend_from_ptr((p &+ usize(line)), bq_range),
-                .None => ()
-              );
-              match(state.*.bs_count.ptr(),
-                .Some(p) => bq_save_bs.extend_from_ptr((p &+ usize(line)), bq_range),
-                .None => ()
-              );
+              bq_save_bm.extend_from_ptr((state.*._bm &+ usize(line)), bq_range);
+              bq_save_ts.extend_from_ptr((state.*._ts &+ usize(line)), bq_range);
+              bq_save_sc.extend_from_ptr((state.*._sc &+ usize(line)), bq_range);
+              bq_save_bs.extend_from_ptr((state.*._bs &+ usize(line)), bq_range);
 
               // Now call non-silent — modifies state arrays, returns bq_end
               (bq_end : i32) = block_blockquote(state, line, end_line, false);
@@ -146,40 +134,28 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
 
               // Restore state arrays [line, bq_save_end) — only the blockquote range
               (bq_restore_bytes : usize) = (bq_range * sizeof(i32));
-              match(state.*.b_marks.ptr(),
-                .Some(dst) => match(bq_save_bm.ptr(),
-                  .Some(src) => {
-                    _ := memmove(*(void)((dst &+ usize(line))), *(void)(src), bq_restore_bytes);
-                  },
-                  .None => ()
-                ),
+              match(bq_save_bm.ptr(),
+                .Some(src) => {
+                  _ := memmove(*(void)((state.*._bm &+ usize(line))), *(void)(src), bq_restore_bytes);
+                },
                 .None => ()
               );
-              match(state.*.t_shift.ptr(),
-                .Some(dst) => match(bq_save_ts.ptr(),
-                  .Some(src) => {
-                    _ := memmove(*(void)((dst &+ usize(line))), *(void)(src), bq_restore_bytes);
-                  },
-                  .None => ()
-                ),
+              match(bq_save_ts.ptr(),
+                .Some(src) => {
+                  _ := memmove(*(void)((state.*._ts &+ usize(line))), *(void)(src), bq_restore_bytes);
+                },
                 .None => ()
               );
-              match(state.*.s_count.ptr(),
-                .Some(dst) => match(bq_save_sc.ptr(),
-                  .Some(src) => {
-                    _ := memmove(*(void)((dst &+ usize(line))), *(void)(src), bq_restore_bytes);
-                  },
-                  .None => ()
-                ),
+              match(bq_save_sc.ptr(),
+                .Some(src) => {
+                  _ := memmove(*(void)((state.*._sc &+ usize(line))), *(void)(src), bq_restore_bytes);
+                },
                 .None => ()
               );
-              match(state.*.bs_count.ptr(),
-                .Some(dst) => match(bq_save_bs.ptr(),
-                  .Some(src) => {
-                    _ := memmove(*(void)((dst &+ usize(line))), *(void)(src), bq_restore_bytes);
-                  },
-                  .None => ()
-                ),
+              match(bq_save_bs.ptr(),
+                .Some(src) => {
+                  _ := memmove(*(void)((state.*._bs &+ usize(line))), *(void)(src), bq_restore_bytes);
+                },
                 .None => ()
               );
 
@@ -205,7 +181,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
 
               if((list_pam >= i32(0)), {
                 list_is_ordered = true;
-                (s : i32) = (state.*.b_marks(usize(list_next)) + state.*.t_shift(usize(list_next)));
+                (s : i32) = (state.bm(list_next) + state.ts(list_next));
                 list_marker_value = parse_list_number(state.*.src_ptr, s, (list_pam - i32(1)));
               }, {
                 list_pam = skip_bullet_list_marker(state, list_next);
@@ -234,9 +210,9 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               (list_done : bool) = false;
               while ((list_next < end_line) && !(list_done)), {
                 (item_pos : i32) = list_pam;
-                (item_max : i32) = state.*.e_marks(usize(list_next));
+                (item_max : i32) = state.em(list_next);
 
-                (item_initial : i32) = ((state.*.s_count(usize(list_next)) + list_pam) - (state.*.b_marks(usize(list_next)) + state.*.t_shift(usize(list_next))));
+                (item_initial : i32) = ((state.sc(list_next) + list_pam) - (state.bm(list_next) + state.ts(list_next)));
                 (item_offset : i32) = item_initial;
 
                 // Calculate indent after marker (skip spaces/tabs)
@@ -244,7 +220,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                 while ((item_pos < item_max) && item_indent_scanning), {
                   (ch : i32) = i32((state.*.src_ptr &+ usize(item_pos)).*);
                   if((ch == i32(0x09)), {
-                    item_offset = (item_offset + (i32(4) - ((item_offset + state.*.bs_count(usize(list_next))) % i32(4))));
+                    item_offset = (item_offset + (i32(4) - ((item_offset + state.bs(list_next)) % i32(4))));
                     item_pos = (item_pos + i32(1));
                   }, {
                     if((ch == i32(0x20)), {
@@ -273,15 +249,15 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
 
                 // Save state
                 (item_old_tight : bool) = state.*.tight;
-                (item_old_tshift : i32) = state.*.t_shift(usize(list_next));
-                (item_old_scount : i32) = state.*.s_count(usize(list_next));
+                (item_old_tshift : i32) = state.ts(list_next);
+                (item_old_scount : i32) = state.sc(list_next);
                 (item_old_list_indent : i32) = state.*.list_indent;
                 state.*.list_indent = state.*.blk_indent;
                 state.*.blk_indent = item_indent;
 
                 state.*.tight = true;
-                &(state.*.t_shift(usize(list_next))).* = (item_content_start - state.*.b_marks(usize(list_next)));
-                &(state.*.s_count(usize(list_next))).* = item_offset;
+                state.set_ts(list_next, (item_content_start - state.bm(list_next)));
+                state.set_sc(list_next, item_offset);
 
                 if(((item_content_start >= item_max) && state.*.is_empty((list_next + i32(1)))), {
                   // Empty item workaround
@@ -303,8 +279,8 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                 // Restore state
                 state.*.blk_indent = state.*.list_indent;
                 state.*.list_indent = item_old_list_indent;
-                &(state.*.t_shift(usize(list_next))).* = item_old_tshift;
-                &(state.*.s_count(usize(list_next))).* = item_old_scount;
+                state.set_ts(list_next, item_old_tshift);
+                state.set_sc(list_next, item_old_scount);
                 state.*.tight = item_old_tight;
 
                 // Close list item
@@ -315,13 +291,13 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                 if((list_next >= end_line), { list_done = true; });
 
                 if(!(list_done), {
-                  if((state.*.s_count(usize(list_next)) < state.*.blk_indent), {
+                  if((state.sc(list_next) < state.*.blk_indent), {
                     list_done = true;
                   });
                 });
 
                 if(!(list_done), {
-                  if(((state.*.s_count(usize(list_next)) - state.*.blk_indent) >= i32(4)), {
+                  if(((state.sc(list_next) - state.*.blk_indent) >= i32(4)), {
                     list_done = true;
                   });
                 });
@@ -429,10 +405,10 @@ _prescan_references :: (fn(state: *(BlockState)) -> unit)({
       line = (line + i32(1));
     }, {
       // Skip fenced code blocks: detect opening fence and skip to closing
-      (bm : i32) = state.*.b_marks(usize(line));
-      (ts : i32) = state.*.t_shift(usize(line));
-      (em : i32) = state.*.e_marks(usize(line));
-      (sc : i32) = state.*.s_count(usize(line));
+      (bm : i32) = state.bm(line);
+      (ts : i32) = state.ts(line);
+      (em : i32) = state.em(line);
+      (sc : i32) = state.sc(line);
       (fence_detected : bool) = false;
       if((sc < i32(4)), {
         (line_start : i32) = (bm + ts);
@@ -465,10 +441,10 @@ _prescan_references :: (fn(state: *(BlockState)) -> unit)({
                 // Skip to closing fence or end
                 line = (line + i32(1));
                 while (line < max), {
-                  (fbm : i32) = state.*.b_marks(usize(line));
-                  (fts : i32) = state.*.t_shift(usize(line));
-                  (fem : i32) = state.*.e_marks(usize(line));
-                  (fsc : i32) = state.*.s_count(usize(line));
+                  (fbm : i32) = state.bm(line);
+                  (fts : i32) = state.ts(line);
+                  (fem : i32) = state.em(line);
+                  (fsc : i32) = state.sc(line);
                   (fpos : i32) = (fbm + fts);
                   if((((fsc < i32(4)) && (fpos < fem)) && ((state.*.src_ptr &+ usize(fpos)).* == fence_char)), {
                     // Count closing fence chars

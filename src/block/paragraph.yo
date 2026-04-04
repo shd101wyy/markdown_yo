@@ -18,9 +18,9 @@ _build_inline_string :: (fn(state: *(BlockState), start_line: i32, end_line: i32
   (buf : ArrayList(u8)) = ArrayList(u8).new();
   (line : i32) = start_line;
   while (line < end_line), {
-    (bm : i32) = state.*.b_marks(usize(line));
-    (ts : i32) = state.*.t_shift(usize(line));
-    (em : i32) = state.*.e_marks(usize(line));
+    (bm : i32) = state.bm(line);
+    (ts : i32) = state.ts(line);
+    (em : i32) = state.em(line);
     (content_start : i32) = (bm + ts);
     (content_end : i32) = em;
 
@@ -52,11 +52,11 @@ block_paragraph :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
   (searching : bool) = true;
   while (((next_line < end_line) && !(state.*.is_empty(next_line))) && searching), {
     // Lazy continuation for deeply indented lines
-    if(((state.*.s_count(usize(next_line)) - state.*.blk_indent) > i32(3)), {
+    if(((state.sc(next_line) - state.*.blk_indent) > i32(3)), {
       next_line = (next_line + i32(1));
     }, {
       // Blockquote quirk
-      if((state.*.s_count(usize(next_line)) < i32(0)), {
+      if((state.sc(next_line) < i32(0)), {
         next_line = (next_line + i32(1));
       }, {
         // Check if any terminator rule matches
@@ -79,9 +79,9 @@ block_paragraph :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
 
   // Single-line paragraphs: zero-copy path using inline_parse_range directly
   if((next_line == (start_line + i32(1))), {
-    (bm : i32) = state.*.b_marks(usize(start_line));
-    (ts : i32) = state.*.t_shift(usize(start_line));
-    (em : i32) = state.*.e_marks(usize(start_line));
+    (bm : i32) = state.bm(start_line);
+    (ts : i32) = state.ts(start_line);
+    (em : i32) = state.em(start_line);
     (content_start : i32) = (bm + ts);
     // Trim trailing spaces
     (content_end : i32) = em;

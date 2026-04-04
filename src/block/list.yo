@@ -12,8 +12,8 @@ open import "std/string";
 
 // Search `[-+*][\n ]`, returns next pos after marker on success or -1.
 skip_bullet_list_marker :: (fn(state: *(BlockState), start_line: i32) -> i32)({
-  (max : i32) = state.*.e_marks(usize(start_line));
-  (pos : i32) = (state.*.b_marks(usize(start_line)) + state.*.t_shift(usize(start_line)));
+  (max : i32) = state.em(start_line);
+  (pos : i32) = (state.bm(start_line) + state.ts(start_line));
 
   if((pos >= max), { return i32(-1); });
   (marker : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
@@ -33,8 +33,8 @@ skip_bullet_list_marker :: (fn(state: *(BlockState), start_line: i32) -> i32)({
 
 // Search `\d+[.)][\n ]`, returns next pos after marker on success or -1.
 skip_ordered_list_marker :: (fn(state: *(BlockState), start_line: i32) -> i32)({
-  (start : i32) = (state.*.b_marks(usize(start_line)) + state.*.t_shift(usize(start_line)));
-  (max : i32) = state.*.e_marks(usize(start_line));
+  (start : i32) = (state.bm(start_line) + state.ts(start_line));
+  (max : i32) = state.em(start_line);
   (pos : i32) = start;
 
   if(((pos + i32(1)) >= max), { return i32(-1); });
@@ -89,20 +89,20 @@ block_list :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
   (next_line : i32) = start_line;
 
   // If indented more than 3 spaces, it should be a code block
-  if(((state.*.s_count(usize(next_line)) - state.*.blk_indent) >= i32(4)), {
+  if(((state.sc(next_line) - state.*.blk_indent) >= i32(4)), {
     return false;
   });
 
   // Special case: deeply nested list items that should be paragraph continuation
   if(((state.*.list_indent >= i32(0)) &&
-      (((state.*.s_count(usize(next_line)) - state.*.list_indent) >= i32(4)) &&
-       (state.*.s_count(usize(next_line)) < state.*.blk_indent))), {
+      (((state.sc(next_line) - state.*.list_indent) >= i32(4)) &&
+       (state.sc(next_line) < state.*.blk_indent))), {
     return false;
   });
 
   (is_terminating_paragraph : bool) = false;
   if((silent && (i32(state.*.parent_type) == i32(ParentType.Paragraph))), {
-    if((state.*.s_count(usize(next_line)) >= state.*.blk_indent), {
+    if((state.sc(next_line) >= state.*.blk_indent), {
       is_terminating_paragraph = true;
     });
   });
@@ -114,7 +114,7 @@ block_list :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
 
   if((pos_after_marker >= i32(0)), {
     is_ordered = true;
-    (s : i32) = (state.*.b_marks(usize(next_line)) + state.*.t_shift(usize(next_line)));
+    (s : i32) = (state.bm(next_line) + state.ts(next_line));
     marker_value = parse_list_number(state.*.src_ptr, s, (pos_after_marker - i32(1)));
 
     if((is_terminating_paragraph && (marker_value != i32(1))), { return false; });
@@ -125,7 +125,7 @@ block_list :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
 
   // If starting a new unordered list after a paragraph, first line should not be empty
   if(is_terminating_paragraph, {
-    if((state.*.skip_spaces(pos_after_marker) >= state.*.e_marks(usize(next_line))), {
+    if((state.*.skip_spaces(pos_after_marker) >= state.em(next_line)), {
       return false;
     });
   });
