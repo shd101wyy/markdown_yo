@@ -12,7 +12,7 @@ open import "std/string";
 { Delimiter, InlineType, EmphasisPair } :: import "../types.yo";
 { normalize_link, normalize_link_buf } :: import "../common/normalize_link.yo";
 { unescaped_slice, unescaped_slice_buf } :: import "../common/unescape.yo";
-{ is_white_space, is_punct_char, is_md_ascii_punct } :: import "../common/utils.yo";
+{ is_white_space, is_punct_char, is_md_ascii_punct, escape_html_buf } :: import "../common/utils.yo";
 
 
 // A resolved delimiter pair
@@ -482,7 +482,9 @@ _emit_inline_token :: (fn(renderer: *(HtmlRenderer), tok: *(InlineToken), src: *
     (t == i32(InlineType.Text)) => {
       // If content string index is set, use the stored string (e.g., normalized autolink text)
       if((tok.*.content_idx >= i32(0)), {
-        renderer.*.escaped_string(state.*.get_string(tok.*.content_idx));
+        (cp : *(u8)) = state.*.stored_ptr(tok.*.content_idx);
+        (cl : i32) = state.*.stored_len(tok.*.content_idx);
+        escape_html_buf((&renderer.*.buf), cp, i32(0), cl);
       }, {
         if((tok.*.end > tok.*.start), {
           renderer.*.text(tok.*.start, tok.*.end);
@@ -507,9 +509,10 @@ _emit_inline_token :: (fn(renderer: *(HtmlRenderer), tok: *(InlineToken), src: *
     (t == i32(InlineType.LinkOpen)) => {
       // Use reusable buffers to avoid per-link allocation
       if((tok.*.href_idx >= i32(0)), {
-        // Reference link: href stored as String
-        (href_s : String) = state.*.get_string(tok.*.href_idx);
-        normalize_link_buf(href_s.as_str().ptr(), i32(href_s.as_str().len()), (&state.*._link_buf2));
+        // Reference link: href stored as bytes
+        (hp : *(u8)) = state.*.stored_ptr(tok.*.href_idx);
+        (hl : i32) = state.*.stored_len(tok.*.href_idx);
+        normalize_link_buf(hp, hl, (&state.*._link_buf2));
       }, {
         // Inline link: unescape byte range, then normalize
         unescaped_slice_buf(src, tok.*.start, tok.*.end, (&state.*._link_buf1));
@@ -517,8 +520,9 @@ _emit_inline_token :: (fn(renderer: *(HtmlRenderer), tok: *(InlineToken), src: *
         normalize_link_buf(ub_ptr, i32(state.*._link_buf1.len()), (&state.*._link_buf2));
       });
       if((tok.*.title_idx >= i32(0)), {
-        (title_s : String) = state.*.get_string(tok.*.title_idx);
-        renderer.*.open_link_buf((&state.*._link_buf2), title_s);
+        (tp : *(u8)) = state.*.stored_ptr(tok.*.title_idx);
+        (tl : i32) = state.*.stored_len(tok.*.title_idx);
+        renderer.*.open_link_buf_raw((&state.*._link_buf2), tp, tl);
       }, {
         unescaped_slice_buf(src, tok.*.title_start, tok.*.title_end, (&state.*._link_buf1));
         renderer.*.open_link_raw((&state.*._link_buf2), (&state.*._link_buf1));
@@ -527,16 +531,18 @@ _emit_inline_token :: (fn(renderer: *(HtmlRenderer), tok: *(InlineToken), src: *
     (t == i32(InlineType.LinkClose)) => renderer.*.close_link(),
     (t == i32(InlineType.ImageOpen)) => {
       if((tok.*.href_idx >= i32(0)), {
-        (src_s : String) = state.*.get_string(tok.*.href_idx);
-        normalize_link_buf(src_s.as_str().ptr(), i32(src_s.as_str().len()), (&state.*._link_buf2));
+        (sp : *(u8)) = state.*.stored_ptr(tok.*.href_idx);
+        (sl : i32) = state.*.stored_len(tok.*.href_idx);
+        normalize_link_buf(sp, sl, (&state.*._link_buf2));
       }, {
         unescaped_slice_buf(src, tok.*.start, tok.*.end, (&state.*._link_buf1));
         (ub_ptr2 : *(u8)) = match(state.*._link_buf1.ptr(), .Some(p) => p, .None => *(u8)(""));
         normalize_link_buf(ub_ptr2, i32(state.*._link_buf1.len()), (&state.*._link_buf2));
       });
       if((tok.*.title_idx >= i32(0)), {
-        (title_s2 : String) = state.*.get_string(tok.*.title_idx);
-        renderer.*.open_image_buf((&state.*._link_buf2), title_s2);
+        (tp2 : *(u8)) = state.*.stored_ptr(tok.*.title_idx);
+        (tl2 : i32) = state.*.stored_len(tok.*.title_idx);
+        renderer.*.open_image_buf_raw((&state.*._link_buf2), tp2, tl2);
       }, {
         unescaped_slice_buf(src, tok.*.title_start, tok.*.title_end, (&state.*._link_buf1));
         renderer.*.open_image_raw((&state.*._link_buf2), (&state.*._link_buf1));

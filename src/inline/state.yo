@@ -13,7 +13,7 @@ open import "std/string";
 { is_space } :: import "../common/utils.yo";
 
 // Lightweight inline token — pure value type, no RC fields
-// String content (entities, resolved URLs) stored separately in InlineState.token_strings
+// String content (entities, resolved URLs) stored separately in InlineState._str_buf
 InlineToken :: struct(
   type_name : InlineType,
   start : i32,          // byte offset in source
@@ -29,7 +29,7 @@ InlineToken :: struct(
   markup_len : u8,      // number of marker chars
   block : bool,
   hidden : bool,
-  // Indices into InlineState.token_strings (-1 = none)
+  // Indices into InlineState._str_buf (-1 = none)
   content_idx : i32,
   href_idx : i32,
   title_idx : i32
@@ -109,9 +109,12 @@ InlineState :: struct(
   _link_buf1 : ArrayList(u8),  // unescaped content
   _link_buf2 : ArrayList(u8),  // normalized link
 
-  // Side storage for token strings (content/href/title)
+  // Flat byte buffer for token strings (content/href/title)
   // Tokens reference these by index (content_idx/href_idx/title_idx)
-  token_strings : ArrayList(String),
+  // Bytes are concatenated; _str_offsets stores the start of each entry.
+  // This avoids String RC overhead during get operations.
+  _str_buf : ArrayList(u8),
+  _str_offsets : ArrayList(i32),
 
   env : *(Env),
   renderer : *(HtmlRenderer),
@@ -144,7 +147,8 @@ impl(InlineState,
       _render_pairs: ArrayList(EmphasisPair).with_capacity(usize(8)),
       _link_buf1: ArrayList(u8).with_capacity(usize(64)),
       _link_buf2: ArrayList(u8).with_capacity(usize(64)),
-      token_strings: ArrayList(String).with_capacity(usize(4)),
+      _str_buf: ArrayList(u8).with_capacity(usize(128)),
+      _str_offsets: ArrayList(i32).with_capacity(usize(8)),
       env: env,
       renderer: renderer,
       options: options,
@@ -152,17 +156,33 @@ impl(InlineState,
     )
   ),
 
-  // Store a string in token_strings and return its index
+  // Store a string's bytes in _str_buf and return its index
   store_string : (fn(self: *(Self), s: String) -> i32)({
-    (idx : i32) = i32(self.*.token_strings.len());
-    _ := self.*.token_strings.push(s);
+    (idx : i32) = i32(self.*._str_offsets.len());
+    (start : i32) = i32(self.*._str_buf.len());
+    _ := self.*._str_offsets.push(start);
+    (sstr : str) = s.as_str();
+    self.*._str_buf.extend_from_ptr(sstr.ptr(), sstr.len());
     idx
   }),
 
-  // Get a stored string by index (returns a copy)
-  get_string : (fn(self: *(Self), idx: i32) -> String)(
-    self.*.token_strings(usize(idx))
-  ),
+  // Get pointer to stored string bytes (zero-copy, no RC)
+  stored_ptr : (fn(self: *(Self), idx: i32) -> *(u8))({
+    (offset : i32) = self.*._str_offsets(usize(idx));
+    match(self.*._str_buf.ptr(),
+      .Some(p) => (p &+ usize(offset)),
+      .None => *(u8)("")
+    )
+  }),
+
+  // Get length of stored string bytes
+  stored_len : (fn(self: *(Self), idx: i32) -> i32)({
+    (start : i32) = self.*._str_offsets(usize(idx));
+    if(((idx + i32(1)) < i32(self.*._str_offsets.len())),
+      (self.*._str_offsets(usize((idx + i32(1)))) - start),
+      (i32(self.*._str_buf.len()) - start)
+    )
+  }),
 
   // Reset for range-based (zero-copy) parsing. Clears lists but keeps allocated capacity.
   reset_for_ptr : (fn(self: *(Self), ptr: *(u8), len: i32) -> unit)({
@@ -171,7 +191,8 @@ impl(InlineState,
     self.*.prev_delimiters.clear();
     self.*.link_markers.clear();
     self.*.resolved_pairs.clear();
-    self.*.token_strings.clear();
+    self.*._str_buf.clear();
+    self.*._str_offsets.clear();
     self.*.src = .None;
     self.*.src_ptr = ptr;
     self.*.pos = i32(0);
@@ -192,7 +213,8 @@ impl(InlineState,
     self.*.prev_delimiters.clear();
     self.*.link_markers.clear();
     self.*.resolved_pairs.clear();
-    self.*.token_strings.clear();
+    self.*._str_buf.clear();
+    self.*._str_offsets.clear();
     (bytes : ArrayList(u8)) = src.as_bytes();
     (len : i32) = i32(bytes.len());
     (src_p : *(u8)) = match(bytes.ptr(),

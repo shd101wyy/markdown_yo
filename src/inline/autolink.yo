@@ -199,7 +199,7 @@ inline_autolink :: (fn(state: *(InlineState)) -> bool)({
   // For display text: URI autolinks get normalize_link_text applied to decode percent-encoded chars
   // Email autolinks use raw source bytes (no mailto: prefix in display)
   if((is_uri && !(is_email)), {
-    (display_text : String) = normalize_link_text(state.*.get_string(href_idx).as_str());
+    (display_text : String) = normalize_link_text(str.from_raw_parts(state.*.stored_ptr(href_idx), usize(state.*.stored_len(href_idx))));
     (content_idx : i32) = state.*.store_string(display_text);
     (text_tok : InlineToken) = InlineToken(
       type_name: .Text,

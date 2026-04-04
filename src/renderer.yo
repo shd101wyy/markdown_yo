@@ -316,8 +316,8 @@ HtmlRenderer :: struct(
 
 impl(HtmlRenderer,
   new : (fn(options: *(Options), src_ptr: *(u8), src_len: i32) -> Self)({
-    // Pre-allocate ~1.5× source size
-    (cap : usize) = (usize(src_len) + (usize(src_len) / usize(2)));
+    // Pre-allocate ~2× source size (HTML expansion from tags)
+    (cap : usize) = (usize(src_len) * usize(2));
     Self(
       buf: ArrayList(u8).with_capacity(cap),
       img_nest: i32(0),
@@ -798,6 +798,18 @@ impl(HtmlRenderer,
     self.*.lit("\">");
   }),
 
+  // Buffer-based: href from buf, title from raw bytes (zero-RC)
+  open_link_buf_raw : (fn(self: *(Self), href_buf: *(ArrayList(u8)), title_ptr: *(u8), title_len: i32) -> unit)({
+    if((self.*.img_nest > i32(0)), { return (); });
+    self.*.lit("<a href=\"");
+    self.*.escaped_raw(href_buf);
+    if((title_len > i32(0)), {
+      self.*.lit("\" title=\"");
+      escape_html_buf((&self.*.buf), title_ptr, i32(0), title_len);
+    });
+    self.*.lit("\">");
+  }),
+
   // Buffer-based: href from buf, title from buf
   open_link_raw : (fn(self: *(Self), href_buf: *(ArrayList(u8)), title_buf: *(ArrayList(u8))) -> unit)({
     if((self.*.img_nest > i32(0)), { return (); });
@@ -833,6 +845,22 @@ impl(HtmlRenderer,
     self.*.escaped_raw(src_buf);
     self.*.lit("\" alt=\"");
     self.*.img_title = title;
+    self.*.img_nest = (self.*.img_nest + i32(1));
+  }),
+
+  // Buffer-based: src from buf, title from raw bytes (zero-RC)
+  open_image_buf_raw : (fn(self: *(Self), src_buf: *(ArrayList(u8)), title_ptr: *(u8), title_len: i32) -> unit)({
+    self.*.lit("<img src=\"");
+    self.*.escaped_raw(src_buf);
+    self.*.lit("\" alt=\"");
+    // Store title as String for close_image (images are rare, so allocation is fine)
+    if((title_len > i32(0)), {
+      (title_bytes : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(title_len));
+      title_bytes.extend_from_ptr(title_ptr, usize(title_len));
+      self.*.img_title = String.from_bytes(title_bytes);
+    }, {
+      self.*.img_title = ``;
+    });
     self.*.img_nest = (self.*.img_nest + i32(1));
   }),
 

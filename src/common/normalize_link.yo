@@ -362,7 +362,7 @@ normalize_link_buf :: (fn(url_ptr: *(u8), url_len: i32, out: *(ArrayList(u8))) -
   if((enc_len2 > i32(0)), {
     (enc_ptr : *(u8)) = match(out.*.ptr(),
       .Some(p) => p,
-      .None => { return (); }
+      .None => *(u8)("")
     );
     (auth_start2 : i32) = _find_domain(enc_ptr, enc_len2);
     if((auth_start2 >= i32(0)), {
