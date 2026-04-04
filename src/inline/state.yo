@@ -114,6 +114,7 @@ InlineState :: struct(
   _link_buf1 : ArrayList(u8),  // unescaped content
   _link_buf2 : ArrayList(u8),  // normalized link
   _validate_buf : ArrayList(u8),  // URL validation decoding
+  _entity_buf : ArrayList(u8),  // entity name decoding
 
   // Flat byte buffer for token strings (content/href/title)
   // Tokens reference these by index (content_idx/href_idx/title_idx)
@@ -154,6 +155,7 @@ impl(InlineState,
       _link_buf1: ArrayList(u8).with_capacity(usize(256)),
       _link_buf2: ArrayList(u8).with_capacity(usize(256)),
       _validate_buf: ArrayList(u8).with_capacity(usize(32)),
+      _entity_buf: ArrayList(u8).with_capacity(usize(8)),
       _str_buf: ArrayList(u8).with_capacity(usize(512)),
       _str_offsets: ArrayList(i32).with_capacity(usize(16)),
       env: env,

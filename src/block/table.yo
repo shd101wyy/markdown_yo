@@ -160,7 +160,6 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   if(((first_ch == i32(0x2D)) && is_space(second_ch)), { return false; });
 
   // Parse separator line to extract alignment
-  (aligns : ArrayList(TableAlign)) = ArrayList(TableAlign).new();
   (sep_col_count : i32) = i32(0);
   (valid_sep : bool) = true;
 
@@ -218,18 +217,9 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
           });
         });
 
-        // Record alignment
+        // Record column count
         if(valid_sep, {
           sep_col_count = (sep_col_count + i32(1));
-          if(!(silent), {
-            (align : TableAlign) = cond(
-              (left_colon && right_colon) => .Center,
-              right_colon => .Right,
-              left_colon => .Left,
-              true => .None
-            );
-            _ := aligns.push(align);
-          });
         });
       });
     });
@@ -276,6 +266,43 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   if((header_cols != col_count), { return false; });
 
   if(silent, { return true; });
+
+  // Non-silent: re-parse separator line to get alignment info
+  (aligns : ArrayList(TableAlign)) = ArrayList(TableAlign).new();
+  {
+    (rp : i32) = sep_pos;
+    if(((rp < sep_em) && (i32((state.*.src_ptr &+ usize(rp)).*) == i32(0x7C))), {
+      rp = (rp + i32(1));
+    });
+    (rp_done : bool) = false;
+    while (((rp < sep_em) && !(rp_done))), {
+      while ((rp < sep_em) && is_space(i32((state.*.src_ptr &+ usize(rp)).*))) , {
+        rp = (rp + i32(1));
+      };
+      if((rp >= sep_em), { rp_done = true; }, {
+        (lc : bool) = (i32((state.*.src_ptr &+ usize(rp)).*) == i32(0x3A));
+        if(lc, { rp = (rp + i32(1)); });
+        while ((rp < sep_em) && (i32((state.*.src_ptr &+ usize(rp)).*) == i32(0x2D))), {
+          rp = (rp + i32(1));
+        };
+        (rc : bool) = ((rp < sep_em) && (i32((state.*.src_ptr &+ usize(rp)).*) == i32(0x3A)));
+        if(rc, { rp = (rp + i32(1)); });
+        while ((rp < sep_em) && is_space(i32((state.*.src_ptr &+ usize(rp)).*))) , {
+          rp = (rp + i32(1));
+        };
+        if(((rp < sep_em) && (i32((state.*.src_ptr &+ usize(rp)).*) == i32(0x7C))), {
+          rp = (rp + i32(1));
+        });
+        (align : TableAlign) = cond(
+          (lc && rc) => .Center,
+          rc => .Right,
+          lc => .Left,
+          true => .None
+        );
+        _ := aligns.push(align);
+      });
+    };
+  };
 
   // Reusable cell buffer — shared across all rows to avoid per-row malloc
   (cell_buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(128));

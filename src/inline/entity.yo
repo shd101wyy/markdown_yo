@@ -101,9 +101,9 @@ inline_entity :: (fn(state: *(InlineState)) -> bool)({
       };
       if(((p < max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x3B))), {
         // Validate: check if entity name is known
-        (tmp_buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(8));
+        state.*._entity_buf.clear();
         (name_ptr : *(u8)) = (state.*.src_ptr &+ usize((pos + i32(1))));
-        if(decode_named_entity(name_ptr, name_len, (&tmp_buf)), {
+        if(decode_named_entity(name_ptr, name_len, (&state.*._entity_buf)), {
           state.*.push_pending();
           _ := state.*.tokens.push(InlineToken(
             type_name: .Entity,
