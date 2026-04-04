@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>markdown_yo — Live Demo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>markdown_yo</h1>
+    <span class="subtitle">Fast Markdown → HTML, powered by WebAssembly</span>
+    <div class="toolbar">
+      <label><input type="checkbox" id="opt-commonmark"> CommonMark</label>
+      <label><input type="checkbox" id="opt-html"> HTML tags</label>
+      <label><input type="checkbox" id="opt-typographer"> Typographer</label>
+      <span id="render-time" class="render-time"></span>
+    </div>
+  </header>
+  <main>
+    <div class="pane editor-pane">
+      <div class="pane-header">Markdown</div>
+      <textarea id="editor" spellcheck="false" autocomplete="off"></textarea>
+    </div>
+    <div class="pane preview-pane">
+      <div class="pane-header">Preview</div>
+      <div id="preview" class="preview-content"></div>
+    </div>
+  </main>
+  <div id="loading" class="loading">Loading WebAssembly…</div>
+  <script src="markdown_yo_demo.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

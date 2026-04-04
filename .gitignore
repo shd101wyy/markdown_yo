@@ -30,5 +30,10 @@ bench_*.md
 Thumbs.db
 
 markdown_yo*
+!markdown_yo/
 # Benchmark samples (generated)
 benchmark/samples/
+
+# WASM artifacts in demo/ (built, not committed)
+demo/markdown_yo_demo.js
+demo/markdown_yo_demo.wasm

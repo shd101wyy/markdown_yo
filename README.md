@@ -27,10 +27,19 @@ This is in contrast to [markdown_it_yo](https://github.com/shd101wyy/markdown_it
 
 ## Features
 
-- **98.8% CommonMark compatibility** — 671/679 fixture tests passing
+- **98.7% CommonMark compatibility** — 815/826 spec tests passing
 - **5-7× faster than markdown-it** (native), **2-6× faster** (WASM) at ≥1 MB
 - Compiles to native executables (macOS, Linux) and WebAssembly
 - Full support: CommonMark, tables, strikethrough, typographer, smartquotes, HTML blocks
+- [**Live Demo**](#live-demo) — try it in the browser via WebAssembly
+
+## Live Demo
+
+Try markdown_yo in the browser — no install needed:
+
+👉 **[Live Demo](https://shd101wyy.github.io/markdown_yo/)**
+
+The demo compiles markdown_yo to WebAssembly (383 KB) and renders markdown in real-time as you type. Options for CommonMark mode, HTML tags, and typographic replacements are available.
 
 ## Benchmarks
 
@@ -54,8 +63,12 @@ _WASM overhead at small sizes (64K, 256K) is dominated by Node.js WASM compilati
 # Build native executable
 yo build
 
-# Build WASM target
+# Build WASM target (Node.js CLI)
 yo build wasm
+
+# Build browser WASM demo
+yo build demo
+./scripts/build_demo.sh  # or manually: copy yo-out/wasm32-emscripten/bin/markdown_yo_demo.{js,wasm} to demo/
 ```
 
 ## Usage

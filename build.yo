@@ -17,6 +17,16 @@ wasm_exe :: build.executable({
 wasm_exe.add_import_list(imports);
 wasm_exe.add_c_flags("-O3 -flto -mbulk-memory -sNODERAWFS -sEXIT_RUNTIME=1 -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=67108864 -sWASM_BIGINT");
 
+demo_exe :: build.executable({
+  name: "markdown_yo_demo",
+  root: "./src/wasm_api.yo",
+  target: build.CompilationTarget.Wasm32_Emscripten,
+  optimize: build.Optimize.ReleaseSmall,
+  allocator: build.Allocator.Libc
+});
+demo_exe.add_import_list(imports);
+demo_exe.add_c_flags("-O3 -flto -mbulk-memory -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=16777216 -sWASM_BIGINT -sENVIRONMENT=web -sMODULARIZE=1 -sEXPORT_NAME=createMarkdownYo -sEXPORTED_FUNCTIONS=_main,_wasm_render,_wasm_result_len,_wasm_free,_malloc,_free -sEXPORTED_RUNTIME_METHODS=HEAPU8");
+
 lib :: build.static_library({ name: "markdown_yo-lib", root: "./src/lib.yo" });
 
 tests :: build.test({ name: "tests", root: "./tests/" });
@@ -29,6 +39,9 @@ install.depend_on(lib);
 
 wasm_step :: build.step("wasm", "Build WASM target");
 wasm_step.depend_on(wasm_exe);
+
+demo_step :: build.step("demo", "Build browser WASM demo");
+demo_step.depend_on(demo_exe);
 
 run_step :: build.step("run", "Run the application");
 run_step.depend_on(run_exe);
