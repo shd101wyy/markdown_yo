@@ -833,7 +833,13 @@ impl(HtmlRenderer,
   // Image: <img src="..." alt="..." title="...">
   // After open_image, inline content becomes alt text.
   // close_image finishes the tag.
+  // When img_nest > 0, we're inside another image's alt text — suppress the tag,
+  // but still increment nest so we track depth properly.
   open_image : (fn(self: *(Self), src: String, title: String) -> unit)({
+    if((self.*.img_nest > i32(0)), {
+      self.*.img_nest = (self.*.img_nest + i32(1));
+      return ();
+    });
     self.*.lit("<img src=\"");
     self.*.escaped_string(src);
     self.*.lit("\" alt=\"");
@@ -843,6 +849,10 @@ impl(HtmlRenderer,
 
   // Buffer-based: src from buf, title from String
   open_image_buf : (fn(self: *(Self), src_buf: *(ArrayList(u8)), title: String) -> unit)({
+    if((self.*.img_nest > i32(0)), {
+      self.*.img_nest = (self.*.img_nest + i32(1));
+      return ();
+    });
     self.*.lit("<img src=\"");
     self.*.escaped_raw(src_buf);
     self.*.lit("\" alt=\"");
@@ -852,6 +862,10 @@ impl(HtmlRenderer,
 
   // Buffer-based: src from buf, title from raw bytes (zero-RC)
   open_image_buf_raw : (fn(self: *(Self), src_buf: *(ArrayList(u8)), title_ptr: *(u8), title_len: i32) -> unit)({
+    if((self.*.img_nest > i32(0)), {
+      self.*.img_nest = (self.*.img_nest + i32(1));
+      return ();
+    });
     self.*.lit("<img src=\"");
     self.*.escaped_raw(src_buf);
     self.*.lit("\" alt=\"");
@@ -868,6 +882,10 @@ impl(HtmlRenderer,
 
   // Buffer-based: src from buf, title from buf
   open_image_raw : (fn(self: *(Self), src_buf: *(ArrayList(u8)), title_buf: *(ArrayList(u8))) -> unit)({
+    if((self.*.img_nest > i32(0)), {
+      self.*.img_nest = (self.*.img_nest + i32(1));
+      return ();
+    });
     self.*.lit("<img src=\"");
     self.*.escaped_raw(src_buf);
     self.*.lit("\" alt=\"");
@@ -882,6 +900,8 @@ impl(HtmlRenderer,
   }),
 
   close_image : (fn(self: *(Self)) -> unit)({
+    self.*.img_nest = (self.*.img_nest - i32(1));
+    if((self.*.img_nest > i32(0)), { return (); });
     (title : String) = self.*.img_title;
     if((title.len() > usize(0)), {
       self.*.lit("\" title=\"");
@@ -891,7 +911,6 @@ impl(HtmlRenderer,
       self.*.options.*.xhtml_out => self.*.lit("\" />"),
       true => self.*.lit("\">")
     );
-    self.*.img_nest = (self.*.img_nest - i32(1));
   }),
 
   softbreak : (fn(self: *(Self)) -> unit)(

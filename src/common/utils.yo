@@ -216,6 +216,23 @@ escape_html_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i
   (run_start : i32) = start;
 
   while (i < end), {
+    // 8-byte batch scan for safe runs: skip 8 bytes at a time when no escapes needed
+    while (((i + i32(7)) < end)), {
+      (w : u64) = *(u64)(src_ptr &+ usize(i)).*;
+      (e0 : u8) = (esc_table &+ usize(u8(w))).*;
+      (e1 : u8) = (esc_table &+ usize(u8((w >> u64(8))))).*;
+      (e2 : u8) = (esc_table &+ usize(u8((w >> u64(16))))).*;
+      (e3 : u8) = (esc_table &+ usize(u8((w >> u64(24))))).*;
+      (e4 : u8) = (esc_table &+ usize(u8((w >> u64(32))))).*;
+      (e5 : u8) = (esc_table &+ usize(u8((w >> u64(40))))).*;
+      (e6 : u8) = (esc_table &+ usize(u8((w >> u64(48))))).*;
+      (e7 : u8) = (esc_table &+ usize(u8((w >> u64(56))))).*;
+      (any : u8) =
+        (((((((e0 | e1) | e2) | e3) | e4) | e5) | e6) | e7);
+      if((any != u8(0)), { break; });
+      i = (i + i32(8));
+    };
+    if((i >= end), { break; });
     (ch : u8) = (src_ptr &+ usize(i)).*;
     (esc_idx : u8) = (esc_table &+ usize(ch)).*;
     if((esc_idx != u8(0)), {

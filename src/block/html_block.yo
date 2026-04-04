@@ -60,13 +60,14 @@ _is_tag_terminator :: (fn(src: *(u8), pos: i32, max: i32) -> bool)(
   )
 );
 
-// HTML block type 1: <script>, <pre>, <style>, <textarea> (opening)
-// Also matches closing tags </script>, </pre>, </style>, </textarea>
+// HTML block type 1: <script>, <pre>, <style>, <textarea> (opening ONLY)
+// Closing tags (</pre> etc.) are NOT type 1 openers — they only END type 1 blocks.
 _detect_type1 :: (fn(src: *(u8), pos: i32, max: i32) -> bool)({
   if(((pos + i32(2)) >= max), { return false; });
   (start : i32) = (pos + i32(1));
-  (is_close : bool) = ((src &+ usize(start)).* == u8(0x2F));
-  (tag_start : i32) = cond(is_close => (start + i32(1)), true => start);
+  // Must be an opening tag, not a closing tag
+  if(((src &+ usize(start)).* == u8(0x2F)), { return false; });
+  (tag_start : i32) = start;
 
   if(_match_ci(src, tag_start, max, "pre", i32(3)), {
     if(_is_tag_terminator(src, (tag_start + i32(3)), max), { return true; });
@@ -174,7 +175,6 @@ _is_block_tag :: (fn(src: *(u8), tag_start: i32, max: i32) -> bool)({
       if((len == i32(6)), { return _match_ci(src, tag_start, max, "legend", i32(6)); });
       if((len == i32(2)), { return _match_ci(src, tag_start, max, "li", i32(2)); });
       if((len == i32(4)), { return _match_ci(src, tag_start, max, "link", i32(4)); });
-      if((len == i32(7)), { return _match_ci(src, tag_start, max, "listing", i32(7)); });
       false
     },
     (c0 == i32(0x6D)) => { // m...
@@ -182,7 +182,6 @@ _is_block_tag :: (fn(src: *(u8), tag_start: i32, max: i32) -> bool)({
         if(_match_ci(src, tag_start, max, "main", i32(4)), { return true; });
         return _match_ci(src, tag_start, max, "menu", i32(4));
       });
-      if((len == i32(7)), { return _match_ci(src, tag_start, max, "marquee", i32(7)); });
       if((len == i32(8)), { return _match_ci(src, tag_start, max, "menuitem", i32(8)); });
       false
     },
@@ -200,20 +199,13 @@ _is_block_tag :: (fn(src: *(u8), tag_start: i32, max: i32) -> bool)({
     (c0 == i32(0x70)) => { // p...
       if((len == i32(1)), { return true; }); // p
       if((len == i32(5)), { return _match_ci(src, tag_start, max, "param", i32(5)); });
-      if((len == i32(9)), { return _match_ci(src, tag_start, max, "plaintext", i32(9)); });
-      if((len == i32(3)), { return _match_ci(src, tag_start, max, "pre", i32(3)); });
-      if((len == i32(8)), { return _match_ci(src, tag_start, max, "progress", i32(8)); });
       false
     },
     (c0 == i32(0x73)) => { // s...
       if((len == i32(6)), {
-        if(_match_ci(src, tag_start, max, "script", i32(6)), { return true; });
         if(_match_ci(src, tag_start, max, "search", i32(6)), { return true; });
-        if(_match_ci(src, tag_start, max, "select", i32(6)), { return true; });
-        if(_match_ci(src, tag_start, max, "source", i32(6)), { return true; });
         return false;
       });
-      if((len == i32(5)), { return _match_ci(src, tag_start, max, "style", i32(5)); });
       if((len == i32(7)), {
         if(_match_ci(src, tag_start, max, "section", i32(7)), { return true; });
         if(_match_ci(src, tag_start, max, "summary", i32(7)), { return true; });
@@ -235,18 +227,10 @@ _is_block_tag :: (fn(src: *(u8), tag_start: i32, max: i32) -> bool)({
         (c1 : i32) = _lower(i32((src &+ usize((tag_start + i32(1)))).*));
         return ((c1 == i32(0x64)) || ((c1 == i32(0x68)) || (c1 == i32(0x72)))); // td, th, tr
       });
-      if((len == i32(8)), {
-        if(_match_ci(src, tag_start, max, "template", i32(8)), { return true; });
-        if(_match_ci(src, tag_start, max, "textarea", i32(8)), { return true; });
-        return false;
-      });
       false
     },
     (c0 == i32(0x75)) => { // u...
       (len == i32(2)) && (_lower(i32((src &+ usize((tag_start + i32(1)))).*)) == i32(0x6C)) // ul
-    },
-    (c0 == i32(0x78)) => { // x...
-      (len == i32(3)) && _match_ci(src, tag_start, max, "xmp", i32(3))
     },
     true => false
   )
@@ -585,20 +569,53 @@ block_html :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
     }
   );
 
-  // Emit raw HTML block
-  (content_start : i32) = state.bm(start_line);
-  (content_end : i32) = cond(
-    (next_line <= end_line) => {
-      (ll : i32) = (next_line - i32(1));
-      cond(
-        (ll >= start_line) => state.em(ll),
-        true => content_start
-      )
-    },
-    true => content_start
-  );
+  // Emit raw HTML block line by line with indent stripping.
+  // Mirrors markdown-it's getLines(startLine, nextLine, blkIndent, true).
+  // Using per-line bm/em ensures blockquote/list markers are stripped.
+  (last_html_line : i32) = (next_line - i32(1));
+  if((last_html_line < start_line), { last_html_line = start_line; });
+  (indent : i32) = state.*.blk_indent;
+  (hl : i32) = start_line;
+  (r) := state.*.renderer;
+  while (hl <= last_html_line), {
+    (line_start : i32) = state.bm(hl);
+    (line_end : i32) = state.em(hl);
 
-  state.*.renderer.*.html_block(content_start, content_end);
+    // Strip up to blk_indent columns (tab-aware, tShift-aware getLines logic)
+    (first : i32) = line_start;
+    (col : i32) = i32(0);
+    (line_tshift : i32) = state.ts(hl);
+    while ((first < line_end) && (col < indent)), {
+      (ch : u8) = (state.*.src_ptr &+ usize(first)).*;
+      if((ch == u8(0x09)), {
+        col = (col + (i32(4) - ((col + state.bs(hl)) % i32(4))));
+        first = (first + i32(1));
+      }, if((ch == u8(0x20)), {
+        col = (col + i32(1));
+        first = (first + i32(1));
+      }, if(((first - line_start) < line_tshift), {
+        col = (col + i32(1));
+        first = (first + i32(1));
+      }, {
+        col = indent;
+      })));
+    };
+
+    // Partially consumed tab → emit extra spaces
+    if((col > indent), {
+      (extra : i32) = (col - indent);
+      (sp : i32) = i32(0);
+      while (sp < extra), {
+        r.*.byte(u8(0x20));
+        sp = (sp + i32(1));
+      };
+    });
+
+    r.*.raw(first, line_end);
+    r.*.byte(u8(0x0A));
+    hl = (hl + i32(1));
+  };
+
   state.*.line = next_line;
   true
 });

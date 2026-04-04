@@ -249,6 +249,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
 
                 // Save state
                 (item_old_tight : bool) = state.*.tight;
+                (item_old_bmark : i32) = state.bm(list_next);
                 (item_old_tshift : i32) = state.ts(list_next);
                 (item_old_scount : i32) = state.sc(list_next);
                 (item_old_list_indent : i32) = state.*.list_indent;
@@ -256,6 +257,9 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                 state.*.blk_indent = item_indent;
 
                 state.*.tight = true;
+                // Match markdown-it: do NOT modify bMarks. Only adjust tShift
+                // and sCount. The list marker chars sit within tShift range and
+                // are counted as "masked" indent by getLines-style logic.
                 state.set_ts(list_next, (item_content_start - state.bm(list_next)));
                 state.set_sc(list_next, item_offset);
 
@@ -279,6 +283,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                 // Restore state
                 state.*.blk_indent = state.*.list_indent;
                 state.*.list_indent = item_old_list_indent;
+                state.set_bm(list_next, item_old_bmark);
                 state.set_ts(list_next, item_old_tshift);
                 state.set_sc(list_next, item_old_scount);
                 state.*.tight = item_old_tight;

@@ -597,20 +597,41 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
 
   if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x5D)), { return false; });
 
-  // Find last active link marker
+  // Find last active link marker, but handle inactive markers specially
+  // when inside an image context (active image marker exists before them).
   (marker_idx : i32) = (i32(state.*.link_markers.len()) - i32(1));
-  (found_marker : bool) = false;
-  while ((marker_idx >= i32(0)) && !(found_marker)), {
-    if(state.*.link_markers(usize(marker_idx)).active, {
-      found_marker = true;
-    }, {
-      marker_idx = (marker_idx - i32(1));
-    });
-  };
+  if((marker_idx < i32(0)), { return false; });
 
-  if(!(found_marker), {
-    // No active marker — just emit ] as text
-    return false;
+  if(!(state.*.link_markers(usize(marker_idx)).active), {
+    // Last marker is inactive. Check if there's an active image marker before it.
+    // If yes, consume this inactive marker as text (so the image can match
+    // the correct outer ]). If no, skip it and search for an active marker.
+    (has_earlier_image : bool) = false;
+    (j : i32) = i32(0);
+    while ((j < marker_idx) && !(has_earlier_image)), {
+      if((state.*.link_markers(usize(j)).is_image && state.*.link_markers(usize(j)).active), {
+        has_earlier_image = true;
+      });
+      j = (j + i32(1));
+    };
+
+    if(has_earlier_image, {
+      // Inside image context: consume inactive marker as text bracket close
+      state.*.link_markers._length = usize(marker_idx);
+      return false;
+    }, {
+      // Normal case: skip inactive markers and search for active one
+      marker_idx = (marker_idx - i32(1));
+      (found_marker : bool) = false;
+      while ((marker_idx >= i32(0)) && !(found_marker)), {
+        if(state.*.link_markers(usize(marker_idx)).active, {
+          found_marker = true;
+        }, {
+          marker_idx = (marker_idx - i32(1));
+        });
+      };
+      if(!(found_marker), { return false; });
+    });
   });
 
   (marker : LinkMarker) = state.*.link_markers(usize(marker_idx));

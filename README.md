@@ -28,7 +28,7 @@ This is in contrast to [markdown_it_yo](https://github.com/shd101wyy/markdown_it
 ## Features
 
 - **98.8% CommonMark compatibility** — 671/679 fixture tests passing
-- **2-2.5× faster than markdown-it** (native), **1.5-2× faster** (WASM) at ≥1 MB
+- **5-7× faster than markdown-it** (native), **2-6× faster** (WASM) at ≥1 MB
 - Compiles to native executables (macOS, Linux) and WebAssembly
 - Full support: CommonMark, tables, strikethrough, typographer, smartquotes, HTML blocks
 
@@ -38,13 +38,13 @@ Comparison against markdown-it (Node.js) — median of 10 runs, 3 warmup:
 
 | Input Size | markdown-it (JS) | Native   | Speedup | WASM     | Speedup |
 | ---------- | ---------------- | -------- | ------- | -------- | ------- |
-| 64 KB      | 1.8 ms           | 1.0 ms   | 1.9×    | 12.5 ms  | 0.1×    |
-| 256 KB     | 6.5 ms           | 3.6 ms   | 1.8×    | 12.7 ms  | 0.5×    |
-| 1 MB       | 28.7 ms          | 14.0 ms  | 2.0×    | 19.7 ms  | 1.5×    |
-| 5 MB       | 152.0 ms         | 69.7 ms  | 2.2×    | 88.2 ms  | 1.7×    |
-| 20 MB      | 707.5 ms         | 283.3 ms | 2.5×    | 350.0 ms | 2.0×    |
+| 64 KB      | 1.9 ms           | 0.4 ms   | 5.2×    | 12.8 ms  | 0.1×    |
+| 256 KB     | 7.0 ms           | 1.3 ms   | 5.4×    | 12.9 ms  | 0.5×    |
+| 1 MB       | 28.9 ms          | 4.9 ms   | 5.9×    | 13.3 ms  | 2.2×    |
+| 5 MB       | 153.0 ms         | 23.9 ms  | 6.4×    | 34.3 ms  | 4.5×    |
+| 20 MB      | 734.5 ms         | 97.5 ms  | 7.5×    | 127.7 ms | 5.8×    |
 
-_Native: Apple M4, macOS, clang -O2 -flto. WASM: Emscripten, Node.js, -O2 -flto._
+_Native: Apple M4, macOS, clang -O2 -flto. WASM: Emscripten, Node.js, -O3 -flto._
 _Native and WASM times use `--repeat 20` to amortize process/WASM startup._
 _WASM overhead at small sizes (64K, 256K) is dominated by Node.js WASM compilation startup (~12ms)._
 
@@ -101,6 +101,20 @@ node benchmark/run.js --size 1M
 # Skip WASM
 node benchmark/run.js --no-wasm
 ```
+
+## Optimizations Applied
+
+Key performance techniques beyond the SAX architecture:
+
+- **Block-start dispatch table** — 128-byte lookup table maps first char → candidate rules, skipping irrelevant block rules entirely
+- **Combined inline pre-scan table** — 256-byte table encodes 3-way dispatch (0=safe, 1=inline-special, 2=HTML-escape-only) for inline content processing
+- **Escape-HTML lookup table** — 256-byte table with direct pointer writes for `&amp;`, `&lt;`, `&gt;`, `&quot;`; eliminates branches in the hot escape path
+- **Reusable buffers** — InlineState holds pre-allocated buffers for validation, entities, and link parsing, avoiding per-token allocations
+- **Fence batch emit** — fenced code blocks with no indent emit the entire content range in one `escape_html_buf` call
+- **Table 3-way cell dispatch** — table cells use the combined special_table: special→full inline parse, HTML-char→escape only, pure text→direct memcpy
+- **Deferred table allocation** — column alignment arrays are counted in silent mode, allocated only when rendering
+- **Pre-allocated output buffer** — renderer allocates ~1.5× input size upfront, growing only for pathological inputs
+- **Borrow-chain RC optimization** — Yo compiler eliminates redundant `dup`/`drop` calls for borrowed references (e.g., HashMap lookups), removing RC overhead from the hot path
 
 ## Acknowledgments
 

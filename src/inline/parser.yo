@@ -88,7 +88,34 @@ _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
     if(!(matched), {
       (scan : i32) = (state.*.pos + i32(1));
       (src : *(u8)) = state.*.src_ptr;
-      while ((scan < state.*.pos_max) && ((table &+ usize((src &+ usize(scan)).*)).* != u8(1))), {
+      (scan_max : i32) = state.*.pos_max;
+      // 8-byte batch scan: check 8 bytes per iteration using u64 load
+      // table[byte] & 1 is 1 only for inline specials (0&1=0, 1&1=1, 2&1=0)
+      while (((scan + i32(7)) < scan_max)), {
+        (w : u64) = *(u64)(src &+ usize(scan)).*;
+        (c0 : u8) = u8(w);
+        (c1 : u8) = u8((w >> u64(8)));
+        (c2 : u8) = u8((w >> u64(16)));
+        (c3 : u8) = u8((w >> u64(24)));
+        (c4 : u8) = u8((w >> u64(32)));
+        (c5 : u8) = u8((w >> u64(40)));
+        (c6 : u8) = u8((w >> u64(48)));
+        (c7 : u8) = u8((w >> u64(56)));
+        (b0 : u8) = ((table &+ usize(c0)).* & u8(1));
+        (b1 : u8) = ((table &+ usize(c1)).* & u8(1));
+        (b2 : u8) = ((table &+ usize(c2)).* & u8(1));
+        (b3 : u8) = ((table &+ usize(c3)).* & u8(1));
+        (b4 : u8) = ((table &+ usize(c4)).* & u8(1));
+        (b5 : u8) = ((table &+ usize(c5)).* & u8(1));
+        (b6 : u8) = ((table &+ usize(c6)).* & u8(1));
+        (b7 : u8) = ((table &+ usize(c7)).* & u8(1));
+        (any : u8) =
+          (((((((b0 | b1) | b2) | b3) | b4) | b5) | b6) | b7);
+        if((any != u8(0)), { break; });
+        scan = (scan + i32(8));
+      };
+      // Byte-by-byte for remaining bytes or exact position within batch hit
+      while ((scan < scan_max) && ((table &+ usize((src &+ usize(scan)).*)).* != u8(1))), {
         scan = (scan + i32(1));
       };
       state.*.pending_end = scan;
@@ -123,6 +150,31 @@ inline_parse_range :: (fn(inline_state: *(InlineState), src_ptr: *(u8), start: i
   (p : i32) = start;
   (has_special : bool) = false;
   (has_html_char : bool) = false;
+  // 8-byte batch pre-scan: quickly detect inline specials and HTML chars
+  while (((p + i32(7)) < end)), {
+    (w : u64) = *(u64)(src_ptr &+ usize(p)).*;
+    (t0 : u8) = (table &+ usize(u8(w))).*;
+    (t1 : u8) = (table &+ usize(u8((w >> u64(8))))).*;
+    (t2 : u8) = (table &+ usize(u8((w >> u64(16))))).*;
+    (t3 : u8) = (table &+ usize(u8((w >> u64(24))))).*;
+    (t4 : u8) = (table &+ usize(u8((w >> u64(32))))).*;
+    (t5 : u8) = (table &+ usize(u8((w >> u64(40))))).*;
+    (t6 : u8) = (table &+ usize(u8((w >> u64(48))))).*;
+    (t7 : u8) = (table &+ usize(u8((w >> u64(56))))).*;
+    (any_or : u8) = (((((((t0 | t1) | t2) | t3) | t4) | t5) | t6) | t7);
+    if((any_or == u8(0)), {
+      p = (p + i32(8));
+    }, {
+      if(((any_or & u8(1)) != u8(0)), {
+        has_special = true;
+        p = end;
+      }, {
+        has_html_char = true;
+        p = (p + i32(8));
+      });
+    });
+  };
+  // Byte-by-byte for remaining 0-7 bytes
   while (p < end), {
     (tag : u8) = (table &+ usize((src_ptr &+ usize(p)).*)).*;
     if((tag == u8(1)), {
