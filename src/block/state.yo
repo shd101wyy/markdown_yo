@@ -30,6 +30,10 @@ BlockState :: struct(
   _sc : *(i32),
   _bs : *(i32),
 
+  // Per-line flags (precomputed during line scan)
+  _pipe_flags : ArrayList(u8),  // 1 if line contains '|', else 0
+  _pf : *(u8),                  // cached pointer into _pipe_flags
+
   line : i32,                 // current line being parsed
   line_max : i32,             // total number of lines
 
@@ -46,7 +50,10 @@ BlockState :: struct(
   options : *(Options),
 
   // Reusable inline state — avoids repeated ArrayList allocation/deallocation
-  _inline_state : InlineState
+  _inline_state : InlineState,
+
+  // Reusable scratch buffer for multi-line string building (paragraph, lheading, etc.)
+  _line_buf : ArrayList(u8)
 );
 
 // Normalize source: replace \r\n → \n, lone \r → \n, \0 → U+FFFD (rare path)
@@ -101,6 +108,7 @@ _build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(
   (t_shift : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
   (s_count : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
   (bs_count : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
+  (pipe_flags : ArrayList(u8)) = ArrayList(u8).with_capacity(est_lines);
 
   (src_p : *(u8)) = match(bytes.ptr(),
     .Some(p) => p,
@@ -112,6 +120,7 @@ _build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(
   (offset : i32) = i32(0);
   (line_start : i32) = i32(0);
   (indent_found : bool) = false;
+  (line_has_pipe : bool) = false;
 
   while (pos < len), {
     (ch : u8) = (src_p &+ usize(pos)).*;
@@ -127,10 +136,12 @@ _build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(
           _ := s_count.push(indent);
         });
         _ := bs_count.push(i32(0));
+        _ := pipe_flags.push(cond(line_has_pipe => u8(1), true => u8(0)));
         line_start = (pos + i32(1));
         indent = i32(0);
         offset = i32(0);
         indent_found = false;
+        line_has_pipe = false;
         pos = (pos + i32(1));
       },
       true => {
@@ -147,6 +158,7 @@ _build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(
             true => { indent_found = true; }
           );
         });
+        if((ch == u8(0x7C)), { line_has_pipe = true; });
         pos = (pos + i32(1));
       }
     );
@@ -162,6 +174,7 @@ _build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(
     _ := s_count.push(indent);
   });
   _ := bs_count.push(i32(0));
+  _ := pipe_flags.push(cond(line_has_pipe => u8(1), true => u8(0)));
 
   (line_count : i32) = (i32(b_marks.len()) - i32(1));
 
@@ -172,12 +185,14 @@ _build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(
     _bm: b_marks._ptr.unwrap(), _em: e_marks._ptr.unwrap(),
     _ts: t_shift._ptr.unwrap(), _sc: s_count._ptr.unwrap(),
     _bs: bs_count._ptr.unwrap(),
+    _pipe_flags: pipe_flags, _pf: pipe_flags._ptr.unwrap(),
     line: i32(0), line_max: line_count,
     blk_indent: i32(0), tight: false,
     dd_indent: i32(-1), list_indent: i32(-1),
     parent_type: .Root, level: i32(0),
     env: env, renderer: renderer, options: options,
-    _inline_state: InlineState.reusable(env, renderer, options)
+    _inline_state: InlineState.reusable(env, renderer, options),
+    _line_buf: ArrayList(u8).new()
   )
 });
 
@@ -195,6 +210,7 @@ impl(BlockState,
     (t_shift : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
     (s_count : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
     (bs_count : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
+    (pipe_flags : ArrayList(u8)) = ArrayList(u8).with_capacity(est_lines);
 
     (src_p : *(u8)) = match(bytes.ptr(),
       .Some(p) => p,
@@ -208,6 +224,7 @@ impl(BlockState,
     (line_start : i32) = i32(0);
     (indent_found : bool) = false;
     (needs_normalize : bool) = false;
+    (line_has_pipe : bool) = false;
 
     while (pos < len), {
       (ch : u8) = (src_p &+ usize(pos)).*;
@@ -224,11 +241,13 @@ impl(BlockState,
             _ := s_count.push(indent);
           });
           _ := bs_count.push(i32(0));
+          _ := pipe_flags.push(cond(line_has_pipe => u8(1), true => u8(0)));
 
           line_start = (pos + i32(1));
           indent = i32(0);
           offset = i32(0);
           indent_found = false;
+          line_has_pipe = false;
           pos = (pos + i32(1));
         },
 
@@ -253,6 +272,7 @@ impl(BlockState,
               }
             );
           });
+          if((ch == u8(0x7C)), { line_has_pipe = true; });
           pos = (pos + i32(1));
         }
       );
@@ -269,6 +289,7 @@ impl(BlockState,
       _ := s_count.push(indent);
     });
     _ := bs_count.push(i32(0));
+    _ := pipe_flags.push(cond(line_has_pipe => u8(1), true => u8(0)));
 
     // If normalization needed, normalize and rebuild line markers
     if(needs_normalize, {
@@ -290,6 +311,7 @@ impl(BlockState,
       _bm: b_marks._ptr.unwrap(), _em: e_marks._ptr.unwrap(),
       _ts: t_shift._ptr.unwrap(), _sc: s_count._ptr.unwrap(),
       _bs: bs_count._ptr.unwrap(),
+      _pipe_flags: pipe_flags, _pf: pipe_flags._ptr.unwrap(),
       line: i32(0),
       line_max: line_count,
       blk_indent: i32(0),
@@ -301,7 +323,8 @@ impl(BlockState,
       env: env,
       renderer: renderer,
       options: options,
-      _inline_state: InlineState.reusable(env, renderer, options)
+      _inline_state: InlineState.reusable(env, renderer, options),
+      _line_buf: ArrayList(u8).new()
     )
   }),
 
@@ -311,6 +334,7 @@ impl(BlockState,
   ts : (fn(self: *(Self), line: i32) -> i32)((self.*._ts &+ usize(line)).*),
   sc : (fn(self: *(Self), line: i32) -> i32)((self.*._sc &+ usize(line)).*),
   bs : (fn(self: *(Self), line: i32) -> i32)((self.*._bs &+ usize(line)).*),
+  has_pipe : (fn(self: *(Self), line: i32) -> bool)((self.*._pf &+ usize(line)).* != u8(0)),
 
   set_bm : (fn(self: *(Self), line: i32, val: i32) -> unit)({
     (self.*._bm &+ usize(line)).* = val;

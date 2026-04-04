@@ -7,12 +7,12 @@ open import "std/string";
 { BlockState } :: import "./state.yo";
 { is_space } :: import "../common/utils.yo";
 { ParentType } :: import "../types.yo";
-{ inline_parse, inline_parse_range } :: import "../inline/parser.yo";
+{ inline_parse_range } :: import "../inline/parser.yo";
 { _try_block_terminate } :: import "./terminators.yo";
 
-// Build inline content string from multiple lines (joined with \n)
-_build_lheading_inline :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> String)({
-  (buf : ArrayList(u8)) = ArrayList(u8).new();
+// Build inline content from multiple lines into the reusable _line_buf
+_build_lheading_inline_buf :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> unit)({
+  state.*._line_buf.clear();
   (line : i32) = start_line;
   while (line < end_line), {
     (bm : i32) = state.bm(line);
@@ -28,14 +28,13 @@ _build_lheading_inline :: (fn(state: *(BlockState), start_line: i32, end_line: i
 
     if((content_end > content_start), {
       if((line > start_line), {
-        _ := buf.push(u8(0x0A));
+        _ := state.*._line_buf.push(u8(0x0A));
       });
-      buf.extend_from_ptr((state.*.src_ptr &+ usize(content_start)), usize((content_end - content_start)));
+      state.*._line_buf.extend_from_ptr((state.*.src_ptr &+ usize(content_start)), usize((content_end - content_start)));
     });
 
     line = (line + i32(1));
   };
-  String.from_bytes(buf)
 });
 
 block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
@@ -128,8 +127,10 @@ block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sile
     };
     inline_parse_range((&state.*._inline_state), state.*.src_ptr, content_start, content_end);
   }, {
-    (content : String) = _build_lheading_inline(state, start_line, next_line);
-    inline_parse((&state.*._inline_state), content);
+    _build_lheading_inline_buf(state, start_line, next_line);
+    (buf_ptr : *(u8)) = state.*._line_buf.ptr().unwrap();
+    (buf_len : i32) = i32(state.*._line_buf.len());
+    inline_parse_range((&state.*._inline_state), buf_ptr, i32(0), buf_len);
   });
 
   state.*.renderer.*.close_heading(level);

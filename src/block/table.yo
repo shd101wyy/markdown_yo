@@ -131,22 +131,13 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   // Must not be indented >3 spaces
   if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return false; });
 
-  // First line must contain a pipe
+  // First line must contain a pipe (pre-computed during line scan — O(1) check)
+  if(!(state.has_pipe(start_line)), { return false; });
+
   (bm : i32) = state.bm(start_line);
   (ts : i32) = state.ts(start_line);
   (em : i32) = state.em(start_line);
   (pos : i32) = (bm + ts);
-
-  (has_pipe : bool) = false;
-  (p : i32) = pos;
-  while (p < em), {
-    if((i32((state.*.src_ptr &+ usize(p)).*) == i32(0x7C)), {
-      has_pipe = true;
-      p = em;
-    });
-    p = (p + i32(1));
-  };
-  if(!(has_pipe), { return false; });
 
   // Second line is separator: must contain only |, -, :, spaces
   (sep_line : i32) = (start_line + i32(1));
