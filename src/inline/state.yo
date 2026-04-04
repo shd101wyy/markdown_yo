@@ -23,38 +23,38 @@ InlineToken :: struct(
   title_end : i32,      // title end
   markup_char : u8,     // '*', '_', '~', '`'
   markup_len : u8,      // number of marker chars
-  // String-based content for entities/resolved URLs
-  content : String,
-  // For links/images that need dynamically built href/title
-  href : String,
-  title : String,
   block : bool,
-  hidden : bool
+  hidden : bool,
+  // String-based content for entities/resolved URLs (None when unused)
+  content : Option(String),
+  // For links/images that need dynamically built href/title
+  href : Option(String),
+  title : Option(String)
 );
 
 impl(InlineToken,
   text : (fn(start: i32, end: i32, level: i32) -> Self)(
     Self(type_name: .Text, start: start, end: end, nesting: i32(0), level: level,
          info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
-         markup_char: u8(0), markup_len: u8(0), content: ``, href: ``, title: ``,
-         block: false, hidden: false)
+         markup_char: u8(0), markup_len: u8(0), block: false, hidden: false,
+         content: .None, href: .None, title: .None)
   ),
   text_special : (fn(start: i32, end: i32, level: i32) -> Self)(
     Self(type_name: .TextSpecial, start: start, end: end, nesting: i32(0), level: level,
          info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
-         markup_char: u8(0), markup_len: u8(0), content: ``, href: ``, title: ``,
-         block: false, hidden: false)
+         markup_char: u8(0), markup_len: u8(0), block: false, hidden: false,
+         content: .None, href: .None, title: .None)
   ),
   simple : (fn(type_name: InlineType, nesting: i32, level: i32) -> Self)(
     Self(type_name: type_name, start: i32(0), end: i32(0), nesting: nesting, level: level,
          info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
-         markup_char: u8(0), markup_len: u8(0), content: ``, href: ``, title: ``,
-         block: false, hidden: false)
+         markup_char: u8(0), markup_len: u8(0), block: false, hidden: false,
+         content: .None, href: .None, title: .None)
   )
 );
 
 InlineState :: struct(
-  src : String,            // inline content string (the paragraph text)
+  src : Option(String),      // inline content string (None for range-based parsing)
   src_ptr : *(u8),         // raw pointer for fast access
   pos : i32,               // current position in source
   pos_max : i32,           // source length
@@ -67,8 +67,8 @@ InlineState :: struct(
   delimiters : ArrayList(Delimiter),
   prev_delimiters : ArrayList(ArrayList(Delimiter)),
 
-  cache : HashMap(i32, i32),        // backtrack positions
-  backticks : HashMap(i32, i32),    // backtick length → last seen position
+  cache : Option(HashMap(i32, i32)),        // backtrack positions (lazy)
+  backticks : Option(HashMap(i32, i32)),    // backtick length → last seen position (lazy)
   backticks_scanned : bool,
 
   link_level : i32,
@@ -90,7 +90,7 @@ impl(InlineState,
     );
 
     Self(
-      src: src,
+      src: .Some(src),
       src_ptr: src_p,
       pos: i32(0),
       pos_max: len,
@@ -100,8 +100,8 @@ impl(InlineState,
       tokens: ArrayList(InlineToken).new(),
       delimiters: ArrayList(Delimiter).new(),
       prev_delimiters: ArrayList(ArrayList(Delimiter)).new(),
-      cache: HashMap(i32, i32).new(),
-      backticks: HashMap(i32, i32).new(),
+      cache: .None,
+      backticks: .None,
       backticks_scanned: false,
       link_level: i32(0),
       link_markers: ArrayList(LinkMarker).new(),
@@ -111,6 +111,31 @@ impl(InlineState,
       options: options
     )
   }),
+
+  // Create from raw pointer + length — zero-copy, caller must ensure ptr stays valid
+  from_ptr : (fn(ptr: *(u8), len: i32, env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> Self)(
+    Self(
+      src: .None,
+      src_ptr: ptr,
+      pos: i32(0),
+      pos_max: len,
+      level: i32(0),
+      pending_start: i32(0),
+      pending_end: i32(0),
+      tokens: ArrayList(InlineToken).new(),
+      delimiters: ArrayList(Delimiter).new(),
+      prev_delimiters: ArrayList(ArrayList(Delimiter)).new(),
+      cache: .None,
+      backticks: .None,
+      backticks_scanned: false,
+      link_level: i32(0),
+      link_markers: ArrayList(LinkMarker).new(),
+      resolved_pairs: ArrayList(EmphasisPair).new(),
+      env: env,
+      renderer: renderer,
+      options: options
+    )
+  ),
 
   // Push pending text as a token if there's any accumulated
   push_pending : (fn(self: *(Self)) -> unit)({

@@ -7,7 +7,7 @@ open import "std/string";
 { BlockState } :: import "./state.yo";
 { is_space } :: import "../common/utils.yo";
 { ParentType } :: import "../types.yo";
-{ inline_parse } :: import "../inline/parser.yo";
+{ inline_parse, inline_parse_range } :: import "../inline/parser.yo";
 { _try_block_terminate } :: import "./terminators.yo";
 
 // Build inline content string from multiple lines (joined with \n)
@@ -116,8 +116,21 @@ block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sile
   state.*.renderer.*.open_heading(level);
 
   // Build inline content and parse it
-  (content : String) = _build_lheading_inline(state, start_line, next_line);
-  inline_parse(content, state.*.env, state.*.renderer, state.*.options);
+  // Single-line: zero-copy path
+  if((next_line == (start_line + i32(1))), {
+    (bm : i32) = state.*.b_marks(usize(start_line));
+    (ts : i32) = state.*.t_shift(usize(start_line));
+    (em : i32) = state.*.e_marks(usize(start_line));
+    (content_start : i32) = (bm + ts);
+    (content_end : i32) = em;
+    while (((content_end > content_start) && ((state.*.src_ptr &+ usize((content_end - i32(1)))).* == u8(0x20)))) , {
+      content_end = (content_end - i32(1));
+    };
+    inline_parse_range(state.*.src_ptr, content_start, content_end, state.*.env, state.*.renderer, state.*.options);
+  }, {
+    (content : String) = _build_lheading_inline(state, start_line, next_line);
+    inline_parse(content, state.*.env, state.*.renderer, state.*.options);
+  });
 
   state.*.renderer.*.close_heading(level);
 

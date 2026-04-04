@@ -767,7 +767,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
       info_start: i32(0), info_end: i32(0),
       title_start: i32(0), title_end: i32(0),
       markup_char: u8(0), markup_len: u8(0),
-      content: ``, href: ref_href, title: ref_title,
+      content: .None, href: .Some(ref_href), title: .Some(ref_title),
       block: false, hidden: false
     );
   }, {
@@ -779,7 +779,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
       info_start: i32(0), info_end: i32(0),
       title_start: title_start, title_end: title_end,
       markup_char: u8(0), markup_len: u8(0),
-      content: ``, href: ``, title: ``,
+      content: .None, href: .None, title: .None,
       block: false, hidden: false
     );
   });
@@ -795,8 +795,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
   if(!(is_image), {
     (i : i32) = i32(0);
     while (i < marker_idx), {
-      (is_img : bool) = state.*.link_markers(usize(i)).is_image;
-      if(!(is_img), {
+      if(!(state.*.link_markers(usize(i)).is_image), {
         &(state.*.link_markers(usize(i))).*.active = false;
       });
       i = (i + i32(1));

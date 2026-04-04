@@ -326,7 +326,7 @@ inline_html :: (fn(state: *(InlineState)) -> bool)({
     info_start: i32(0), info_end: i32(0),
     title_start: i32(0), title_end: i32(0),
     markup_char: u8(0), markup_len: u8(0),
-    content: ``, href: ``, title: ``,
+    content: .None, href: .None, title: .None,
     block: false, hidden: false
   ));
 

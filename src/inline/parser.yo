@@ -21,91 +21,109 @@ open import "std/string";
 { inline_entity } :: import "./entity.yo";
 { inline_render } :: import "./render.yo";
 
-// Parse inline content from a source string and render directly to the HtmlRenderer.
-inline_parse :: (fn(src: String, env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> unit)({
-  (state : InlineState) = InlineState.new(src, env, renderer, options);
+// Check if a byte is a special inline character that could trigger a rule
+_is_inline_special :: (fn(ch: u8) -> bool)(
+  (((ch <= u8(0x60)) && ((ch == u8(0x0A)) || ((ch == u8(0x21)) || ((ch == u8(0x26)) ||
+   ((ch == u8(0x2A)) || ((ch == u8(0x3C)) || ((ch == u8(0x5B)) || ((ch == u8(0x5C)) ||
+   ((ch == u8(0x5D)) || ((ch == u8(0x5F)) || (ch == u8(0x60))))))))))))
+   || (ch == u8(0x7E)))
+);
 
+// Shared dispatch loop for inline parsing
+_inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
   // Main dispatch loop: try each inline rule at current position
-  while (state.pos < state.pos_max), {
+  while (state.*.pos < state.*.pos_max), {
     (matched : bool) = false;
 
-    (ch : i32) = i32((state.src_ptr &+ usize(state.pos)).*);
+    (ch : i32) = i32((state.*.src_ptr &+ usize(state.*.pos)).*);
 
     // Fast dispatch on first character
     cond(
       // Newline
       (ch == i32(0x0A)) => {
-        matched = inline_newline((&state));
+        matched = inline_newline(state);
       },
       // Backslash escape
       (ch == i32(0x5C)) => {
-        matched = inline_escape((&state));
+        matched = inline_escape(state);
       },
       // Backtick — code span
       (ch == i32(0x60)) => {
-        matched = inline_backticks((&state));
+        matched = inline_backticks(state);
       },
       // * or _ — emphasis
       ((ch == i32(0x2A)) || (ch == i32(0x5F))) => {
-        matched = inline_emphasis((&state));
+        matched = inline_emphasis(state);
       },
       // ~ — strikethrough
       (ch == i32(0x7E)) => {
-        if(state.options.*.enable_strikethrough, {
-          matched = inline_strikethrough((&state));
+        if(state.*.options.*.enable_strikethrough, {
+          matched = inline_strikethrough(state);
         });
       },
       // [ or ! — link/image open bracket
       ((ch == i32(0x5B)) || (ch == i32(0x21))) => {
-        matched = inline_link_open((&state));
+        matched = inline_link_open(state);
       },
       // ] — link/image close bracket
       (ch == i32(0x5D)) => {
-        matched = inline_link_close((&state));
+        matched = inline_link_close(state);
       },
       // < — autolink or html inline
       (ch == i32(0x3C)) => {
-        matched = inline_autolink((&state));
+        matched = inline_autolink(state);
         if(!(matched), {
-          if(state.options.*.html, {
-            matched = inline_html((&state));
+          if(state.*.options.*.html, {
+            matched = inline_html(state);
           });
         });
       },
       // & — entity
       (ch == i32(0x26)) => {
-        matched = inline_entity((&state));
+        matched = inline_entity(state);
       },
       true => ()
     );
 
-    // If no rule matched, advance one character as pending text
+    // If no rule matched, scan forward to next special char (batch text runs)
     if(!(matched), {
-      state.pending_end = (state.pos + i32(1));
-      state.pos = (state.pos + i32(1));
+      (scan : i32) = (state.*.pos + i32(1));
+      (scanning : bool) = true;
+      while (((scan < state.*.pos_max) && scanning)), {
+        if(_is_inline_special((state.*.src_ptr &+ usize(scan)).*), {
+          scanning = false;
+        }, {
+          scan = (scan + i32(1));
+        });
+      };
+      state.*.pending_end = scan;
+      state.*.pos = scan;
     });
   };
 
   // Flush any remaining pending text
-  state.push_pending();
+  state.*.push_pending();
 
   // Post-process: resolve delimiter pairs and render tokens
-  inline_render((&state));
+  inline_render(state);
+});
+
+// Parse inline content from a source string and render directly to the HtmlRenderer.
+inline_parse :: (fn(src: String, env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> unit)({
+  (state : InlineState) = InlineState.new(src, env, renderer, options);
+  _inline_dispatch((&state));
 });
 
 // Parse inline content from source byte range [start, end) and render.
 // This is the main entry point called by block rules.
+// Zero-copy: directly uses the source pointer without allocating a String copy.
 inline_parse_range :: (fn(src_ptr: *(u8), start: i32, end: i32,
                          env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> unit)({
   if((end <= start), { return (); });
 
-  // Build a String from the byte range
   (len : i32) = (end - start);
-  (bytes : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(len));
-  bytes.extend_from_ptr((src_ptr &+ usize(start)), usize(len));
-  (src : String) = String.from_bytes(bytes);
-
-  inline_parse(src, env, renderer, options);
+  (state : InlineState) = InlineState.from_ptr((src_ptr &+ usize(start)), len, env, renderer, options);
+  _inline_dispatch((&state));
 });
 
 export inline_parse, inline_parse_range;

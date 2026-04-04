@@ -38,36 +38,167 @@ BlockState :: struct(
   options : *(Options)
 );
 
+// Normalize source: replace \r\n → \n, lone \r → \n, \0 → U+FFFD (rare path)
+_normalize_source :: (fn(src_p: *(u8), len: i32) -> String)({
+  (out : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(len));
+  (i : i32) = i32(0);
+  (run_start : i32) = i32(0);
+
+  while (i < len), {
+    (b : u8) = (src_p &+ usize(i)).*;
+    cond(
+      (b == u8(0x0D)) => {
+        if((i > run_start), {
+          out.extend_from_ptr((src_p &+ usize(run_start)), usize((i - run_start)));
+        });
+        _ := out.push(u8(0x0A));
+        if(((((i + i32(1)) < len) && ((src_p &+ usize((i + i32(1)))).* == u8(0x0A)))), {
+          i = (i + i32(2));
+        }, {
+          i = (i + i32(1));
+        });
+        run_start = i;
+      },
+      (b == u8(0x00)) => {
+        if((i > run_start), {
+          out.extend_from_ptr((src_p &+ usize(run_start)), usize((i - run_start)));
+        });
+        _ := out.push(u8(0xEF));
+        _ := out.push(u8(0xBF));
+        _ := out.push(u8(0xBD));
+        i = (i + i32(1));
+        run_start = i;
+      },
+      true => {
+        i = (i + i32(1));
+      }
+    );
+  };
+  if((len > run_start), {
+    out.extend_from_ptr((src_p &+ usize(run_start)), usize((len - run_start)));
+  });
+  String.from_bytes(out)
+});
+
+// Build BlockState from already-normalized source (rare path — only when \r or \0 found)
+_build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> BlockState)({
+  (bytes : ArrayList(u8)) = src.as_bytes();
+  (len : i32) = i32(bytes.len());
+  (est_lines : usize) = ((usize(len) / usize(40)) + usize(16));
+  (b_marks : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
+  (e_marks : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
+  (t_shift : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
+  (s_count : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
+  (bs_count : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
+
+  (src_p : *(u8)) = match(bytes.ptr(),
+    .Some(p) => p,
+    .None => *(u8)("")
+  );
+
+  (pos : i32) = i32(0);
+  (indent : i32) = i32(0);
+  (offset : i32) = i32(0);
+  (line_start : i32) = i32(0);
+  (indent_found : bool) = false;
+
+  while (pos < len), {
+    (ch : u8) = (src_p &+ usize(pos)).*;
+    cond(
+      (ch == u8(0x0A)) => {
+        _ := b_marks.push(line_start);
+        _ := e_marks.push(pos);
+        if(!(indent_found), {
+          _ := t_shift.push((pos - line_start));
+          _ := s_count.push(i32(0));
+        }, {
+          _ := t_shift.push(offset);
+          _ := s_count.push(indent);
+        });
+        _ := bs_count.push(i32(0));
+        line_start = (pos + i32(1));
+        indent = i32(0);
+        offset = i32(0);
+        indent_found = false;
+        pos = (pos + i32(1));
+      },
+      true => {
+        if(!(indent_found), {
+          cond(
+            (ch == u8(0x20)) => {
+              indent = (indent + i32(1));
+              offset = (offset + i32(1));
+            },
+            (ch == u8(0x09)) => {
+              indent = (indent + (i32(4) - (indent % i32(4))));
+              offset = (offset + i32(1));
+            },
+            true => { indent_found = true; }
+          );
+        });
+        pos = (pos + i32(1));
+      }
+    );
+  };
+
+  _ := b_marks.push(line_start);
+  _ := e_marks.push(len);
+  if(!(indent_found), {
+    _ := t_shift.push((len - line_start));
+    _ := s_count.push(i32(0));
+  }, {
+    _ := t_shift.push(offset);
+    _ := s_count.push(indent);
+  });
+  _ := bs_count.push(i32(0));
+
+  (line_count : i32) = (i32(b_marks.len()) - i32(1));
+
+  BlockState(
+    src: src, src_ptr: src_p, src_len: len,
+    b_marks: b_marks, e_marks: e_marks, t_shift: t_shift,
+    s_count: s_count, bs_count: bs_count,
+    line: i32(0), line_max: line_count,
+    blk_indent: i32(0), tight: false,
+    dd_indent: i32(-1), list_indent: i32(-1),
+    parent_type: .Root, level: i32(0),
+    env: env, renderer: renderer, options: options
+  )
+});
+
 impl(BlockState,
-  // Create a new BlockState and precompute line markers.
+  // Create a new BlockState with integrated normalization and line marker precomputation.
+  // Merges normalize + line scan into a single pass over the source.
   new : (fn(src: String, env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> Self)({
     (bytes : ArrayList(u8)) = src.as_bytes();
     (len : i32) = i32(bytes.len());
 
-    (b_marks : ArrayList(i32)) = ArrayList(i32).new();
-    (e_marks : ArrayList(i32)) = ArrayList(i32).new();
-    (t_shift : ArrayList(i32)) = ArrayList(i32).new();
-    (s_count : ArrayList(i32)) = ArrayList(i32).new();
-    (bs_count : ArrayList(i32)) = ArrayList(i32).new();
+    // Estimate line count for pre-allocation (avg ~40 bytes/line)
+    (est_lines : usize) = ((usize(len) / usize(40)) + usize(16));
+    (b_marks : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
+    (e_marks : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
+    (t_shift : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
+    (s_count : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
+    (bs_count : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
 
     (src_p : *(u8)) = match(bytes.ptr(),
       .Some(p) => p,
       .None => *(u8)("")
     );
 
-    // Precompute line markers in a single pass
+    // Single-pass: precompute line markers AND check if normalization needed
     (pos : i32) = i32(0);
     (indent : i32) = i32(0);
     (offset : i32) = i32(0);
     (line_start : i32) = i32(0);
     (indent_found : bool) = false;
+    (needs_normalize : bool) = false;
 
     while (pos < len), {
       (ch : u8) = (src_p &+ usize(pos)).*;
 
       cond(
         (ch == u8(0x0A)) => {
-          // End of line
           _ := b_marks.push(line_start);
           _ := e_marks.push(pos);
           if(!(indent_found), {
@@ -79,11 +210,15 @@ impl(BlockState,
           });
           _ := bs_count.push(i32(0));
 
-          // Reset for next line
           line_start = (pos + i32(1));
           indent = i32(0);
           offset = i32(0);
           indent_found = false;
+          pos = (pos + i32(1));
+        },
+
+        ((ch == u8(0x0D)) || (ch == u8(0x00))) => {
+          needs_normalize = true;
           pos = (pos + i32(1));
         },
 
@@ -108,7 +243,7 @@ impl(BlockState,
       );
     };
 
-    // Handle last line (may not end with newline)
+    // Handle last line
     _ := b_marks.push(line_start);
     _ := e_marks.push(len);
     if(!(indent_found), {
@@ -119,6 +254,12 @@ impl(BlockState,
       _ := s_count.push(indent);
     });
     _ := bs_count.push(i32(0));
+
+    // If normalization needed, normalize and rebuild line markers
+    if(needs_normalize, {
+      (norm_src : String) = _normalize_source(src_p, len);
+      return _build_block_state_from_normalized(norm_src, env, renderer, options);
+    });
 
     (line_count : i32) = (i32(b_marks.len()) - i32(1));
 

@@ -486,13 +486,14 @@ _emit_inline_token :: (fn(renderer: *(HtmlRenderer), tok: *(InlineToken), src: *
   cond(
     (t == i32(InlineType.Text)) => {
       // If content String is set, use that (e.g., normalized autolink text)
-      if((tok.*.content.len() > usize(0)), {
-        renderer.*.escaped_string(tok.*.content);
-      }, {
-        if((tok.*.end > tok.*.start), {
-          renderer.*.text(tok.*.start, tok.*.end);
-        });
-      });
+      match(tok.*.content,
+        .Some(c) => renderer.*.escaped_string(c),
+        .None => {
+          if((tok.*.end > tok.*.start), {
+            renderer.*.text(tok.*.start, tok.*.end);
+          });
+        }
+      );
     },
     (t == i32(InlineType.TextSpecial)) => {
       if((tok.*.end > tok.*.start), {
@@ -511,29 +512,27 @@ _emit_inline_token :: (fn(renderer: *(HtmlRenderer), tok: *(InlineToken), src: *
     (t == i32(InlineType.StrikethroughClose)) => renderer.*.close_strikethrough(),
     (t == i32(InlineType.LinkOpen)) => {
       // Reference links store href/title as String fields; inline links use byte positions
-      (href : String) = ``;
-      (title : String) = ``;
-      if((tok.*.href.len() > usize(0)), {
-        href = tok.*.href;
-        title = tok.*.title;
-      }, {
-        href = unescaped_slice(src, tok.*.start, tok.*.end);
-        title = unescaped_slice(src, tok.*.title_start, tok.*.title_end);
-      });
+      (href : String) = match(tok.*.href,
+        .Some(h) => h,
+        .None => unescaped_slice(src, tok.*.start, tok.*.end)
+      );
+      (title : String) = match(tok.*.title,
+        .Some(t2) => t2,
+        .None => unescaped_slice(src, tok.*.title_start, tok.*.title_end)
+      );
       (normalized_href : String) = normalize_link(href.as_str());
       renderer.*.open_link(normalized_href, title);
     },
     (t == i32(InlineType.LinkClose)) => renderer.*.close_link(),
     (t == i32(InlineType.ImageOpen)) => {
-      (img_src : String) = ``;
-      (title : String) = ``;
-      if((tok.*.href.len() > usize(0)), {
-        img_src = tok.*.href;
-        title = tok.*.title;
-      }, {
-        img_src = unescaped_slice(src, tok.*.start, tok.*.end);
-        title = unescaped_slice(src, tok.*.title_start, tok.*.title_end);
-      });
+      (img_src : String) = match(tok.*.href,
+        .Some(h) => h,
+        .None => unescaped_slice(src, tok.*.start, tok.*.end)
+      );
+      (title : String) = match(tok.*.title,
+        .Some(t2) => t2,
+        .None => unescaped_slice(src, tok.*.title_start, tok.*.title_end)
+      );
       (normalized_src : String) = normalize_link(img_src.as_str());
       renderer.*.open_image(normalized_src, title);
     },

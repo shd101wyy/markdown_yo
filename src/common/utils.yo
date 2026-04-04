@@ -171,37 +171,41 @@ escape_html_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i
 
   while (i < end), {
     (ch : u8) = (src_ptr &+ usize(i)).*;
-    cond(
-      (ch == u8(0x26)) => {
-        if((i > run_start), {
-          out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
-        });
-        out.*.extend_from_ptr(*(u8)("&amp;"), usize(5));
-        run_start = (i + i32(1));
-      },
-      (ch == u8(0x3C)) => {
-        if((i > run_start), {
-          out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
-        });
-        out.*.extend_from_ptr(*(u8)("&lt;"), usize(4));
-        run_start = (i + i32(1));
-      },
-      (ch == u8(0x3E)) => {
-        if((i > run_start), {
-          out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
-        });
-        out.*.extend_from_ptr(*(u8)("&gt;"), usize(4));
-        run_start = (i + i32(1));
-      },
-      (ch == u8(0x22)) => {
-        if((i > run_start), {
-          out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
-        });
-        out.*.extend_from_ptr(*(u8)("&quot;"), usize(6));
-        run_start = (i + i32(1));
-      },
-      true => ()
-    );
+    // Range pre-check: special chars " & < > are all in [0x22, 0x3E].
+    // Most text bytes (letters, spaces) are outside this range.
+    if(((ch >= u8(0x22)) && (ch <= u8(0x3E))), {
+      cond(
+        (ch == u8(0x26)) => {
+          if((i > run_start), {
+            out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
+          });
+          out.*.extend_from_ptr(*(u8)("&amp;"), usize(5));
+          run_start = (i + i32(1));
+        },
+        (ch == u8(0x3C)) => {
+          if((i > run_start), {
+            out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
+          });
+          out.*.extend_from_ptr(*(u8)("&lt;"), usize(4));
+          run_start = (i + i32(1));
+        },
+        (ch == u8(0x3E)) => {
+          if((i > run_start), {
+            out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
+          });
+          out.*.extend_from_ptr(*(u8)("&gt;"), usize(4));
+          run_start = (i + i32(1));
+        },
+        (ch == u8(0x22)) => {
+          if((i > run_start), {
+            out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
+          });
+          out.*.extend_from_ptr(*(u8)("&quot;"), usize(6));
+          run_start = (i + i32(1));
+        },
+        true => ()
+      );
+    });
     i = (i + i32(1));
   };
   // Flush remaining

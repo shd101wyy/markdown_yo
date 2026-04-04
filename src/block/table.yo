@@ -17,7 +17,7 @@ open import "std/string";
 
 // Parse cells from a table row line and emit td/th tags.
 // Matches markdown-it's escapedSplit: \| strips the backslash but keeps the pipe in the cell.
-_emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayList(TableAlign)), is_header: bool) -> unit)({
+_emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayList(TableAlign)), is_header: bool, cell_buf: *(ArrayList(u8))) -> unit)({
   (bm : i32) = state.*.b_marks(usize(line));
   (ts : i32) = state.*.t_shift(usize(line));
   (em : i32) = state.*.e_marks(usize(line));
@@ -32,11 +32,10 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
 
   // Build cell contents using segments (like markdown-it's escapedSplit)
   // cell_buf accumulates the cell content, stripping \ before |
-  (cell_buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(128));
 
   (col : i32) = i32(0);
   while (col < col_count), {
-    cell_buf.clear();
+    cell_buf.*.clear();
     (is_escaped : bool) = false;
     (seg_start : i32) = pos;
     (found_pipe : bool) = false;
@@ -48,14 +47,14 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
           // Pipe separator — end of cell
           // Append remaining segment
           if((pos > seg_start), {
-            cell_buf.extend_from_ptr((src &+ usize(seg_start)), usize((pos - seg_start)));
+            cell_buf.*.extend_from_ptr((src &+ usize(seg_start)), usize((pos - seg_start)));
           });
           found_pipe = true;
         }, {
           // Escaped pipe: \| → strip the \ and keep |
           // Append segment up to (but not including) the backslash
           if(((pos - i32(1)) > seg_start), {
-            cell_buf.extend_from_ptr((src &+ usize(seg_start)), usize(((pos - i32(1)) - seg_start)));
+            cell_buf.*.extend_from_ptr((src &+ usize(seg_start)), usize(((pos - i32(1)) - seg_start)));
           });
           seg_start = pos;
         });
@@ -69,18 +68,18 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
     // If no pipe found, append remaining segment
     if(!(found_pipe), {
       if((pos > seg_start), {
-        cell_buf.extend_from_ptr((src &+ usize(seg_start)), usize((pos - seg_start)));
+        cell_buf.*.extend_from_ptr((src &+ usize(seg_start)), usize((pos - seg_start)));
       });
     }, {
       pos = (pos + i32(1));
     });
 
     // Trim leading and trailing spaces from cell_buf
-    (cb_len : usize) = cell_buf.len();
+    (cb_len : usize) = cell_buf.*.len();
     (cb_start : usize) = usize(0);
     (cb_end : usize) = cb_len;
     if((cb_len > usize(0)), {
-      (cb_ptr : *(u8)) = cell_buf.ptr().unwrap();
+      (cb_ptr : *(u8)) = cell_buf.*.ptr().unwrap();
       while (((cb_start < cb_end) && is_space(i32((cb_ptr &+ cb_start).*)))) , {
         cb_start = (cb_start + usize(1));
       };
@@ -95,14 +94,14 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
     if(is_header, {
       state.*.renderer.*.open_th(align);
       if((cell_len > usize(0)), {
-        (cb_ptr : *(u8)) = cell_buf.ptr().unwrap();
+        (cb_ptr : *(u8)) = cell_buf.*.ptr().unwrap();
         inline_parse_range((cb_ptr &+ cb_start), i32(0), i32(cell_len), state.*.env, state.*.renderer, state.*.options);
       });
       state.*.renderer.*.close_th();
     }, {
       state.*.renderer.*.open_td(align);
       if((cell_len > usize(0)), {
-        (cb_ptr : *(u8)) = cell_buf.ptr().unwrap();
+        (cb_ptr : *(u8)) = cell_buf.*.ptr().unwrap();
         inline_parse_range((cb_ptr &+ cb_start), i32(0), i32(cell_len), state.*.env, state.*.renderer, state.*.options);
       });
       state.*.renderer.*.close_td();
@@ -270,6 +269,9 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
 
   if(silent, { return true; });
 
+  // Reusable cell buffer — shared across all rows to avoid per-row malloc
+  (cell_buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(128));
+
   // Emit table
   state.*.renderer.*.open_table();
 
@@ -278,7 +280,7 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   state.*.renderer.*.open_tr();
 
   // Parse header cells from first line
-  _emit_table_row_cells(state, start_line, (&aligns), true);
+  _emit_table_row_cells(state, start_line, (&aligns), true, (&cell_buf));
 
   state.*.renderer.*.close_tr();
   state.*.renderer.*.close_thead();
@@ -293,13 +295,18 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
       // 4+ space indent: stop table, let main parser handle as code block
       table_done = true;
     }, {
-      // Check terminator rules (same set as blockquote terminators in markdown-it)
-      if((((((block_fence(state, row_line, end_line, true)
-        || (block_blockquote(state, row_line, end_line, true) > i32(0)))
-        || block_hr(state, row_line, end_line, true))
-        || block_list(state, row_line, end_line, true))
-        || block_html(state, row_line, end_line, true))
-        || block_heading(state, row_line, end_line, true)), {
+      // Short-circuit: if line starts with |, it can't be a fence/heading/hr/etc.
+      (row_first_ch : i32) = i32((state.*.src_ptr &+ usize((state.*.b_marks(usize(row_line)) + state.*.t_shift(usize(row_line))))).*);
+      (is_terminator : bool) = cond(
+        (row_first_ch == i32(0x7C)) => false,
+        true => ((((((block_fence(state, row_line, end_line, true)
+          || (block_blockquote(state, row_line, end_line, true) > i32(0)))
+          || block_hr(state, row_line, end_line, true))
+          || block_list(state, row_line, end_line, true))
+          || block_html(state, row_line, end_line, true))
+          || block_heading(state, row_line, end_line, true)))
+      );
+      if(is_terminator, {
         table_done = true;
       }, {
         if(!(has_body), {
@@ -307,7 +314,7 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
           has_body = true;
         });
         state.*.renderer.*.open_tr();
-        _emit_table_row_cells(state, row_line, (&aligns), false);
+        _emit_table_row_cells(state, row_line, (&aligns), false, (&cell_buf));
         state.*.renderer.*.close_tr();
         row_line = (row_line + i32(1));
       });

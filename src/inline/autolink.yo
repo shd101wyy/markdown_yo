@@ -190,7 +190,7 @@ inline_autolink :: (fn(state: *(InlineState)) -> bool)({
     info_start: content_start, info_end: content_end,
     title_start: i32(0), title_end: i32(0),
     markup_char: u8(0x3C), markup_len: u8(0),
-    content: ``, href: link_href, title: ``,
+    content: .None, href: .Some(link_href), title: .None,
     block: false, hidden: false
   );
   _ := state.*.tokens.push(tok);
@@ -206,7 +206,7 @@ inline_autolink :: (fn(state: *(InlineState)) -> bool)({
       info_start: i32(0), info_end: i32(0),
       title_start: i32(0), title_end: i32(0),
       markup_char: u8(0), markup_len: u8(0),
-      content: display_text, href: ``, title: ``,
+      content: .Some(display_text), href: .None, title: .None,
       block: false, hidden: false
     );
     _ := state.*.tokens.push(text_tok);
