@@ -68,7 +68,7 @@ block_heading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silen
   state.*.renderer.*.open_heading(level);
   // Parse inline content between pos and content_end
   if((content_end > pos), {
-    inline_parse_range(state.*.src_ptr, pos, content_end, state.*.env, state.*.renderer, state.*.options);
+    inline_parse_range((&state.*._inline_state), state.*.src_ptr, pos, content_end);
   });
   state.*.renderer.*.close_heading(level);
 

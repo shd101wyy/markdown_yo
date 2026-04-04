@@ -88,11 +88,11 @@ block_paragraph :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
     while (((content_end > content_start) && ((state.*.src_ptr &+ usize((content_end - i32(1)))).* == u8(0x20)))) , {
       content_end = (content_end - i32(1));
     };
-    inline_parse_range(state.*.src_ptr, content_start, content_end, state.*.env, state.*.renderer, state.*.options);
+    inline_parse_range((&state.*._inline_state), state.*.src_ptr, content_start, content_end);
   }, {
     // Multi-line: build joined string
     (content : String) = _build_inline_string(state, start_line, next_line);
-    inline_parse(content, state.*.env, state.*.renderer, state.*.options);
+    inline_parse((&state.*._inline_state), content);
   });
 
   state.*.renderer.*.close_paragraph();

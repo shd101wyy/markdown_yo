@@ -126,10 +126,10 @@ block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sile
     while (((content_end > content_start) && ((state.*.src_ptr &+ usize((content_end - i32(1)))).* == u8(0x20)))) , {
       content_end = (content_end - i32(1));
     };
-    inline_parse_range(state.*.src_ptr, content_start, content_end, state.*.env, state.*.renderer, state.*.options);
+    inline_parse_range((&state.*._inline_state), state.*.src_ptr, content_start, content_end);
   }, {
     (content : String) = _build_lheading_inline(state, start_line, next_line);
-    inline_parse(content, state.*.env, state.*.renderer, state.*.options);
+    inline_parse((&state.*._inline_state), content);
   });
 
   state.*.renderer.*.close_heading(level);

@@ -95,14 +95,14 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
       state.*.renderer.*.open_th(align);
       if((cell_len > usize(0)), {
         (cb_ptr : *(u8)) = cell_buf.*.ptr().unwrap();
-        inline_parse_range((cb_ptr &+ cb_start), i32(0), i32(cell_len), state.*.env, state.*.renderer, state.*.options);
+        inline_parse_range((&state.*._inline_state), (cb_ptr &+ cb_start), i32(0), i32(cell_len));
       });
       state.*.renderer.*.close_th();
     }, {
       state.*.renderer.*.open_td(align);
       if((cell_len > usize(0)), {
         (cb_ptr : *(u8)) = cell_buf.*.ptr().unwrap();
-        inline_parse_range((cb_ptr &+ cb_start), i32(0), i32(cell_len), state.*.env, state.*.renderer, state.*.options);
+        inline_parse_range((&state.*._inline_state), (cb_ptr &+ cb_start), i32(0), i32(cell_len));
       });
       state.*.renderer.*.close_td();
     });

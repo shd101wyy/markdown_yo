@@ -8,6 +8,7 @@ open import "std/string";
 { HashMap } :: import "std/collections/hash_map";
 { Options, ParentType, Reference, Env } :: import "../types.yo";
 { HtmlRenderer } :: import "../renderer.yo";
+{ InlineState } :: import "../inline/state.yo";
 { is_space } :: import "../common/utils.yo";
 
 BlockState :: struct(
@@ -35,7 +36,10 @@ BlockState :: struct(
 
   env : *(Env),               // link references
   renderer : *(HtmlRenderer), // for direct SAX-style calls
-  options : *(Options)
+  options : *(Options),
+
+  // Reusable inline state — avoids repeated ArrayList allocation/deallocation
+  _inline_state : InlineState
 );
 
 // Normalize source: replace \r\n → \n, lone \r → \n, \0 → U+FFFD (rare path)
@@ -162,7 +166,8 @@ _build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(
     blk_indent: i32(0), tight: false,
     dd_indent: i32(-1), list_indent: i32(-1),
     parent_type: .Root, level: i32(0),
-    env: env, renderer: renderer, options: options
+    env: env, renderer: renderer, options: options,
+    _inline_state: InlineState.reusable(env, renderer, options)
   )
 });
 
@@ -282,7 +287,8 @@ impl(BlockState,
       level: i32(0),
       env: env,
       renderer: renderer,
-      options: options
+      options: options,
+      _inline_state: InlineState.reusable(env, renderer, options)
     )
   }),
 

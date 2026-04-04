@@ -6,9 +6,7 @@
 
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
-{ HashMap } :: import "std/collections/hash_map";
-{ Options, Env, Delimiter, InlineType, LinkMarker } :: import "../types.yo";
-{ HtmlRenderer } :: import "../renderer.yo";
+{ InlineType } :: import "../types.yo";
 { InlineState, InlineToken } :: import "./state.yo";
 { inline_escape } :: import "./escape.yo";
 { inline_backticks } :: import "./backticks.yo";
@@ -109,21 +107,22 @@ _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
 });
 
 // Parse inline content from a source string and render directly to the HtmlRenderer.
-inline_parse :: (fn(src: String, env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> unit)({
-  (state : InlineState) = InlineState.new(src, env, renderer, options);
-  _inline_dispatch((&state));
+// Uses the provided reusable InlineState to avoid repeated allocations.
+inline_parse :: (fn(inline_state: *(InlineState), src: String) -> unit)({
+  inline_state.*.reset_for_string(src);
+  _inline_dispatch(inline_state);
 });
 
 // Parse inline content from source byte range [start, end) and render.
 // This is the main entry point called by block rules.
 // Zero-copy: directly uses the source pointer without allocating a String copy.
-inline_parse_range :: (fn(src_ptr: *(u8), start: i32, end: i32,
-                         env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> unit)({
+// Uses the provided reusable InlineState to avoid repeated allocations.
+inline_parse_range :: (fn(inline_state: *(InlineState), src_ptr: *(u8), start: i32, end: i32) -> unit)({
   if((end <= start), { return (); });
 
   (len : i32) = (end - start);
-  (state : InlineState) = InlineState.from_ptr((src_ptr &+ usize(start)), len, env, renderer, options);
-  _inline_dispatch((&state));
+  inline_state.*.reset_for_ptr((src_ptr &+ usize(start)), len);
+  _inline_dispatch(inline_state);
 });
 
 export inline_parse, inline_parse_range;

@@ -81,61 +81,76 @@ InlineState :: struct(
 );
 
 impl(InlineState,
-  new : (fn(src: String, env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> Self)({
+  // Create a reusable state with pre-allocated buffers
+  reusable : (fn(env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> Self)(
+    Self(
+      src: .None,
+      src_ptr: *(u8)(""),
+      pos: i32(0),
+      pos_max: i32(0),
+      level: i32(0),
+      pending_start: i32(0),
+      pending_end: i32(0),
+      tokens: ArrayList(InlineToken).with_capacity(usize(32)),
+      delimiters: ArrayList(Delimiter).with_capacity(usize(16)),
+      prev_delimiters: ArrayList(ArrayList(Delimiter)).new(),
+      cache: .None,
+      backticks: .None,
+      backticks_scanned: false,
+      link_level: i32(0),
+      link_markers: ArrayList(LinkMarker).with_capacity(usize(8)),
+      resolved_pairs: ArrayList(EmphasisPair).with_capacity(usize(8)),
+      env: env,
+      renderer: renderer,
+      options: options
+    )
+  ),
+
+  // Reset for range-based (zero-copy) parsing. Clears lists but keeps allocated capacity.
+  reset_for_ptr : (fn(self: *(Self), ptr: *(u8), len: i32) -> unit)({
+    self.*.tokens.clear();
+    self.*.delimiters.clear();
+    self.*.prev_delimiters.clear();
+    self.*.link_markers.clear();
+    self.*.resolved_pairs.clear();
+    self.*.src = .None;
+    self.*.src_ptr = ptr;
+    self.*.pos = i32(0);
+    self.*.pos_max = len;
+    self.*.level = i32(0);
+    self.*.pending_start = i32(0);
+    self.*.pending_end = i32(0);
+    self.*.link_level = i32(0);
+    self.*.cache = .None;
+    self.*.backticks = .None;
+    self.*.backticks_scanned = false;
+  }),
+
+  // Reset for string-based parsing. Clears lists but keeps allocated capacity.
+  reset_for_string : (fn(self: *(Self), src: String) -> unit)({
+    self.*.tokens.clear();
+    self.*.delimiters.clear();
+    self.*.prev_delimiters.clear();
+    self.*.link_markers.clear();
+    self.*.resolved_pairs.clear();
     (bytes : ArrayList(u8)) = src.as_bytes();
     (len : i32) = i32(bytes.len());
     (src_p : *(u8)) = match(bytes.ptr(),
       .Some(p) => p,
       .None => *(u8)("")
     );
-
-    Self(
-      src: .Some(src),
-      src_ptr: src_p,
-      pos: i32(0),
-      pos_max: len,
-      level: i32(0),
-      pending_start: i32(0),
-      pending_end: i32(0),
-      tokens: ArrayList(InlineToken).new(),
-      delimiters: ArrayList(Delimiter).new(),
-      prev_delimiters: ArrayList(ArrayList(Delimiter)).new(),
-      cache: .None,
-      backticks: .None,
-      backticks_scanned: false,
-      link_level: i32(0),
-      link_markers: ArrayList(LinkMarker).new(),
-      resolved_pairs: ArrayList(EmphasisPair).new(),
-      env: env,
-      renderer: renderer,
-      options: options
-    )
+    self.*.src = .Some(src);
+    self.*.src_ptr = src_p;
+    self.*.pos = i32(0);
+    self.*.pos_max = len;
+    self.*.level = i32(0);
+    self.*.pending_start = i32(0);
+    self.*.pending_end = i32(0);
+    self.*.link_level = i32(0);
+    self.*.cache = .None;
+    self.*.backticks = .None;
+    self.*.backticks_scanned = false;
   }),
-
-  // Create from raw pointer + length — zero-copy, caller must ensure ptr stays valid
-  from_ptr : (fn(ptr: *(u8), len: i32, env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> Self)(
-    Self(
-      src: .None,
-      src_ptr: ptr,
-      pos: i32(0),
-      pos_max: len,
-      level: i32(0),
-      pending_start: i32(0),
-      pending_end: i32(0),
-      tokens: ArrayList(InlineToken).new(),
-      delimiters: ArrayList(Delimiter).new(),
-      prev_delimiters: ArrayList(ArrayList(Delimiter)).new(),
-      cache: .None,
-      backticks: .None,
-      backticks_scanned: false,
-      link_level: i32(0),
-      link_markers: ArrayList(LinkMarker).new(),
-      resolved_pairs: ArrayList(EmphasisPair).new(),
-      env: env,
-      renderer: renderer,
-      options: options
-    )
-  ),
 
   // Push pending text as a token if there's any accumulated
   push_pending : (fn(self: *(Self)) -> unit)({
