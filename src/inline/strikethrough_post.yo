@@ -39,7 +39,7 @@ strikethrough_post :: (fn(state: *(InlineState)) -> unit)({
           info_start: otok.info_start, info_end: otok.info_end,
           title_start: otok.title_start, title_end: otok.title_end,
           markup_char: otok.markup_char, markup_len: otok.markup_len,
-          content: otok.content, href: otok.href, title: otok.title,
+          content_idx: otok.content_idx, href_idx: otok.href_idx, title_idx: otok.title_idx,
           block: otok.block, hidden: otok.hidden
         );
 
@@ -51,7 +51,7 @@ strikethrough_post :: (fn(state: *(InlineState)) -> unit)({
           info_start: ctok.info_start, info_end: ctok.info_end,
           title_start: ctok.title_start, title_end: ctok.title_end,
           markup_char: ctok.markup_char, markup_len: ctok.markup_len,
-          content: ctok.content, href: ctok.href, title: ctok.title,
+          content_idx: ctok.content_idx, href_idx: ctok.href_idx, title_idx: ctok.title_idx,
           block: ctok.block, hidden: ctok.hidden
         );
 

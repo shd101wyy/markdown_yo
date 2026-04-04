@@ -9,7 +9,8 @@ open import "std/string";
 { HtmlRenderer } :: import "../renderer.yo";
 { is_space } :: import "../common/utils.yo";
 
-// Lightweight inline token — value type, zero RC
+// Lightweight inline token — pure value type, no RC fields
+// String content (entities, resolved URLs) stored separately in InlineState.token_strings
 InlineToken :: struct(
   type_name : InlineType,
   start : i32,          // byte offset in source
@@ -25,11 +26,10 @@ InlineToken :: struct(
   markup_len : u8,      // number of marker chars
   block : bool,
   hidden : bool,
-  // String-based content for entities/resolved URLs (None when unused)
-  content : Option(String),
-  // For links/images that need dynamically built href/title
-  href : Option(String),
-  title : Option(String)
+  // Indices into InlineState.token_strings (-1 = none)
+  content_idx : i32,
+  href_idx : i32,
+  title_idx : i32
 );
 
 impl(InlineToken,
@@ -37,19 +37,19 @@ impl(InlineToken,
     Self(type_name: .Text, start: start, end: end, nesting: i32(0), level: level,
          info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
          markup_char: u8(0), markup_len: u8(0), block: false, hidden: false,
-         content: .None, href: .None, title: .None)
+         content_idx: i32(-1), href_idx: i32(-1), title_idx: i32(-1))
   ),
   text_special : (fn(start: i32, end: i32, level: i32) -> Self)(
     Self(type_name: .TextSpecial, start: start, end: end, nesting: i32(0), level: level,
          info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
          markup_char: u8(0), markup_len: u8(0), block: false, hidden: false,
-         content: .None, href: .None, title: .None)
+         content_idx: i32(-1), href_idx: i32(-1), title_idx: i32(-1))
   ),
   simple : (fn(type_name: InlineType, nesting: i32, level: i32) -> Self)(
     Self(type_name: type_name, start: i32(0), end: i32(0), nesting: nesting, level: level,
          info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
          markup_char: u8(0), markup_len: u8(0), block: false, hidden: false,
-         content: .None, href: .None, title: .None)
+         content_idx: i32(-1), href_idx: i32(-1), title_idx: i32(-1))
   )
 );
 
@@ -74,6 +74,10 @@ InlineState :: struct(
   link_level : i32,
   link_markers : ArrayList(LinkMarker),
   resolved_pairs : ArrayList(EmphasisPair),
+
+  // Side storage for token strings (content/href/title)
+  // Tokens reference these by index (content_idx/href_idx/title_idx)
+  token_strings : ArrayList(String),
 
   env : *(Env),
   renderer : *(HtmlRenderer),
@@ -100,10 +104,23 @@ impl(InlineState,
       link_level: i32(0),
       link_markers: ArrayList(LinkMarker).with_capacity(usize(8)),
       resolved_pairs: ArrayList(EmphasisPair).with_capacity(usize(8)),
+      token_strings: ArrayList(String).with_capacity(usize(4)),
       env: env,
       renderer: renderer,
       options: options
     )
+  ),
+
+  // Store a string in token_strings and return its index
+  store_string : (fn(self: *(Self), s: String) -> i32)({
+    (idx : i32) = i32(self.*.token_strings.len());
+    _ := self.*.token_strings.push(s);
+    idx
+  }),
+
+  // Get a stored string by index (returns a copy)
+  get_string : (fn(self: *(Self), idx: i32) -> String)(
+    self.*.token_strings(usize(idx))
   ),
 
   // Reset for range-based (zero-copy) parsing. Clears lists but keeps allocated capacity.
@@ -113,6 +130,7 @@ impl(InlineState,
     self.*.prev_delimiters.clear();
     self.*.link_markers.clear();
     self.*.resolved_pairs.clear();
+    self.*.token_strings.clear();
     self.*.src = .None;
     self.*.src_ptr = ptr;
     self.*.pos = i32(0);
@@ -133,6 +151,7 @@ impl(InlineState,
     self.*.prev_delimiters.clear();
     self.*.link_markers.clear();
     self.*.resolved_pairs.clear();
+    self.*.token_strings.clear();
     (bytes : ArrayList(u8)) = src.as_bytes();
     (len : i32) = i32(bytes.len());
     (src_p : *(u8)) = match(bytes.ptr(),

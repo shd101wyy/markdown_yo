@@ -183,6 +183,7 @@ inline_autolink :: (fn(state: *(InlineState)) -> bool)({
   state.*.push_pending();
 
   // Emit link open
+  (href_idx : i32) = state.*.store_string(link_href);
   (tok : InlineToken) = InlineToken(
     type_name: .LinkOpen,
     start: content_start, end: content_end,
@@ -190,7 +191,7 @@ inline_autolink :: (fn(state: *(InlineState)) -> bool)({
     info_start: content_start, info_end: content_end,
     title_start: i32(0), title_end: i32(0),
     markup_char: u8(0x3C), markup_len: u8(0),
-    content: .None, href: .Some(link_href), title: .None,
+    content_idx: i32(-1), href_idx: href_idx, title_idx: i32(-1),
     block: false, hidden: false
   );
   _ := state.*.tokens.push(tok);
@@ -198,7 +199,8 @@ inline_autolink :: (fn(state: *(InlineState)) -> bool)({
   // For display text: URI autolinks get normalize_link_text applied to decode percent-encoded chars
   // Email autolinks use raw source bytes (no mailto: prefix in display)
   if((is_uri && !(is_email)), {
-    (display_text : String) = normalize_link_text(link_href.as_str());
+    (display_text : String) = normalize_link_text(state.*.get_string(href_idx).as_str());
+    (content_idx : i32) = state.*.store_string(display_text);
     (text_tok : InlineToken) = InlineToken(
       type_name: .Text,
       start: i32(0), end: i32(0),
@@ -206,7 +208,7 @@ inline_autolink :: (fn(state: *(InlineState)) -> bool)({
       info_start: i32(0), info_end: i32(0),
       title_start: i32(0), title_end: i32(0),
       markup_char: u8(0), markup_len: u8(0),
-      content: .Some(display_text), href: .None, title: .None,
+      content_idx: content_idx, href_idx: i32(-1), title_idx: i32(-1),
       block: false, hidden: false
     );
     _ := state.*.tokens.push(text_tok);

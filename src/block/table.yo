@@ -5,9 +5,9 @@
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
 { BlockState } :: import "./state.yo";
-{ is_space } :: import "../common/utils.yo";
+{ is_space, escape_html_buf } :: import "../common/utils.yo";
 { TableAlign } :: import "../types.yo";
-{ inline_parse_range } :: import "../inline/parser.yo";
+{ inline_parse_range, _is_inline_special } :: import "../inline/parser.yo";
 { block_fence } :: import "./fence.yo";
 { block_blockquote } :: import "./blockquote.yo";
 { block_hr } :: import "./hr.yo";
@@ -93,17 +93,35 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
 
     if(is_header, {
       state.*.renderer.*.open_th(align);
-      if((cell_len > usize(0)), {
-        (cb_ptr : *(u8)) = cell_buf.*.ptr().unwrap();
-        inline_parse_range((&state.*._inline_state), (cb_ptr &+ cb_start), i32(0), i32(cell_len));
-      });
-      state.*.renderer.*.close_th();
     }, {
       state.*.renderer.*.open_td(align);
-      if((cell_len > usize(0)), {
-        (cb_ptr : *(u8)) = cell_buf.*.ptr().unwrap();
-        inline_parse_range((&state.*._inline_state), (cb_ptr &+ cb_start), i32(0), i32(cell_len));
+    });
+
+    if((cell_len > usize(0)), {
+      (cb_ptr : *(u8)) = cell_buf.*.ptr().unwrap();
+      (cell_ptr : *(u8)) = (cb_ptr &+ cb_start);
+      (cell_len_i32 : i32) = i32(cell_len);
+
+      // Fast path: if cell has no inline-special chars, emit escaped text directly
+      (has_special : bool) = false;
+      (si : usize) = usize(0);
+      while (((si < cell_len) && !(has_special))), {
+        if(_is_inline_special((cell_ptr &+ si).*), {
+          has_special = true;
+        });
+        si = (si + usize(1));
+      };
+
+      if(has_special, {
+        inline_parse_range((&state.*._inline_state), cell_ptr, i32(0), cell_len_i32);
+      }, {
+        escape_html_buf((&state.*.renderer.*.buf), cell_ptr, i32(0), cell_len_i32);
       });
+    });
+
+    if(is_header, {
+      state.*.renderer.*.close_th();
+    }, {
       state.*.renderer.*.close_td();
     });
 

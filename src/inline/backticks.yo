@@ -99,7 +99,7 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
     info_start: i32(0), info_end: i32(0),
     title_start: i32(0), title_end: i32(0),
     markup_char: u8(0x60), markup_len: u8(open_count),
-    content: .None, href: .None, title: .None,
+    content_idx: i32(-1), href_idx: i32(-1), title_idx: i32(-1),
     block: false, hidden: false
   );
 

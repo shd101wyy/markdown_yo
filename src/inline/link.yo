@@ -470,7 +470,7 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
             info_start: otok.info_start, info_end: otok.info_end,
             title_start: otok.title_start, title_end: otok.title_end,
             markup_char: otok.markup_char, markup_len: otok.markup_len,
-            content: otok.content, href: otok.href, title: otok.title,
+            content_idx: otok.content_idx, href_idx: otok.href_idx, title_idx: otok.title_idx,
             block: otok.block, hidden: otok.hidden
           );
 
@@ -483,7 +483,7 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
             info_start: ctok.info_start, info_end: ctok.info_end,
             title_start: ctok.title_start, title_end: ctok.title_end,
             markup_char: ctok.markup_char, markup_len: ctok.markup_len,
-            content: ctok.content, href: ctok.href, title: ctok.title,
+            content_idx: ctok.content_idx, href_idx: ctok.href_idx, title_idx: ctok.title_idx,
             block: ctok.block, hidden: ctok.hidden
           );
 
@@ -767,7 +767,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
       info_start: i32(0), info_end: i32(0),
       title_start: i32(0), title_end: i32(0),
       markup_char: u8(0), markup_len: u8(0),
-      content: .None, href: .Some(ref_href), title: .Some(ref_title),
+      content_idx: i32(-1), href_idx: state.*.store_string(ref_href), title_idx: state.*.store_string(ref_title),
       block: false, hidden: false
     );
   }, {
@@ -779,7 +779,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
       info_start: i32(0), info_end: i32(0),
       title_start: title_start, title_end: title_end,
       markup_char: u8(0), markup_len: u8(0),
-      content: .None, href: .None, title: .None,
+      content_idx: i32(-1), href_idx: i32(-1), title_idx: i32(-1),
       block: false, hidden: false
     );
   });
