@@ -168,6 +168,10 @@ utf8_byte_len :: (fn(lead: u8) -> i32)(
 escape_html_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i32) -> unit)({
   (i : i32) = start;
   (run_start : i32) = start;
+  // Pre-reserve capacity: worst case each char becomes 6 bytes (&quot;)
+  // but typical text expands ~10%, so reserve (end-start) + some margin
+  (input_len : i32) = (end - start);
+  out.*.ensure_total_capacity(usize(((input_len + (input_len / i32(8))) + i32(32))) + out.*.len());
 
   while (i < end), {
     (ch : u8) = (src_ptr &+ usize(i)).*;

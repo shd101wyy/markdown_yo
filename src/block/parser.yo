@@ -34,11 +34,11 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
   (max_nesting : i32) = state.*.options.*.max_nesting;
   (has_empty_lines : bool) = false;
 
-  // Reusable blockquote save buffers — allocated once, reused across all blockquotes
-  (bq_save_bm : ArrayList(i32)) = ArrayList(i32).new();
-  (bq_save_ts : ArrayList(i32)) = ArrayList(i32).new();
-  (bq_save_sc : ArrayList(i32)) = ArrayList(i32).new();
-  (bq_save_bs : ArrayList(i32)) = ArrayList(i32).new();
+  // Use BlockState's reusable blockquote save buffers (avoids per-call allocation)
+  (bq_save_bm : *(ArrayList(i32))) = &(state.*._bq_save_bm);
+  (bq_save_ts : *(ArrayList(i32))) = &(state.*._bq_save_ts);
+  (bq_save_sc : *(ArrayList(i32))) = &(state.*._bq_save_sc);
+  (bq_save_bs : *(ArrayList(i32))) = &(state.*._bq_save_bs);
 
   (tokenize_done : bool) = false;
   while (!(tokenize_done)), {
@@ -96,14 +96,14 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                 true => end_line
               );
               (bq_range : usize) = usize((bq_save_end - line));
-              bq_save_bm.clear();
-              bq_save_ts.clear();
-              bq_save_sc.clear();
-              bq_save_bs.clear();
-              bq_save_bm.extend_from_ptr((state.*._bm &+ usize(line)), bq_range);
-              bq_save_ts.extend_from_ptr((state.*._ts &+ usize(line)), bq_range);
-              bq_save_sc.extend_from_ptr((state.*._sc &+ usize(line)), bq_range);
-              bq_save_bs.extend_from_ptr((state.*._bs &+ usize(line)), bq_range);
+              bq_save_bm.*.clear();
+              bq_save_ts.*.clear();
+              bq_save_sc.*.clear();
+              bq_save_bs.*.clear();
+              bq_save_bm.*.extend_from_ptr((state.*._bm &+ usize(line)), bq_range);
+              bq_save_ts.*.extend_from_ptr((state.*._ts &+ usize(line)), bq_range);
+              bq_save_sc.*.extend_from_ptr((state.*._sc &+ usize(line)), bq_range);
+              bq_save_bs.*.extend_from_ptr((state.*._bs &+ usize(line)), bq_range);
 
               // Now call non-silent — modifies state arrays, returns bq_end
               (bq_end : i32) = block_blockquote(state, line, end_line, false);
@@ -134,25 +134,25 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
 
               // Restore state arrays [line, bq_save_end) — only the blockquote range
               (bq_restore_bytes : usize) = (bq_range * sizeof(i32));
-              match(bq_save_bm.ptr(),
+              match(bq_save_bm.*.ptr(),
                 .Some(src) => {
                   _ := memmove(*(void)((state.*._bm &+ usize(line))), *(void)(src), bq_restore_bytes);
                 },
                 .None => ()
               );
-              match(bq_save_ts.ptr(),
+              match(bq_save_ts.*.ptr(),
                 .Some(src) => {
                   _ := memmove(*(void)((state.*._ts &+ usize(line))), *(void)(src), bq_restore_bytes);
                 },
                 .None => ()
               );
-              match(bq_save_sc.ptr(),
+              match(bq_save_sc.*.ptr(),
                 .Some(src) => {
                   _ := memmove(*(void)((state.*._sc &+ usize(line))), *(void)(src), bq_restore_bytes);
                 },
                 .None => ()
               );
-              match(bq_save_bs.ptr(),
+              match(bq_save_bs.*.ptr(),
                 .Some(src) => {
                   _ := memmove(*(void)((state.*._bs &+ usize(line))), *(void)(src), bq_restore_bytes);
                 },

@@ -54,7 +54,13 @@ BlockState :: struct(
   _inline_state : InlineState,
 
   // Reusable scratch buffer for multi-line string building (paragraph, lheading, etc.)
-  _line_buf : ArrayList(u8)
+  _line_buf : ArrayList(u8),
+
+  // Reusable blockquote save buffers — shared across recursive block_tokenize calls
+  _bq_save_bm : ArrayList(i32),
+  _bq_save_ts : ArrayList(i32),
+  _bq_save_sc : ArrayList(i32),
+  _bq_save_bs : ArrayList(i32)
 );
 
 // Normalize source: replace \r\n → \n, lone \r → \n, \0 → U+FFFD (rare path)
@@ -193,7 +199,11 @@ _build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(
     parent_type: .Root, level: i32(0),
     env: env, renderer: renderer, options: options,
     _inline_state: InlineState.reusable(env, renderer, options),
-    _line_buf: ArrayList(u8).new()
+    _line_buf: ArrayList(u8).new(),
+    _bq_save_bm: ArrayList(i32).new(),
+    _bq_save_ts: ArrayList(i32).new(),
+    _bq_save_sc: ArrayList(i32).new(),
+    _bq_save_bs: ArrayList(i32).new()
   )
 });
 
@@ -324,7 +334,11 @@ impl(BlockState,
       renderer: renderer,
       options: options,
       _inline_state: InlineState.reusable(env, renderer, options),
-      _line_buf: ArrayList(u8).new()
+      _line_buf: ArrayList(u8).new(),
+      _bq_save_bm: ArrayList(i32).new(),
+      _bq_save_ts: ArrayList(i32).new(),
+      _bq_save_sc: ArrayList(i32).new(),
+      _bq_save_bs: ArrayList(i32).new()
     )
   }),
 

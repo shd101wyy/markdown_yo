@@ -62,8 +62,8 @@ _is_alnum :: (fn(ch : u8) -> bool)(
 
 // Emit a percent-encoded byte (%XX) into the output buffer
 _emit_pct :: (fn(out: *(ArrayList(u8)), b: u8) -> unit)({
-  _ := out.*.push(u8(0x25)); // %
   (hex_ptr : *(u8)) = *(u8)(_HEX_CHARS);
+  _ := out.*.push(u8(0x25)); // %
   _ := out.*.push((hex_ptr &+ usize((b >> u8(4)))).*);
   _ := out.*.push((hex_ptr &+ usize((b & u8(0x0F)))).*);
 });
@@ -300,6 +300,9 @@ normalize_link_buf :: (fn(url_ptr: *(u8), url_len: i32, out: *(ArrayList(u8))) -
   out.*.clear();
   (src : *(u8)) = url_ptr;
   (len : i32) = url_len;
+
+  // Pre-allocate for worst case percent-encoding
+  out.*.ensure_total_capacity(usize(((len * i32(3)) / i32(2))));
 
   (i : i32) = i32(0);
   while (i < len), {
