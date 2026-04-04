@@ -175,4 +175,40 @@ unescaped_slice :: (fn(src: *(u8), start: i32, end: i32) -> String)({
   String.from_bytes(result)
 });
 
-export emit_codepoint, try_decode_entity, unescaped_slice;
+// Buffer-based unescaped_slice — writes to caller-provided buffer, avoiding allocation.
+unescaped_slice_buf :: (fn(src: *(u8), start: i32, end: i32, out: *(ArrayList(u8))) -> unit)({
+  out.*.clear();
+  if((end <= start), { return (); });
+  (i : i32) = start;
+  while (i < end), {
+    (b : u8) = (src &+ usize(i)).*;
+    if(((b == u8(0x5C)) && ((i + i32(1)) < end)), {
+      (next : u8) = (src &+ usize((i + i32(1)))).*;
+      if((((next >= u8(0x21)) && (next <= u8(0x2F)))
+       || ((next >= u8(0x3A)) && (next <= u8(0x40)))
+       || ((next >= u8(0x5B)) && (next <= u8(0x60)))
+       || ((next >= u8(0x7B)) && (next <= u8(0x7E)))), {
+        _ := out.*.push(next);
+        i = (i + i32(2));
+      }, {
+        _ := out.*.push(b);
+        i = (i + i32(1));
+      });
+    }, {
+      if((b == u8(0x26)), {
+        (after : i32) = try_decode_entity(src, i, end, out);
+        if((after > i32(0)), {
+          i = after;
+        }, {
+          _ := out.*.push(b);
+          i = (i + i32(1));
+        });
+      }, {
+        _ := out.*.push(b);
+        i = (i + i32(1));
+      });
+    });
+  };
+});
+
+export emit_codepoint, try_decode_entity, unescaped_slice, unescaped_slice_buf;

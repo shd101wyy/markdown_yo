@@ -294,6 +294,106 @@ normalize_link :: (fn(url: str) -> String)({
   encoded_str
 });
 
+// Buffer-based normalize_link — writes to caller-provided buffer, avoiding allocation.
+// The buffer is cleared before use; caller reuses the same ArrayList across calls.
+normalize_link_buf :: (fn(url_ptr: *(u8), url_len: i32, out: *(ArrayList(u8))) -> unit)({
+  out.*.clear();
+  (src : *(u8)) = url_ptr;
+  (len : i32) = url_len;
+
+  (i : i32) = i32(0);
+  while (i < len), {
+    (b : u8) = (src &+ usize(i)).*;
+
+    // Check for already-encoded %XX sequences — preserve them
+    if(((b == u8(0x25)) && ((i + i32(2)) < len)), {
+      (h1 : u8) = (src &+ usize((i + i32(1)))).*;
+      (h2 : u8) = (src &+ usize((i + i32(2)))).*;
+      if((_is_hex_char(h1) && _is_hex_char(h2)), {
+        _ := out.*.push(b);
+        _ := out.*.push(h1);
+        _ := out.*.push(h2);
+        i = (i + i32(3));
+      }, {
+        _emit_pct(out, b);
+        i = (i + i32(1));
+      });
+    }, {
+      if((b < u8(0x80)), {
+        if((_is_alnum(b) || _is_default_exclude(b)), {
+          _ := out.*.push(b);
+        }, {
+          _emit_pct(out, b);
+        });
+        i = (i + i32(1));
+      }, {
+        if(((b & u8(0xE0)) == u8(0xC0)), {
+          _emit_pct(out, b);
+          if(((i + i32(1)) < len), { _emit_pct(out, (src &+ usize((i + i32(1)))).*); });
+          i = (i + i32(2));
+        }, {
+          if(((b & u8(0xF0)) == u8(0xE0)), {
+            _emit_pct(out, b);
+            if(((i + i32(1)) < len), { _emit_pct(out, (src &+ usize((i + i32(1)))).*); });
+            if(((i + i32(2)) < len), { _emit_pct(out, (src &+ usize((i + i32(2)))).*); });
+            i = (i + i32(3));
+          }, {
+            if(((b & u8(0xF8)) == u8(0xF0)), {
+              _emit_pct(out, b);
+              if(((i + i32(1)) < len), { _emit_pct(out, (src &+ usize((i + i32(1)))).*); });
+              if(((i + i32(2)) < len), { _emit_pct(out, (src &+ usize((i + i32(2)))).*); });
+              if(((i + i32(3)) < len), { _emit_pct(out, (src &+ usize((i + i32(3)))).*); });
+              i = (i + i32(4));
+            }, {
+              _emit_pct(out, u8(0xEF));
+              _emit_pct(out, u8(0xBF));
+              _emit_pct(out, u8(0xBD));
+              i = (i + i32(1));
+            });
+          });
+        });
+      });
+    });
+  };
+
+  // Post-process: punycode-encode domain if it has non-ASCII
+  // This path is rare — only for international domain names
+  (enc_len2 : i32) = i32(out.*.len());
+  if((enc_len2 > i32(0)), {
+    (enc_ptr : *(u8)) = match(out.*.ptr(),
+      .Some(p) => p,
+      .None => { return (); }
+    );
+    (auth_start2 : i32) = _find_domain(enc_ptr, enc_len2);
+    if((auth_start2 >= i32(0)), {
+      (domain_start2 : i32) = _skip_userinfo(enc_ptr, auth_start2, enc_len2);
+      (domain_end2 : i32) = _find_domain_end(enc_ptr, domain_start2, enc_len2);
+      if((domain_start2 < domain_end2), {
+        (has_pct2 : bool) = false;
+        (dp3 : i32) = domain_start2;
+        while ((dp3 < domain_end2) && !(has_pct2)), {
+          if(((i32((enc_ptr &+ usize(dp3)).*) == i32(0x25)) && ((dp3 + i32(2)) < domain_end2)), {
+            (hv1 : i32) = _hex_val((enc_ptr &+ usize((dp3 + i32(1)))).*);
+            (hv2 : i32) = _hex_val((enc_ptr &+ usize((dp3 + i32(2)))).*);
+            if(((hv1 >= i32(0)) && (hv2 >= i32(0))), {
+              if((((hv1 * i32(16)) + hv2) >= i32(0xC0)), { has_pct2 = true; });
+            });
+          });
+          dp3 = (dp3 + i32(1));
+        };
+        if(has_pct2, {
+          // Rare path: decode + punycode-encode the domain
+          (result : String) = normalize_link(str.from_raw_parts(url_ptr, usize(url_len)));
+          out.*.clear();
+          (rp : *(u8)) = result.as_str().ptr();
+          (rl : i32) = i32(result.as_str().len());
+          out.*.extend_from_ptr(rp, usize(rl));
+        });
+      });
+    });
+  });
+});
+
 
 // Normalize link text for display — decode percent-encoded sequences
 // Matches mdurl.decode behavior: decodes %XX sequences to their byte values,
@@ -485,4 +585,4 @@ normalize_link_text :: (fn(url: str) -> String)({
   decoded_str
 });
 
-export normalize_link, normalize_link_text;
+export normalize_link, normalize_link_text, normalize_link_buf;

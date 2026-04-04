@@ -493,6 +493,14 @@ impl(HtmlRenderer,
     );
   }),
 
+  // Write HTML-escaped content from a raw buffer (avoids String wrapper overhead)
+  escaped_raw : (fn(self: *(Self), buf: *(ArrayList(u8))) -> unit)(
+    match(buf.*.ptr(),
+      .Some(p) => escape_html_buf((&self.*.buf), p, i32(0), i32(buf.*.len())),
+      .None => ()
+    )
+  ),
+
   // -------------------------------------------------------------------
   // Block-level events
   // -------------------------------------------------------------------
@@ -778,6 +786,30 @@ impl(HtmlRenderer,
     self.*.lit("\">");
   }),
 
+  // Buffer-based: href from buf, title from String
+  open_link_buf : (fn(self: *(Self), href_buf: *(ArrayList(u8)), title: String) -> unit)({
+    if((self.*.img_nest > i32(0)), { return (); });
+    self.*.lit("<a href=\"");
+    self.*.escaped_raw(href_buf);
+    if((title.len() > usize(0)), {
+      self.*.lit("\" title=\"");
+      self.*.escaped_string(title);
+    });
+    self.*.lit("\">");
+  }),
+
+  // Buffer-based: href from buf, title from buf
+  open_link_raw : (fn(self: *(Self), href_buf: *(ArrayList(u8)), title_buf: *(ArrayList(u8))) -> unit)({
+    if((self.*.img_nest > i32(0)), { return (); });
+    self.*.lit("<a href=\"");
+    self.*.escaped_raw(href_buf);
+    if((title_buf.*.len() > usize(0)), {
+      self.*.lit("\" title=\"");
+      self.*.escaped_raw(title_buf);
+    });
+    self.*.lit("\">");
+  }),
+
   close_link : (fn(self: *(Self)) -> unit)(
     if((self.*.img_nest == i32(0)), {
       self.*.lit("</a>");
@@ -792,6 +824,30 @@ impl(HtmlRenderer,
     self.*.escaped_string(src);
     self.*.lit("\" alt=\"");
     self.*.img_title = title;
+    self.*.img_nest = (self.*.img_nest + i32(1));
+  }),
+
+  // Buffer-based: src from buf, title from String
+  open_image_buf : (fn(self: *(Self), src_buf: *(ArrayList(u8)), title: String) -> unit)({
+    self.*.lit("<img src=\"");
+    self.*.escaped_raw(src_buf);
+    self.*.lit("\" alt=\"");
+    self.*.img_title = title;
+    self.*.img_nest = (self.*.img_nest + i32(1));
+  }),
+
+  // Buffer-based: src from buf, title from buf
+  open_image_raw : (fn(self: *(Self), src_buf: *(ArrayList(u8)), title_buf: *(ArrayList(u8))) -> unit)({
+    self.*.lit("<img src=\"");
+    self.*.escaped_raw(src_buf);
+    self.*.lit("\" alt=\"");
+    // Must copy title into String for close_image (images are rare)
+    (title_bytes : ArrayList(u8)) = ArrayList(u8).with_capacity(title_buf.*.len());
+    match(title_buf.*.ptr(),
+      .Some(p) => title_bytes.extend_from_ptr(p, title_buf.*.len()),
+      .None => ()
+    );
+    self.*.img_title = String.from_bytes(title_bytes);
     self.*.img_nest = (self.*.img_nest + i32(1));
   }),
 
