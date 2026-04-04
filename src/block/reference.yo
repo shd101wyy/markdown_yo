@@ -664,7 +664,8 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
   // Validate link URL — reject dangerous protocols
   // Get fresh pointer since str_buf may have been reallocated
   (final_ptr : *(u8)) = str_buf.ptr().unwrap_or(src);
-  if(!(validate_link_url(final_ptr, dest_start, dest_end)), { return false; });
+  (ref_validate_buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(32));
+  if(!(validate_link_url(final_ptr, dest_start, dest_end, &ref_validate_buf)), { return false; });
 
   (dest_str : String) = _unescape_range(final_ptr, dest_start, dest_end);
   (title_str : String) = cond(

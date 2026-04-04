@@ -90,7 +90,7 @@ inline_autolink :: (fn(state: *(InlineState)) -> bool)({
         // Validate rest has no spaces (already checked above, but also no 0x00-0x20)
         is_uri = true;
         // Reject dangerous protocols (javascript:, vbscript:, etc.)
-        if(!(validate_link_url(state.*.src_ptr, content_start, content_end)), {
+        if(!(validate_link_url(state.*.src_ptr, content_start, content_end, (&state.*._validate_buf))), {
           is_uri = false;
         });
       });

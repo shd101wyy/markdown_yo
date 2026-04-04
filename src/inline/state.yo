@@ -63,6 +63,7 @@ _init_special_table :: (fn() -> *(u8))({
     .Some(p) => *(u8)(p),
     .None => { assert(false, "calloc failed"); *(u8)("") }
   );
+  // 1 = inline special character (needs full inline dispatch)
   // 0x0A = newline, 0x21 = !, 0x26 = &, 0x2A = *
   // 0x3C = <, 0x5B = [, 0x5C = \, 0x5D = ]
   // 0x5F = _, 0x60 = `, 0x7E = ~
@@ -77,6 +78,10 @@ _init_special_table :: (fn() -> *(u8))({
   (ptr &+ usize(0x5F)).* = u8(1);
   (ptr &+ usize(0x60)).* = u8(1);
   (ptr &+ usize(0x7E)).* = u8(1);
+  // 2 = HTML-escape-only character (needs escaping but not inline dispatch)
+  // " (0x22) and > (0x3E) — & and < are already marked as inline special (1)
+  (ptr &+ usize(0x22)).* = u8(2);
+  (ptr &+ usize(0x3E)).* = u8(2);
   ptr
 });
 
@@ -108,6 +113,7 @@ InlineState :: struct(
   // Reusable buffers for link/image rendering (avoids per-link allocation)
   _link_buf1 : ArrayList(u8),  // unescaped content
   _link_buf2 : ArrayList(u8),  // normalized link
+  _validate_buf : ArrayList(u8),  // URL validation decoding
 
   // Flat byte buffer for token strings (content/href/title)
   // Tokens reference these by index (content_idx/href_idx/title_idx)
@@ -147,6 +153,7 @@ impl(InlineState,
       _render_pairs: ArrayList(EmphasisPair).with_capacity(usize(32)),
       _link_buf1: ArrayList(u8).with_capacity(usize(256)),
       _link_buf2: ArrayList(u8).with_capacity(usize(256)),
+      _validate_buf: ArrayList(u8).with_capacity(usize(32)),
       _str_buf: ArrayList(u8).with_capacity(usize(512)),
       _str_offsets: ArrayList(i32).with_capacity(usize(16)),
       env: env,

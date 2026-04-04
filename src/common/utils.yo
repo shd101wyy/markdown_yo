@@ -7,6 +7,8 @@
 
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
+{ GlobalAllocator } :: import "std/allocator";
+{ calloc } :: GlobalAllocator;
 
 // ============================================================================
 // Character classification
@@ -163,8 +165,40 @@ utf8_byte_len :: (fn(lead: u8) -> i32)(
 // HTML escaping — append-to-buffer variant (zero allocation)
 // ============================================================================
 
+// 256-byte lookup table for HTML escape dispatch.
+// 0 = safe (no escape needed), non-zero = index into replacement table.
+// Initialized once, shared across all calls.
+(_html_esc_table_ptr : Option(*(u8))) = .None;
+
+_init_html_esc_table :: (fn() -> *(u8))({
+  (ptr : *(u8)) = match(calloc(usize(256), usize(1)),
+    .Some(p) => *(u8)(p),
+    .None => { assert(false, "calloc failed"); *(u8)("") }
+  );
+  // 1 = &amp;   (5 bytes)
+  // 2 = &lt;    (4 bytes)
+  // 3 = &gt;    (4 bytes)
+  // 4 = &quot;  (6 bytes)
+  (ptr &+ usize(0x26)).* = u8(1);  // &
+  (ptr &+ usize(0x3C)).* = u8(2);  // <
+  (ptr &+ usize(0x3E)).* = u8(3);  // >
+  (ptr &+ usize(0x22)).* = u8(4);  // "
+  ptr
+});
+
+_get_html_esc_table :: (fn() -> *(u8))({
+  match(_html_esc_table_ptr,
+    .Some(p) => p,
+    .None => {
+      (p : *(u8)) = _init_html_esc_table();
+      _html_esc_table_ptr = .Some(p);
+      p
+    }
+  )
+});
+
 // Escape HTML special chars (&, <, >, ") from src bytes, append to out buffer.
-// Uses run-batch: memcpy safe runs, only stop for special chars.
+// Uses 256-byte lookup table for single-branch dispatch + run-batch memcpy.
 escape_html_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i32) -> unit)({
   (i : i32) = start;
   (run_start : i32) = start;
@@ -172,43 +206,23 @@ escape_html_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i
   // but typical text expands ~10%, so reserve (end-start) + some margin
   (input_len : i32) = (end - start);
   out.*.ensure_total_capacity(usize(((input_len + (input_len / i32(8))) + i32(32))) + out.*.len());
+  (esc_table : *(u8)) = _get_html_esc_table();
 
   while (i < end), {
     (ch : u8) = (src_ptr &+ usize(i)).*;
-    // Range pre-check: special chars " & < > are all in [0x22, 0x3E].
-    // Most text bytes (letters, spaces) are outside this range.
-    if(((ch >= u8(0x22)) && (ch <= u8(0x3E))), {
+    (esc_idx : u8) = (esc_table &+ usize(ch)).*;
+    if((esc_idx != u8(0)), {
+      // Flush preceding safe run
+      if((i > run_start), {
+        out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
+      });
       cond(
-        (ch == u8(0x26)) => {
-          if((i > run_start), {
-            out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
-          });
-          out.*.extend_from_ptr(*(u8)("&amp;"), usize(5));
-          run_start = (i + i32(1));
-        },
-        (ch == u8(0x3C)) => {
-          if((i > run_start), {
-            out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
-          });
-          out.*.extend_from_ptr(*(u8)("&lt;"), usize(4));
-          run_start = (i + i32(1));
-        },
-        (ch == u8(0x3E)) => {
-          if((i > run_start), {
-            out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
-          });
-          out.*.extend_from_ptr(*(u8)("&gt;"), usize(4));
-          run_start = (i + i32(1));
-        },
-        (ch == u8(0x22)) => {
-          if((i > run_start), {
-            out.*.extend_from_ptr((src_ptr &+ usize(run_start)), usize((i - run_start)));
-          });
-          out.*.extend_from_ptr(*(u8)("&quot;"), usize(6));
-          run_start = (i + i32(1));
-        },
-        true => ()
+        (esc_idx == u8(1)) => out.*.extend_from_ptr(*(u8)("&amp;"), usize(5)),
+        (esc_idx == u8(2)) => out.*.extend_from_ptr(*(u8)("&lt;"), usize(4)),
+        (esc_idx == u8(3)) => out.*.extend_from_ptr(*(u8)("&gt;"), usize(4)),
+        true => out.*.extend_from_ptr(*(u8)("&quot;"), usize(6))
       );
+      run_start = (i + i32(1));
     });
     i = (i + i32(1));
   };

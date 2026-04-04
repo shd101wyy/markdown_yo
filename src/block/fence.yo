@@ -58,11 +58,12 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   (lang_start : i32) = info_start;
   (lang_end : i32) = info_start;
   (found_ws : bool) = false;
+  (tmp : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(4));
   while ((lang_end < em) && !(found_ws)), {
     (b : u8) = (state.*.src_ptr &+ usize(lang_end)).*;
     if((b == u8(0x26)), {
       // Try to decode entity and check if it's whitespace
-      (tmp : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(4));
+      tmp.clear();
       (entity_end : i32) = try_decode_entity(state.*.src_ptr, lang_end, em, &tmp);
       if((entity_end > i32(0)), {
         // Check if the decoded character is whitespace (<=0x20 covers space, tab, ff, etc.)
@@ -78,7 +79,6 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
           lang_end = (lang_end + i32(1));
         });
       });
-      tmp.dispose();
     }, {
       if(is_space(i32(b)), {
         found_ws = true;

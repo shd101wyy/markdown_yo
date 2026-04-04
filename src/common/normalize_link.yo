@@ -304,32 +304,48 @@ normalize_link_buf :: (fn(url_ptr: *(u8), url_len: i32, out: *(ArrayList(u8))) -
   // Pre-allocate for worst case percent-encoding
   out.*.ensure_total_capacity(usize(((len * i32(3)) / i32(2))));
 
+  // Batch-copy runs of safe ASCII bytes (alnum + default_exclude + %XX sequences)
+  // to minimize per-byte push calls.
   (i : i32) = i32(0);
+  (run_start : i32) = i32(0);
   while (i < len), {
     (b : u8) = (src &+ usize(i)).*;
 
-    // Check for already-encoded %XX sequences — preserve them
+    // Check for already-encoded %XX sequences — part of a safe run
     if(((b == u8(0x25)) && ((i + i32(2)) < len)), {
       (h1 : u8) = (src &+ usize((i + i32(1)))).*;
       (h2 : u8) = (src &+ usize((i + i32(2)))).*;
       if((_is_hex_char(h1) && _is_hex_char(h2)), {
-        _ := out.*.push(b);
-        _ := out.*.push(h1);
-        _ := out.*.push(h2);
+        // Valid %XX — include in current run (will be batch-copied)
         i = (i + i32(3));
       }, {
+        // Invalid %XX — flush run, then percent-encode the %
+        if((i > run_start), {
+          out.*.extend_from_ptr((src &+ usize(run_start)), usize((i - run_start)));
+        });
         _emit_pct(out, b);
         i = (i + i32(1));
+        run_start = i;
       });
     }, {
       if((b < u8(0x80)), {
         if((_is_alnum(b) || _is_default_exclude(b)), {
-          _ := out.*.push(b);
+          // Safe ASCII — include in current run
+          i = (i + i32(1));
         }, {
+          // Unsafe ASCII — flush run, then percent-encode
+          if((i > run_start), {
+            out.*.extend_from_ptr((src &+ usize(run_start)), usize((i - run_start)));
+          });
           _emit_pct(out, b);
+          i = (i + i32(1));
+          run_start = i;
         });
-        i = (i + i32(1));
       }, {
+        // Non-ASCII: flush run, then percent-encode each byte of the UTF-8 sequence
+        if((i > run_start), {
+          out.*.extend_from_ptr((src &+ usize(run_start)), usize((i - run_start)));
+        });
         if(((b & u8(0xE0)) == u8(0xC0)), {
           _emit_pct(out, b);
           if(((i + i32(1)) < len), { _emit_pct(out, (src &+ usize((i + i32(1)))).*); });
@@ -355,9 +371,14 @@ normalize_link_buf :: (fn(url_ptr: *(u8), url_len: i32, out: *(ArrayList(u8))) -
             });
           });
         });
+        run_start = i;
       });
     });
   };
+  // Flush remaining safe run
+  if((i > run_start), {
+    out.*.extend_from_ptr((src &+ usize(run_start)), usize((i - run_start)));
+  });
 
   // Post-process: punycode-encode domain if it has non-ASCII
   // This path is rare — only for international domain names

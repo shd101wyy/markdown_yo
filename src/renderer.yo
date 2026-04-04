@@ -311,7 +311,8 @@ HtmlRenderer :: struct(
   src_len : i32,
   list_nesting : i32,     // list nesting depth (for tight paragraph removal)
   tight_mode : bool,      // when true, paragraph open/close emit nothing
-  bq_buf_pos : i32        // buffer position at blockquote open (for empty detection)
+  bq_buf_pos : i32,       // buffer position at blockquote open (for empty detection)
+  _entity_buf : ArrayList(u8)  // reusable buffer for entity decoding
 );
 
 impl(HtmlRenderer,
@@ -327,7 +328,8 @@ impl(HtmlRenderer,
       src_len: src_len,
       list_nesting: i32(0),
       tight_mode: false,
-      bq_buf_pos: i32(-1)
+      bq_buf_pos: i32(-1),
+      _entity_buf: ArrayList(u8).with_capacity(usize(16))
     )
   }),
 
@@ -436,10 +438,10 @@ impl(HtmlRenderer,
               };
               if(((np < end) && (i32((self.*.src_ptr &+ usize(np)).*) == i32(0x3B))), {
                 (name_ptr : *(u8)) = (self.*.src_ptr &+ usize((i + i32(1))));
-                tmp_buf := ArrayList(u8).new();
-                if(decode_named_entity(name_ptr, nlen, (&tmp_buf)), {
-                  match(tmp_buf.ptr(),
-                    .Some(p) => escape_html_buf((&self.*.buf), p, i32(0), i32(tmp_buf.len())),
+                self.*._entity_buf.clear();
+                if(decode_named_entity(name_ptr, nlen, (&self.*._entity_buf)), {
+                  match(self.*._entity_buf.ptr(),
+                    .Some(p) => escape_html_buf((&self.*.buf), p, i32(0), i32(self.*._entity_buf.len())),
                     .None => ()
                   );
                   i = (np + i32(1));
@@ -962,11 +964,11 @@ impl(HtmlRenderer,
     // Entity format: &name; — name starts at start+1, ends at end-1
     (name_ptr : *(u8)) = (self.*.src_ptr &+ usize((start + i32(1))));
     (name_len : i32) = ((end - start) - i32(2));
-    tmp_buf := ArrayList(u8).new();
-    if(decode_named_entity(name_ptr, name_len, (&tmp_buf)), {
+    self.*._entity_buf.clear();
+    if(decode_named_entity(name_ptr, name_len, (&self.*._entity_buf)), {
       // HTML-escape the decoded bytes
-      match(tmp_buf.ptr(),
-        .Some(p) => escape_html_buf((&self.*.buf), p, i32(0), i32(tmp_buf.len())),
+      match(self.*._entity_buf.ptr(),
+        .Some(p) => escape_html_buf((&self.*.buf), p, i32(0), i32(self.*._entity_buf.len())),
         .None => ()
       );
     }, {

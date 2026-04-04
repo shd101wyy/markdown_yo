@@ -88,7 +88,7 @@ _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
     if(!(matched), {
       (scan : i32) = (state.*.pos + i32(1));
       (src : *(u8)) = state.*.src_ptr;
-      while ((scan < state.*.pos_max) && ((table &+ usize((src &+ usize(scan)).*)).* == u8(0))), {
+      while ((scan < state.*.pos_max) && ((table &+ usize((src &+ usize(scan)).*)).* != u8(1))), {
         scan = (scan + i32(1));
       };
       state.*.pending_end = scan;
@@ -117,23 +117,20 @@ inline_parse :: (fn(inline_state: *(InlineState), src: String) -> unit)({
 inline_parse_range :: (fn(inline_state: *(InlineState), src_ptr: *(u8), start: i32, end: i32) -> unit)({
   if((end <= start), { return (); });
 
-  // Fast path: pre-scan for special chars AND HTML-unsafe chars in one pass.
-  // If neither found, copy bytes directly to output (skip both inline dispatch and escape_html_buf).
+  // Fast path: pre-scan using combined table (1=inline special, 2=HTML-escape-only).
+  // Single table lookup per byte instead of table lookup + 4 comparisons.
   (table : *(u8)) = inline_state.*.special_table;
   (p : i32) = start;
   (has_special : bool) = false;
   (has_html_char : bool) = false;
   while (p < end), {
-    (ch : u8) = (src_ptr &+ usize(p)).*;
-    if(((table &+ usize(ch)).* != u8(0)), {
+    (tag : u8) = (table &+ usize((src_ptr &+ usize(p)).*)).*;
+    if((tag == u8(1)), {
       has_special = true;
       p = end;
-    }, {
-      // Check HTML-unsafe chars: & (0x26), " (0x22), < (0x3C), > (0x3E)
-      if((((ch == u8(0x26)) || (ch == u8(0x22))) || ((ch == u8(0x3C)) || (ch == u8(0x3E)))), {
-        has_html_char = true;
-      });
-    });
+    }, if((tag == u8(2)), {
+      has_html_char = true;
+    }));
     p = (p + i32(1));
   };
 
