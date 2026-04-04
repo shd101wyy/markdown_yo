@@ -15,7 +15,7 @@ wasm_exe :: build.executable({
   allocator: build.Allocator.Libc
 });
 wasm_exe.add_import_list(imports);
-wasm_exe.add_c_flags("-O3 -flto -sNODERAWFS -sEXIT_RUNTIME=1 -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=67108864");
+wasm_exe.add_c_flags("-O3 -flto -mbulk-memory -sNODERAWFS -sEXIT_RUNTIME=1 -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=67108864 -sWASM_BIGINT");
 
 lib :: build.static_library({ name: "markdown_yo-lib", root: "./src/lib.yo" });
 

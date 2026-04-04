@@ -7,7 +7,7 @@ open import "std/string";
 { BlockState } :: import "./state.yo";
 { is_space, escape_html_buf } :: import "../common/utils.yo";
 { TableAlign } :: import "../types.yo";
-{ inline_parse_range, _is_inline_special } :: import "../inline/parser.yo";
+{ inline_parse_range } :: import "../inline/parser.yo";
 { block_fence } :: import "./fence.yo";
 { block_blockquote } :: import "./blockquote.yo";
 { block_hr } :: import "./hr.yo";
@@ -41,6 +41,7 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
     (found_pipe : bool) = false;
 
     (has_special : bool) = false;
+    (has_html_char : bool) = false;
     while ((pos < em) && !(found_pipe)), {
       (ch : i32) = i32((src &+ usize(pos)).*);
       if((ch == i32(0x7C)), {
@@ -61,8 +62,13 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
         });
       });
       // Track inline-special chars during parsing to avoid second scan
-      if((!(has_special) && _is_inline_special(u8(ch))), {
-        has_special = true;
+      if(!(has_special), {
+        (tag : u8) = (state.*._inline_state.special_table &+ usize(ch)).*;
+        if((tag == u8(1)), {
+          has_special = true;
+        }, if((tag == u8(2)), {
+          has_html_char = true;
+        }));
       });
       is_escaped = (ch == i32(0x5C));
       if(!(found_pipe), {
@@ -109,9 +115,12 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
 
       if(has_special, {
         inline_parse_range((&state.*._inline_state), cell_ptr, i32(0), cell_len_i32);
-      }, {
+      }, if(has_html_char, {
         escape_html_buf((&state.*.renderer.*.buf), cell_ptr, i32(0), cell_len_i32);
-      });
+      }, {
+        // Pure text — direct copy to output
+        state.*.renderer.*.buf.extend_from_ptr(cell_ptr, cell_len);
+      }));
     });
 
     if(is_header, {

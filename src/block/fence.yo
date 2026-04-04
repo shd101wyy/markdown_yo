@@ -6,7 +6,7 @@ open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
 { BlockState } :: import "./state.yo";
 { HtmlRenderer } :: import "../renderer.yo";
-{ is_space } :: import "../common/utils.yo";
+{ is_space, escape_html_buf } :: import "../common/utils.yo";
 { try_decode_entity } :: import "../common/unescape.yo";
 
 block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
@@ -158,8 +158,18 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   });
 
   // Emit content with indent stripping (markdown-it getLines logic)
-  (cl : i32) = content_first_line;
-  while (cl < content_last_line), {
+  if(((fence_indent == i32(0)) && (content_first_line < content_last_line)), {
+    // Fast path: no indent stripping — batch emit entire content range
+    // Source is normalized (LF only), so bytes between em(cl) and bm(cl+1) are newlines
+    (batch_start : i32) = state.bm(content_first_line);
+    (batch_end : i32) = state.em((content_last_line - i32(1)));
+    escape_html_buf((&r.*.buf), state.*.src_ptr, batch_start, batch_end);
+    if((batch_end < state.*.src_len), {
+      r.*.byte(u8(0x0A));
+    });
+  }, {
+    (cl : i32) = content_first_line;
+    while (cl < content_last_line), {
     (line_start : i32) = state.bm(cl);
     (line_end : i32) = state.em(cl);
 
@@ -201,8 +211,9 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
       r.*.byte(u8(0x0A));
     });
 
-    cl = (cl + i32(1));
-  };
+     cl = (cl + i32(1));
+    };
+  });
 
   r.*.lit("</code></pre>\n");
 
