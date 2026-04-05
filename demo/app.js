@@ -9,7 +9,7 @@ A **fast** Markdown parser compiled to WebAssembly.
 - CommonMark compliant (815/826 tests pass)
 - 5–7× faster than markdown-it (native)
 - Zero dependencies
-- Written in [Yo](https://github.com/aspect-build/Yo)
+- Written in [Yo](https://github.com/shd101wyy/Yo)
 
 ## Code Example
 
