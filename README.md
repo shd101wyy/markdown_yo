@@ -2,7 +2,7 @@
 
 A high-performance markdown-to-HTML converter written in [Yo](https://github.com/shd101wyy/Yo).
 
-Inspired by [markdown-it](https://github.com/markdown-it/markdown-it) (parsing rules & test fixtures), [md4c](https://github.com/mity/md4c) (performance-focused C design), and [markdown-wasm](https://github.com/shd101wyy/markdown-wasm) (WASM compilation target).
+Inspired by [markdown-it](https://github.com/markdown-it/markdown-it) (parsing rules & test fixtures), [md4c](https://github.com/mity/md4c) (performance-focused C design), and [markdown-wasm](https://github.com/rsms/markdown-wasm) (WASM compilation target).
 
 > **See also:** [markdown_it_yo](https://github.com/shd101wyy/markdown_it_yo) — a separate 1:1 direct port of markdown-it to Yo. markdown_yo is a **custom implementation** optimized for speed, while markdown_it_yo faithfully mirrors the original JS architecture for easier maintenance.
 
@@ -133,4 +133,4 @@ Key performance techniques beyond the SAX architecture:
 
 - [markdown-it](https://github.com/markdown-it/markdown-it) by Vitaly Puzrin and Alex Kocharin — parsing rules, test fixtures, and CommonMark compliance strategy
 - [md4c](https://github.com/mity/md4c) by Martin Mitáš — inspiration for performance-focused C design
-- [markdown-wasm](https://github.com/shd101wyy/markdown-wasm) — inspiration for WASM compilation target
+- [markdown-wasm](https://github.com/rsms/markdown-wasm) — inspiration for WASM compilation target
