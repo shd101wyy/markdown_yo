@@ -35,8 +35,8 @@ jobs:
       - name: Build WASM demo
         run: |
           yo build demo
-          cp yo-out/markdown_yo_demo.js  demo/markdown_yo_demo.js
-          cp yo-out/markdown_yo_demo.wasm demo/markdown_yo_demo.wasm
+          cp yo-out/wasm32-emscripten/bin/markdown_yo_demo.js   demo/markdown_yo_demo.js
+          cp yo-out/wasm32-emscripten/bin/markdown_yo_demo.wasm demo/markdown_yo_demo.wasm
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

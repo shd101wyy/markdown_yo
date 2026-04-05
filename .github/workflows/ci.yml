@@ -23,11 +23,18 @@ jobs:
       - name: Install JS test dependencies
         run: npm install
 
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: "3.1.51"
+
       - name: Build
-        run: yo build
+        run: |
+          yo build
+          yo build wasm
 
       - name: Fixture tests & benchmark
         run: |
           node scripts/run_fixture_tests.js
           node benchmark/generate_samples.js
-          node benchmark/run.js --no-wasm
+          node benchmark/run.js
