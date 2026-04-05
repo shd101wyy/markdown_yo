@@ -38,6 +38,27 @@ jobs:
           cp yo-out/wasm32-emscripten/bin/markdown_yo_demo.js   demo/markdown_yo_demo.js
           cp yo-out/wasm32-emscripten/bin/markdown_yo_demo.wasm demo/markdown_yo_demo.wasm
 
+      - name: Delete old github-pages artifact
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+            
+            for (const artifact of artifacts.data.artifacts) {
+              if (artifact.name === 'github-pages') {
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id
+                });
+                console.log(`Deleted old artifact ${artifact.id}`);
+              }
+            }
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
