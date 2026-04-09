@@ -61,6 +61,11 @@ Render a Markdown string to HTML.
 | `commonmark` | `boolean` | `false` | Use CommonMark-compliant parsing |
 | `html` | `boolean` | `false` | Allow raw HTML tags in output |
 | `typographer` | `boolean` | `false` | Enable typographic replacements (`"` → `"`, `--` → `—`, etc.) |
+| `subscript` | `boolean` | `false` | Enable `~subscript~` syntax → `<sub>` |
+| `superscript` | `boolean` | `false` | Enable `^superscript^` syntax → `<sup>` |
+| `mark` | `boolean` | `false` | Enable `==highlight==` syntax → `<mark>` |
+| `math` | `boolean` | `false` | Enable `$inline$` and `$$block$$` math syntax |
+| `fullFeatures` | `boolean` | `false` | Enable all optional features at once |
 
 **Returns:** `string` — the rendered HTML
 
@@ -146,6 +151,10 @@ const html: string = md.render("# Hello", opts);
 - **Fenced code blocks** — with language info strings
 - **HTML passthrough** — when `html: true` is set
 - **Typographic replacements** — when `typographer: true` is set
+- **Subscript** — `~text~` → `<sub>text</sub>` (when `subscript: true`)
+- **Superscript** — `^text^` → `<sup>text</sup>` (when `superscript: true`)
+- **Mark/Highlight** — `==text==` → `<mark>text</mark>` (when `mark: true`)
+- **Math** — `$inline$` and `$$block$$` math (when `math: true`)
 
 ## Live Demo
 

@@ -31,6 +31,7 @@ This is in contrast to [markdown_it_yo](https://github.com/shd101wyy/markdown_it
 - **5-8× faster than markdown-it** (native), **2-6× faster** (WASM) at ≥1 MB
 - Compiles to native executables (macOS, Linux, Windows) and WebAssembly
 - Full support: CommonMark, tables, strikethrough, typographer, smartquotes, HTML blocks
+- **Inline extensions**: subscript (`~sub~`), superscript (`^sup^`), mark/highlight (`==mark==`), math (`$...$`, `$$...$$`)
 - [**Live Demo**](#live-demo) — try it in the browser via WebAssembly
 
 ## npm Package (WebAssembly)
@@ -51,6 +52,13 @@ const html = md.render("# Hello\n\n**World**");
 
 // With options
 md.render(src, { commonmark: true, html: true, typographer: true });
+
+// Enable inline extensions
+md.render("H~2~O is ==water==", { subscript: true, mark: true });
+// <p>H<sub>2</sub>O is <mark>water</mark></p>
+
+// Enable all optional features at once
+md.render(src, { fullFeatures: true });
 ```
 
 See [docs/WASM.md](docs/WASM.md) for the full API reference, browser usage, and examples.
@@ -105,6 +113,11 @@ cat file.md | markdown_yo -
 # Options
 markdown_yo --html --typographer file.md
 markdown_yo --commonmark file.md
+
+# Inline extensions
+markdown_yo --subscript --superscript --mark --math file.md
+markdown_yo --full-features file.md    # enable all at once
+
 markdown_yo --help
 ```
 

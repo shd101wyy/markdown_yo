@@ -64,17 +64,20 @@ _init_special_table :: (fn() -> *(u8))({
     .None => { assert(false, "calloc failed"); *(u8)("") }
   );
   // 1 = inline special character (needs full inline dispatch)
-  // 0x0A = newline, 0x21 = !, 0x26 = &, 0x2A = *
-  // 0x3C = <, 0x5B = [, 0x5C = \, 0x5D = ]
-  // 0x5F = _, 0x60 = `, 0x7E = ~
+  // 0x0A = newline, 0x21 = !, 0x24 = $, 0x26 = &, 0x2A = *
+  // 0x3C = <, 0x3D = =, 0x5B = [, 0x5C = \, 0x5D = ]
+  // 0x5E = ^, 0x5F = _, 0x60 = `, 0x7E = ~
   (ptr &+ usize(0x0A)).* = u8(1);
   (ptr &+ usize(0x21)).* = u8(1);
+  (ptr &+ usize(0x24)).* = u8(1);
   (ptr &+ usize(0x26)).* = u8(1);
   (ptr &+ usize(0x2A)).* = u8(1);
   (ptr &+ usize(0x3C)).* = u8(1);
+  (ptr &+ usize(0x3D)).* = u8(1);
   (ptr &+ usize(0x5B)).* = u8(1);
   (ptr &+ usize(0x5C)).* = u8(1);
   (ptr &+ usize(0x5D)).* = u8(1);
+  (ptr &+ usize(0x5E)).* = u8(1);
   (ptr &+ usize(0x5F)).* = u8(1);
   (ptr &+ usize(0x60)).* = u8(1);
   (ptr &+ usize(0x7E)).* = u8(1);

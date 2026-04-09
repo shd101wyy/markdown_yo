@@ -71,7 +71,7 @@ _read_stdin :: (fn() -> String)({
   String.from_bytes(buf)
 });
 
-_HELP_TEXT :: "markdown_yo — Fast markdown to HTML converter\n\nUsage:\n  markdown_yo [options] <file>   Render file to stdout\n  cat file.md | markdown_yo -   Read from stdin\n\nOptions:\n  --html            Enable HTML tags in source\n  --typographer     Enable typographic replacements\n  --no-lang-prefix  Remove language prefix from fenced code blocks\n  --commonmark      Use CommonMark preset\n  --repeat N        Run N iterations, output timing to stderr\n  -h, --help        Show this help\n";
+_HELP_TEXT :: "markdown_yo — Fast markdown to HTML converter\n\nUsage:\n  markdown_yo [options] <file>   Render file to stdout\n  cat file.md | markdown_yo -   Read from stdin\n\nOptions:\n  --html            Enable HTML tags in source\n  --typographer     Enable typographic replacements\n  --no-lang-prefix  Remove language prefix from fenced code blocks\n  --commonmark      Use CommonMark preset\n  --subscript       Enable subscript (~text~)\n  --superscript     Enable superscript (^text^)\n  --mark            Enable mark/highlight (==text==)\n  --math            Enable math ($..$ and $$..$$)\n  --full-features   Enable all extensions\n  --repeat N        Run N iterations, output timing to stderr\n  -h, --help        Show this help\n";
 
 main :: (fn() -> unit)({
   argv := args();
@@ -87,6 +87,11 @@ main :: (fn() -> unit)({
   (typographer_enabled : bool) = false;
   (no_lang_prefix : bool) = false;
   (use_commonmark : bool) = false;
+  (enable_subscript : bool) = false;
+  (enable_superscript : bool) = false;
+  (enable_mark : bool) = false;
+  (enable_math : bool) = false;
+  (full_features : bool) = false;
   (file_path : Option(String)) = .None;
   (read_from_stdin : bool) = false;
   (repeat_count : i32) = i32(1);
@@ -104,6 +109,11 @@ main :: (fn() -> unit)({
       (arg == `--typographer`) => { typographer_enabled = true; },
       (arg == `--no-lang-prefix`) => { no_lang_prefix = true; },
       (arg == `--commonmark`) => { use_commonmark = true; },
+      (arg == `--subscript`) => { enable_subscript = true; },
+      (arg == `--superscript`) => { enable_superscript = true; },
+      (arg == `--mark`) => { enable_mark = true; },
+      (arg == `--math`) => { enable_math = true; },
+      (arg == `--full-features`) => { full_features = true; },
       (arg == `--repeat`) => {
         ai = (ai + usize(1));
         if((ai < argv.len()), {
@@ -123,6 +133,14 @@ main :: (fn() -> unit)({
   if(html_enabled, { opts.html = true; });
   opts.typographer = typographer_enabled;
   if(no_lang_prefix, { opts.lang_prefix = ``; });
+  if((enable_subscript || full_features), { opts.enable_subscript = true; });
+  if((enable_superscript || full_features), { opts.enable_superscript = true; });
+  if((enable_mark || full_features), { opts.enable_mark = true; });
+  if((enable_math || full_features), { opts.enable_math = true; });
+  if(full_features, {
+    opts.enable_table = true;
+    opts.enable_strikethrough = true;
+  });
 
   match(file_path,
     .Some(path) => {

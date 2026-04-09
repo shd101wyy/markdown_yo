@@ -8,6 +8,16 @@ export interface RenderOptions {
   html?: boolean;
   /** Enable typographic replacements (default: false) */
   typographer?: boolean;
+  /** Enable ~subscript~ syntax (default: false) */
+  subscript?: boolean;
+  /** Enable ^superscript^ syntax (default: false) */
+  superscript?: boolean;
+  /** Enable ==highlight== syntax (default: false) */
+  mark?: boolean;
+  /** Enable $inline$ and $$block$$ math syntax (default: false) */
+  math?: boolean;
+  /** Enable all optional features (default: false) */
+  fullFeatures?: boolean;
 }
 
 /**

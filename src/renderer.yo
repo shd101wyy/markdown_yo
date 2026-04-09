@@ -776,6 +776,58 @@ impl(HtmlRenderer,
     })
   ),
 
+  open_subscript : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("<sub>");
+    })
+  ),
+
+  close_subscript : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("</sub>");
+    })
+  ),
+
+  open_superscript : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("<sup>");
+    })
+  ),
+
+  close_superscript : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("</sup>");
+    })
+  ),
+
+  open_mark : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("<mark>");
+    })
+  ),
+
+  close_mark : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("</mark>");
+    })
+  ),
+
+  // Math inline: <span class="mathjax-exps">$content$</span>
+  math_inline : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    if((self.*.img_nest > i32(0)), { return (); });
+    self.*.lit("<span class=\"mathjax-exps\">$");
+    escape_html_buf((&self.*.buf), self.*.src_ptr, start, end);
+    self.*.lit("$</span>");
+  }),
+
+  // Math block (inline context): <div class="mathjax-exps">$$content$$</div>
+  math_block : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    if((self.*.img_nest > i32(0)), { return (); });
+    self.*.lit("<div class=\"mathjax-exps\">$$");
+    escape_html_buf((&self.*.buf), self.*.src_ptr, start, end);
+    self.*.lit("$$</div>");
+  }),
+
   // Link open: <a href="..." title="...">
   open_link : (fn(self: *(Self), href: String, title: String) -> unit)({
     if((self.*.img_nest > i32(0)), { return (); });

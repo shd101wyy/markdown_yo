@@ -21,6 +21,11 @@ const createMarkdownYo =
  * @property {boolean} [commonmark=false] - Use CommonMark-compliant parsing
  * @property {boolean} [html=false] - Allow raw HTML tags in output
  * @property {boolean} [typographer=false] - Enable typographic replacements
+ * @property {boolean} [subscript=false] - Enable ~subscript~ syntax
+ * @property {boolean} [superscript=false] - Enable ^superscript^ syntax
+ * @property {boolean} [mark=false] - Enable ==highlight== syntax
+ * @property {boolean} [math=false] - Enable $inline$ and $$block$$ math
+ * @property {boolean} [fullFeatures=false] - Enable all optional features
  */
 
 /**
@@ -41,6 +46,10 @@ function buildFlags(options) {
   if (options.commonmark) flags |= 1;
   if (options.html) flags |= 2;
   if (options.typographer) flags |= 4;
+  if (options.subscript || options.fullFeatures) flags |= 8;
+  if (options.superscript || options.fullFeatures) flags |= 16;
+  if (options.mark || options.fullFeatures) flags |= 32;
+  if (options.math || options.fullFeatures) flags |= 64;
   return flags;
 }
 

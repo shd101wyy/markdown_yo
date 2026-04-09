@@ -1,0 +1,85 @@
+Subscript
+.
+~test~
+.
+<p><sub>test</sub></p>
+.
+
+Subscript should not work without content
+.
+~~
+.
+<p>~~</p>
+.
+
+Subscript should not allow nested markup
+.
+~foo ~bar~ baz~
+.
+<p>~foo <sub>bar</sub> baz~</p>
+.
+
+Subscript should handle escape sequences
+.
+~foo\_bar~
+.
+<p><sub>foo_bar</sub></p>
+.
+
+Subscript should not allow whitespace
+.
+~foo bar~
+.
+<p>~foo bar~</p>
+.
+
+Subscript allows escaped whitespace
+.
+~foo\ bar\ baz~
+.
+<p><sub>foo bar baz</sub></p>
+.
+
+Subscript: leading/trailing escaped whitespace
+.
+~\ foo\ ~
+.
+<p><sub> foo </sub></p>
+.
+
+Subscript: 7 backslashes + space (odd escapes space)
+.
+~\\\\\\\ ~
+.
+<p><sub>\\\ </sub></p>
+.
+
+Subscript: 6 backslashes + space (even leaves space unescaped)
+.
+~\\\\\\ ~
+.
+<p>~\\\ ~</p>
+.
+
+Subscript should not allow line breaks
+.
+~test
+~
+.
+<p>~test
+~</p>
+.
+
+Subscript should be able to be wrapped in emphasis
+.
+*~test~*
+.
+<p><em><sub>test</sub></em></p>
+.
+
+Subscript can contain escaped closing marker
+.
+~foo\~bar~
+.
+<p><sub>foo~bar</sub></p>
+.

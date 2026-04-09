@@ -92,6 +92,28 @@ const suites = [
     opts: "commonmark",
     yoFlags: ["--commonmark"],
   },
+  // Phase 1 extension fixtures
+  {
+    name: "subscript",
+    file: "markdown_it/subscript.txt",
+    opts: {},
+    plugins: ["markdown-it-sub"],
+    yoFlags: ["--subscript"],
+  },
+  {
+    name: "superscript",
+    file: "markdown_it/superscript.txt",
+    opts: {},
+    plugins: ["markdown-it-sup"],
+    yoFlags: ["--superscript"],
+  },
+  {
+    name: "mark",
+    file: "markdown_it/mark.txt",
+    opts: {},
+    plugins: ["markdown-it-mark"],
+    yoFlags: ["--mark"],
+  },
 ];
 
 function parseFixtures(content) {
@@ -172,6 +194,11 @@ for (const suite of suites) {
   const fixtures = parseFixtures(content);
   const mdInstance =
     typeof suite.opts === "string" ? md(suite.opts) : md(suite.opts);
+  if (suite.plugins) {
+    for (const pluginName of suite.plugins) {
+      mdInstance.use(require(pluginName));
+    }
+  }
 
   let suitePassed = 0,
     suiteFailed = 0,

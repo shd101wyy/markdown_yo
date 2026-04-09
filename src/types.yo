@@ -19,6 +19,10 @@ Options :: struct(
   typographer : bool,       // Enable typographic replacements & smart quotes
   enable_table : bool,      // GFM tables
   enable_strikethrough : bool, // GFM strikethrough
+  enable_subscript : bool,  // Subscript with ~text~
+  enable_superscript : bool, // Superscript with ^text^
+  enable_mark : bool,       // Highlight with ==text==
+  enable_math : bool,       // Math with $...$ and $$...$$
   max_nesting : i32         // Max nesting depth
 );
 
@@ -32,6 +36,10 @@ default_options :: (fn() -> Options)(
     typographer: false,
     enable_table: true,
     enable_strikethrough: true,
+    enable_subscript: false,
+    enable_superscript: false,
+    enable_mark: false,
+    enable_math: false,
     max_nesting: i32(100)
   )
 );
@@ -46,6 +54,10 @@ commonmark_options :: (fn() -> Options)(
     typographer: false,
     enable_table: false,
     enable_strikethrough: false,
+    enable_subscript: false,
+    enable_superscript: false,
+    enable_mark: false,
+    enable_math: false,
     max_nesting: i32(20)
   )
 );
@@ -85,6 +97,14 @@ InlineType :: enum(
   StrongClose,
   StrikethroughOpen,
   StrikethroughClose,
+  SubscriptOpen,
+  SubscriptClose,
+  SuperscriptOpen,
+  SuperscriptClose,
+  MarkOpen,
+  MarkClose,
+  MathInline,
+  MathBlock,
   LinkOpen,
   LinkClose,
   ImageOpen,
