@@ -28,10 +28,10 @@ jobs:
             target: x86_64-macos
             artifact: markdown_yo-macos-x86_64
           - os: ubuntu-latest
-            target: x86_64-linux
+            target: x86_64-linux-gnu
             artifact: markdown_yo-linux-x86_64
           - os: windows-latest
-            target: x86_64-windows
+            target: x86_64-windows-msvc
             artifact: markdown_yo-windows-x86_64
     runs-on: ${{ matrix.os }}
     steps:
