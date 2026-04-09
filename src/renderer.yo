@@ -9,6 +9,7 @@ open import "std/string";
 { Options, TableAlign } :: import "./types.yo";
 { escape_html_buf, append_raw_buf, append_lit } :: import "./common/utils.yo";
 { decode_named_entity } :: import "./common/entities.yo";
+{ lookup_emoji } :: import "./data/emoji_data.yo";
 
 // In-place move: copy `count` bytes from s+src_off to s+dst_off (skip when equal)
 _memmove_inline :: (fn(s: *(u8), dst_off: usize, src_off: usize, count: usize) -> unit)(
@@ -1046,6 +1047,34 @@ impl(HtmlRenderer,
       // Unknown entity — pass through as-is
       self.*.raw(start, end);
     });
+  }),
+
+  // Emoji — :shortname: → Unicode emoji character
+  // Decode at render time (same approach as entity)
+  emoji : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    // Name is between the colons: start+1 to end-1
+    (name_ptr : *(u8)) = (self.*.src_ptr &+ usize((start + i32(1))));
+    (name_len : i32) = ((end - start) - i32(2));
+    self.*._entity_buf.clear();
+    if(lookup_emoji(name_ptr, name_len, (&self.*._entity_buf)), {
+      // Output emoji bytes directly (no HTML escaping needed for Unicode chars)
+      match(self.*._entity_buf.ptr(),
+        .Some(p) => self.*.buf.extend_from_ptr(p, usize(self.*._entity_buf.len())),
+        .None => ()
+      );
+    }, {
+      // Unknown — pass through as-is (shouldn't happen since parser validated)
+      self.*.raw(start, end);
+    });
+  }),
+
+  // Wikilink — [[target]] or [[target|display text]]
+  wikilink : (fn(self: *(Self), href_start: i32, href_end: i32, display_start: i32, display_end: i32) -> unit)({
+    self.*.lit("<a href=\"");
+    escape_html_buf((&self.*.buf), self.*.src_ptr, href_start, href_end);
+    self.*.lit("\">");
+    escape_html_buf((&self.*.buf), self.*.src_ptr, display_start, display_end);
+    self.*.lit("</a>");
   }),
 
   // Newline in tight paragraph (hidden paragraph open/close)

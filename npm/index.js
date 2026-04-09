@@ -25,6 +25,8 @@ const createMarkdownYo =
  * @property {boolean} [superscript=false] - Enable ^superscript^ syntax
  * @property {boolean} [mark=false] - Enable ==highlight== syntax
  * @property {boolean} [math=false] - Enable $inline$ and $$block$$ math
+ * @property {boolean} [emoji=false] - Enable :emoji: shortcodes
+ * @property {boolean} [wikilink=false] - Enable [[wikilinks]]
  * @property {boolean} [fullFeatures=false] - Enable all optional features
  */
 
@@ -50,6 +52,8 @@ function buildFlags(options) {
   if (options.superscript || options.fullFeatures) flags |= 16;
   if (options.mark || options.fullFeatures) flags |= 32;
   if (options.math || options.fullFeatures) flags |= 64;
+  if (options.emoji || options.fullFeatures) flags |= 128;
+  if (options.wikilink || options.fullFeatures) flags |= 256;
   return flags;
 }
 

@@ -21,14 +21,17 @@ open import "std/string";
 { inline_autolink } :: import "./autolink.yo";
 { inline_html } :: import "./html_inline.yo";
 { inline_entity } :: import "./entity.yo";
+{ inline_emoji } :: import "./emoji.yo";
+{ inline_wikilink } :: import "./wikilink.yo";
 { inline_render } :: import "./render.yo";
 
 // Check if a byte is a special inline character that could trigger a rule
 _is_inline_special :: (fn(ch: u8) -> bool)(
   (((ch <= u8(0x60)) && ((ch == u8(0x0A)) || ((ch == u8(0x21)) || ((ch == u8(0x24)) ||
-   ((ch == u8(0x26)) || ((ch == u8(0x2A)) || ((ch == u8(0x3C)) || ((ch == u8(0x3D)) ||
+   ((ch == u8(0x26)) || ((ch == u8(0x2A)) || ((ch == u8(0x3A)) || ((ch == u8(0x3C)) ||
+   ((ch == u8(0x3D)) ||
    ((ch == u8(0x5B)) || ((ch == u8(0x5C)) || ((ch == u8(0x5D)) || ((ch == u8(0x5E)) ||
-   ((ch == u8(0x5F)) || (ch == u8(0x60)))))))))))))))
+   ((ch == u8(0x5F)) || (ch == u8(0x60))))))))))))))))
    || (ch == u8(0x7E)))
 );
 
@@ -86,9 +89,20 @@ _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
           matched = inline_math(state);
         });
       },
-      // [ or ! — link/image open bracket
+      // : — emoji shortcode
+      (ch == i32(0x3A)) => {
+        if(state.*.options.*.enable_emoji, {
+          matched = inline_emoji(state);
+        });
+      },
+      // [ or ! — wikilink or link/image open bracket
       ((ch == i32(0x5B)) || (ch == i32(0x21))) => {
-        matched = inline_link_open(state);
+        if((state.*.options.*.enable_wikilink && (ch == i32(0x5B))), {
+          matched = inline_wikilink(state);
+        });
+        if(!(matched), {
+          matched = inline_link_open(state);
+        });
       },
       // ] — link/image close bracket
       (ch == i32(0x5D)) => {

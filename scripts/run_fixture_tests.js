@@ -114,6 +114,19 @@ const suites = [
     plugins: ["markdown-it-mark"],
     yoFlags: ["--mark"],
   },
+  {
+    name: "emoji",
+    file: "markdown_it/emoji.txt",
+    opts: {},
+    plugins: [{ module: "markdown-it-emoji", export: "full" }],
+    yoFlags: ["--emoji"],
+  },
+  {
+    name: "wikilink",
+    file: "markdown_it/wikilink.txt",
+    yoOnly: true,
+    yoFlags: ["--wikilink"],
+  },
 ];
 
 function parseFixtures(content) {
@@ -195,8 +208,13 @@ for (const suite of suites) {
   const mdInstance =
     typeof suite.opts === "string" ? md(suite.opts) : md(suite.opts);
   if (suite.plugins) {
-    for (const pluginName of suite.plugins) {
-      mdInstance.use(require(pluginName));
+    for (const pluginSpec of suite.plugins) {
+      if (typeof pluginSpec === "string") {
+        mdInstance.use(require(pluginSpec));
+      } else {
+        const mod = require(pluginSpec.module);
+        mdInstance.use(mod[pluginSpec.export]);
+      }
     }
   }
 
@@ -206,6 +224,38 @@ for (const suite of suites) {
 
   for (const fix of fixtures) {
     totalTests++;
+
+    // For yoOnly suites, compare Yo output directly against fixture expected
+    if (suite.yoOnly) {
+      const yoOutput = runYo(fix.input, suite.yoFlags);
+      if (yoOutput === fix.expected) {
+        suitePassed++;
+        totalPassed++;
+        if (verbose) {
+          console.log(`  ✓ ${fix.title}`);
+        }
+      } else {
+        suiteFailed++;
+        totalFailed++;
+        failedTests.push({
+          suite: suite.name,
+          title: fix.title,
+          expected: fix.expected,
+          got: yoOutput,
+        });
+        if (verbose) {
+          console.log(`  ✗ ${fix.title}`);
+          console.log(
+            `    Expected: ${fix.expected.trim().split("\n").slice(0, 3).join("\n    ")}`,
+          );
+          console.log(
+            `    Got:      ${yoOutput.trim().split("\n").slice(0, 3).join("\n    ")}`,
+          );
+        }
+      }
+      continue;
+    }
+
     const jsOutput = mdInstance.render(fix.input);
     const jsMatch = jsOutput === fix.expected;
 

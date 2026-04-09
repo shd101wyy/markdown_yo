@@ -1,0 +1,100 @@
+// Wikilink inline rule
+// Parses [[target]] or [[target|display text]] into a Wikilink token.
+//
+// Output: <a href="target">display</a>
+// - If no |, display = target
+// - Cannot span multiple lines
+// - Empty [[ ]] is not a wikilink
+
+open import "std/string";
+
+{ InlineToken, InlineState } :: import "./state.yo";
+{ InlineType } :: import "../types.yo";
+
+inline_wikilink :: (fn(state : *(InlineState)) -> bool)({
+  (src : *(u8)) = state.*.src_ptr;
+  max := state.*.pos_max;
+  pos := state.*.pos;
+
+  // Need at least [[ + one char + ]]  →  5 chars
+  if(((pos + i32(5)) > max), return false);
+
+  // Must start with [[
+  if((i32((src &+ usize(pos)).*) != i32(0x5B)), return false);
+  if((i32((src &+ usize((pos + i32(1)))).*) != i32(0x5B)), return false);
+
+  // Scan for ]] tracking | position
+  (pipe_pos : i32) = i32(-1);
+  (scan : i32) = (pos + i32(2));
+
+  while runtime(true), {
+    if((scan >= max), {
+      return false;
+    });
+    (ch : i32) = i32((src &+ usize(scan)).*);
+
+    // Newline terminates search
+    if((ch == i32(0x0A)), {
+      return false;
+    });
+
+    // Found ]]
+    if(((ch == i32(0x5D)) && (((scan + i32(1)) < max) && (i32((src &+ usize((scan + i32(1)))).*) == i32(0x5D)))), {
+      break;
+    });
+
+    // Track first | for display separator
+    if(((ch == i32(0x7C)) && (pipe_pos == i32(-1))), {
+      pipe_pos = scan;
+    });
+
+    scan = (scan + i32(1));
+  };
+
+  // scan now points at first ]
+  content_start := (pos + i32(2));
+  content_end := scan;
+
+  // Empty content is not a wikilink
+  if((content_start >= content_end), return false);
+
+  // Determine href and display ranges
+  (href_start : i32) = content_start;
+  (href_end : i32) = content_end;
+  (display_start : i32) = content_start;
+  (display_end : i32) = content_end;
+
+  if((pipe_pos != i32(-1)), {
+    href_end = pipe_pos;
+    display_start = (pipe_pos + i32(1));
+  });
+
+  // Create a single Wikilink token storing href in info and display in title
+  state.*.push_pending();
+  tok := InlineToken(
+    type_name: .Wikilink,
+    start: pos,
+    end: (scan + i32(2)),
+    nesting: i32(0),
+    level: state.*.level,
+    info_start: href_start,
+    info_end: href_end,
+    title_start: display_start,
+    title_end: display_end,
+    markup_char: u8(0x5B),
+    markup_len: u8(2),
+    block: false,
+    hidden: false,
+    content_idx: i32(-1),
+    href_idx: i32(-1),
+    title_idx: i32(-1)
+  );
+
+  _ := state.*.tokens.push(tok);
+  state.*.pos = (scan + i32(2));
+  state.*.pending_start = state.*.pos;
+  state.*.pending_end = state.*.pos;
+  return true;
+});
+
+export inline_wikilink;

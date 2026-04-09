@@ -16,6 +16,10 @@ export interface RenderOptions {
   mark?: boolean;
   /** Enable $inline$ and $$block$$ math syntax (default: false) */
   math?: boolean;
+  /** Enable :emoji: shortcodes (default: false) */
+  emoji?: boolean;
+  /** Enable [[wikilinks]] (default: false) */
+  wikilink?: boolean;
   /** Enable all optional features (default: false) */
   fullFeatures?: boolean;
 }

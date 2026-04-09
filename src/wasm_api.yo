@@ -13,6 +13,8 @@
 //   bit 4 (16) = superscript
 //   bit 5 (32) = mark
 //   bit 6 (64) = math
+//   bit 7 (128) = emoji
+//   bit 8 (256) = wikilink
 //
 // Usage from JS:
 //   const ptr = Module._wasm_render(inputPtr, inputLen, flags);
@@ -54,6 +56,8 @@ wasm_render :: (fn(input_ptr: *(u8), input_len: i32, flags: i32) -> *(u8))({
   if(((flags & i32(16)) != i32(0)), { opts.enable_superscript = true; });
   if(((flags & i32(32)) != i32(0)), { opts.enable_mark = true; });
   if(((flags & i32(64)) != i32(0)), { opts.enable_math = true; });
+  if(((flags & i32(128)) != i32(0)), { opts.enable_emoji = true; });
+  if(((flags & i32(256)) != i32(0)), { opts.enable_wikilink = true; });
 
   // Render
   result := markdown_to_html(input, (&opts));

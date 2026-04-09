@@ -72,6 +72,7 @@ _init_special_table :: (fn() -> *(u8))({
   (ptr &+ usize(0x24)).* = u8(1);
   (ptr &+ usize(0x26)).* = u8(1);
   (ptr &+ usize(0x2A)).* = u8(1);
+  (ptr &+ usize(0x3A)).* = u8(1);
   (ptr &+ usize(0x3C)).* = u8(1);
   (ptr &+ usize(0x3D)).* = u8(1);
   (ptr &+ usize(0x5B)).* = u8(1);

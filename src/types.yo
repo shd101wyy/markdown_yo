@@ -23,6 +23,8 @@ Options :: struct(
   enable_superscript : bool, // Superscript with ^text^
   enable_mark : bool,       // Highlight with ==text==
   enable_math : bool,       // Math with $...$ and $$...$$
+  enable_emoji : bool,      // Emoji shortcodes :smile: → 😄
+  enable_wikilink : bool,   // Wiki-style links [[page]] or [[page|text]]
   max_nesting : i32         // Max nesting depth
 );
 
@@ -40,6 +42,8 @@ default_options :: (fn() -> Options)(
     enable_superscript: false,
     enable_mark: false,
     enable_math: false,
+    enable_emoji: false,
+    enable_wikilink: false,
     max_nesting: i32(100)
   )
 );
@@ -58,6 +62,8 @@ commonmark_options :: (fn() -> Options)(
     enable_superscript: false,
     enable_mark: false,
     enable_math: false,
+    enable_emoji: false,
+    enable_wikilink: false,
     max_nesting: i32(20)
   )
 );
@@ -105,6 +111,8 @@ InlineType :: enum(
   MarkClose,
   MathInline,
   MathBlock,
+  Emoji,
+  Wikilink,
   LinkOpen,
   LinkClose,
   ImageOpen,

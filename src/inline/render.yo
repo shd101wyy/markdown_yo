@@ -522,6 +522,8 @@ _emit_inline_token :: (fn(renderer: *(HtmlRenderer), tok: *(InlineToken), src: *
     (t == i32(InlineType.MarkClose)) => renderer.*.close_mark(),
     (t == i32(InlineType.MathInline)) => renderer.*.math_inline(tok.*.start, tok.*.end),
     (t == i32(InlineType.MathBlock)) => renderer.*.math_block(tok.*.start, tok.*.end),
+    (t == i32(InlineType.Emoji)) => renderer.*.emoji(tok.*.start, tok.*.end),
+    (t == i32(InlineType.Wikilink)) => renderer.*.wikilink(tok.*.info_start, tok.*.info_end, tok.*.title_start, tok.*.title_end),
     (t == i32(InlineType.LinkOpen)) => {
       // Use reusable buffers to avoid per-link allocation
       if((tok.*.href_idx >= i32(0)), {

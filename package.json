@@ -3,6 +3,7 @@
     "markdown-it": "^14.1.1"
   },
   "devDependencies": {
+    "markdown-it-emoji": "^3.0.0",
     "markdown-it-mark": "^4.0.0",
     "markdown-it-sub": "^2.0.0",
     "markdown-it-sup": "^2.0.0"
