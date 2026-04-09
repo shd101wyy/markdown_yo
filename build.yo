@@ -1,11 +1,13 @@
 build :: import "std/build";
 { imports } :: import "./deps.yo";
+{ platform, Platform } :: import "std/process";
 
 mod :: build.module({ name: "markdown_yo", root: "./src/lib.yo" });
 
 exe :: build.executable({ name: "markdown_yo", root: "./src/main.yo", optimize: build.Optimize.ReleaseFast });
 exe.add_import_list(imports);
 exe.add_c_flags("-flto");
+if((platform == Platform.Windows), exe.add_c_flags("-fuse-ld=lld"));
 
 wasm_exe :: build.executable({
   name: "markdown_yo_wasm",
