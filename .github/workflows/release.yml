@@ -1,0 +1,265 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+
+jobs:
+  # ------------------------------------------------------------------
+  # Build native binaries on each platform
+  # ------------------------------------------------------------------
+  build-native:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-macos
+            artifact: markdown_yo-macos-arm64
+          - os: macos-26-intel
+            target: x86_64-macos
+            artifact: markdown_yo-macos-x86_64
+          - os: ubuntu-latest
+            target: x86_64-linux
+            artifact: markdown_yo-linux-x86_64
+          - os: windows-latest
+            target: x86_64-windows
+            artifact: markdown_yo-windows-x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install liburing (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y liburing-dev
+
+      - name: Install LLVM/Clang (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install llvm -y
+          echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Yo compiler
+        run: npm install -g @shd101wyy/yo
+
+      - name: Build native executable
+        run: yo build
+
+      - name: Package binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cp yo-out/${{ matrix.target }}/bin/markdown_yo .
+          tar czf ${{ matrix.artifact }}.tar.gz markdown_yo
+          echo "ASSET=${{ matrix.artifact }}.tar.gz" >> $GITHUB_ENV
+
+      - name: Package binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item yo-out/${{ matrix.target }}/bin/markdown_yo.exe .
+          Compress-Archive -Path markdown_yo.exe -DestinationPath ${{ matrix.artifact }}.zip
+          echo "ASSET=${{ matrix.artifact }}.zip" >> $env:GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ env.ASSET }}
+
+  # ------------------------------------------------------------------
+  # Build browser WASM target
+  # ------------------------------------------------------------------
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Yo compiler
+        run: npm install -g @shd101wyy/yo
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: "4.0.12"
+
+      - name: Build WASM demo
+        run: yo build demo
+
+      - name: Prepare npm package
+        run: |
+          cp yo-out/wasm32-emscripten/bin/markdown_yo_demo.js  npm/markdown_yo_demo.js
+          cp yo-out/wasm32-emscripten/bin/markdown_yo_demo.wasm npm/markdown_yo_demo.wasm
+          cp docs/WASM.md npm/README.md
+
+      - name: Package WASM release artifact
+        run: |
+          tar czf markdown_yo-wasm.tar.gz -C npm \
+            markdown_yo_demo.js markdown_yo_demo.wasm
+          echo "ASSET=markdown_yo-wasm.tar.gz" >> $GITHUB_ENV
+
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: markdown_yo-wasm
+          path: markdown_yo-wasm.tar.gz
+
+      - name: Upload npm package
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: npm/
+
+  # ------------------------------------------------------------------
+  # Create release + publish npm
+  # ------------------------------------------------------------------
+  release:
+    needs: [build-native, build-wasm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Bump version
+        id: version
+        run: |
+          cd npm
+          npm version ${{ inputs.bump }} --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+      - name: Get last commit message
+        id: last_commit
+        run: |
+          LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          echo "$LAST_COMMIT_MSG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add npm/package.json
+          git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
+          git push
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          release_name: Release v${{ steps.version.outputs.version }}
+          body: |
+            ${{ inputs.bump == 'minor' && 'Minor' || 'Patch' }} release v${{ steps.version.outputs.version }}
+
+            ## Changes
+            ${{ steps.last_commit.outputs.message }}
+
+            ## Downloads
+            | Platform | File |
+            |----------|------|
+            | macOS (Apple Silicon) | `markdown_yo-macos-arm64.tar.gz` |
+            | macOS (Intel) | `markdown_yo-macos-x86_64.tar.gz` |
+            | Linux (x86_64) | `markdown_yo-linux-x86_64.tar.gz` |
+            | Windows (x86_64) | `markdown_yo-windows-x86_64.zip` |
+            | WebAssembly | `markdown_yo-wasm.tar.gz` |
+
+            ## npm
+            ```
+            npm install markdown_yo@${{ steps.version.outputs.version }}
+            ```
+          draft: false
+          prerelease: false
+
+      - name: Upload macOS arm64
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/markdown_yo-macos-arm64/markdown_yo-macos-arm64.tar.gz
+          asset_name: markdown_yo-macos-arm64.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload macOS x86_64
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/markdown_yo-macos-x86_64/markdown_yo-macos-x86_64.tar.gz
+          asset_name: markdown_yo-macos-x86_64.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Linux x86_64
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/markdown_yo-linux-x86_64/markdown_yo-linux-x86_64.tar.gz
+          asset_name: markdown_yo-linux-x86_64.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload Windows x86_64
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/markdown_yo-windows-x86_64/markdown_yo-windows-x86_64.zip
+          asset_name: markdown_yo-windows-x86_64.zip
+          asset_content_type: application/zip
+
+      - name: Upload WASM
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/markdown_yo-wasm/markdown_yo-wasm.tar.gz
+          asset_name: markdown_yo-wasm.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Publish to npm
+        run: |
+          cd artifacts/npm-package
+          npm version ${{ steps.version.outputs.version }} --no-git-tag-version --allow-same-version
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

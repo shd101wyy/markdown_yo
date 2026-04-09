@@ -30,7 +30,7 @@ jobs:
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
-          version: "3.1.51"
+          version: "4.0.12"
 
       - name: Build WASM demo
         run: |

@@ -33,6 +33,28 @@ This is in contrast to [markdown_it_yo](https://github.com/shd101wyy/markdown_it
 - Full support: CommonMark, tables, strikethrough, typographer, smartquotes, HTML blocks
 - [**Live Demo**](#live-demo) — try it in the browser via WebAssembly
 
+## npm Package (WebAssembly)
+
+Use markdown_yo in JavaScript/TypeScript via WebAssembly:
+
+```bash
+npm install markdown_yo
+```
+
+```js
+import { createRenderer } from "markdown_yo";
+
+const md = await createRenderer();
+const html = md.render("# Hello\n\n**World**");
+// <h1>Hello</h1>
+// <p><strong>World</strong></p>
+
+// With options
+md.render(src, { commonmark: true, html: true, typographer: true });
+```
+
+See [docs/WASM.md](docs/WASM.md) for the full API reference, browser usage, and examples.
+
 ## Live Demo
 
 Try markdown_yo in the browser — no install needed:
