@@ -1,0 +1,207 @@
+basic note callout
+.
+> [!note]
+> This is a note callout
+.
+<div class="callout" data-callout="note">
+<div class="callout-title">Note</div>
+<p>This is a note callout</p>
+</div>
+.
+
+callout with explicit title
+.
+> [!warning] Be careful!
+> Content here
+.
+<div class="callout" data-callout="warning">
+<div class="callout-title">Be careful!</div>
+<p>Content here</p>
+</div>
+.
+
+foldable open callout
+.
+> [!tip]+ Expand me
+> Hidden content
+.
+<details class="callout" data-callout="tip" open>
+<summary class="callout-title">Expand me</summary>
+<p>Hidden content</p>
+</details>
+.
+
+foldable closed callout
+.
+> [!danger]- Collapse me
+> Hidden content
+.
+<details class="callout" data-callout="danger">
+<summary class="callout-title">Collapse me</summary>
+<p>Hidden content</p>
+</details>
+.
+
+unknown type stays blockquote
+.
+> [!unknown]
+> Should be blockquote
+.
+<blockquote>
+<p>[!unknown]
+Should be blockquote</p>
+</blockquote>
+.
+
+regular blockquote unaffected
+.
+> Just a quote
+.
+<blockquote>
+<p>Just a quote</p>
+</blockquote>
+.
+
+tldr default title
+.
+> [!tldr]
+> Summary text
+.
+<div class="callout" data-callout="tldr">
+<div class="callout-title">TL;DR</div>
+<p>Summary text</p>
+</div>
+.
+
+faq default title
+.
+> [!faq]
+> Question text
+.
+<div class="callout" data-callout="faq">
+<div class="callout-title">FAQ</div>
+<p>Question text</p>
+</div>
+.
+
+multi-paragraph callout
+.
+> [!note] Title
+> First paragraph
+>
+> Second paragraph
+.
+<div class="callout" data-callout="note">
+<div class="callout-title">Title</div>
+<p>First paragraph</p>
+<p>Second paragraph</p>
+</div>
+.
+
+callout with inline formatting
+.
+> [!tip] Important
+> **Bold** and *italic* text
+.
+<div class="callout" data-callout="tip">
+<div class="callout-title">Important</div>
+<p><strong>Bold</strong> and <em>italic</em> text</p>
+</div>
+.
+
+callout with list inside
+.
+> [!note] Checklist
+> - item 1
+> - item 2
+> - item 3
+.
+<div class="callout" data-callout="note">
+<div class="callout-title">Checklist</div>
+<ul>
+<li>item 1</li>
+<li>item 2</li>
+<li>item 3</li>
+</ul>
+</div>
+.
+
+all known types - note
+.
+> [!note]
+> Content
+.
+<div class="callout" data-callout="note">
+<div class="callout-title">Note</div>
+<p>Content</p>
+</div>
+.
+
+all known types - warning
+.
+> [!warning]
+> Content
+.
+<div class="callout" data-callout="warning">
+<div class="callout-title">Warning</div>
+<p>Content</p>
+</div>
+.
+
+all known types - bug
+.
+> [!bug]
+> Content
+.
+<div class="callout" data-callout="bug">
+<div class="callout-title">Bug</div>
+<p>Content</p>
+</div>
+.
+
+all known types - example
+.
+> [!example]
+> Content
+.
+<div class="callout" data-callout="example">
+<div class="callout-title">Example</div>
+<p>Content</p>
+</div>
+.
+
+callout followed by content
+.
+> [!note] Title
+> Inside callout
+
+Outside paragraph
+.
+<div class="callout" data-callout="note">
+<div class="callout-title">Title</div>
+<p>Inside callout</p>
+</div>
+<p>Outside paragraph</p>
+.
+
+foldable open with default title
+.
+> [!info]+
+> Content
+.
+<details class="callout" data-callout="info" open>
+<summary class="callout-title">Info</summary>
+<p>Content</p>
+</details>
+.
+
+foldable closed with default title
+.
+> [!error]-
+> Content
+.
+<details class="callout" data-callout="error">
+<summary class="callout-title">Error</summary>
+<p>Content</p>
+</details>
+.

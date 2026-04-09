@@ -311,6 +311,55 @@ _typographer_text :: (fn(buf: *(ArrayList(u8)), src: *(u8), start: i32, end: i32
   };
 });
 
+// Helper: check if source bytes [start, end) case-insensitively match a literal string.
+_src_eq_ci :: (fn(src: *(u8), start: i32, end: i32, lit: *(u8), lit_len: i32) -> bool)({
+  if(((end - start) != lit_len), { return false; });
+  (i : i32) = i32(0);
+  while (i < lit_len), {
+    (a : u8) = (src &+ usize((start + i))).*;
+    (b : u8) = (lit &+ usize(i)).*;
+    // lowercase both
+    (al : u8) = cond(((a >= u8(0x41)) && (a <= u8(0x5A))) => (a + u8(0x20)), true => a);
+    (bl : u8) = cond(((b >= u8(0x41)) && (b <= u8(0x5A))) => (b + u8(0x20)), true => b);
+    if((al != bl), { return false; });
+    i = (i + i32(1));
+  };
+  true
+});
+
+// Check if source bytes [start, end) form a known admonition type (case-insensitive).
+_is_known_admonition_type :: (fn(src: *(u8), start: i32, end: i32) -> bool)(
+  (_src_eq_ci(src, start, end, *(u8)("note"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("summary"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("abstract"), i32(8))
+   || (_src_eq_ci(src, start, end, *(u8)("tldr"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("info"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("todo"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("tip"), i32(3))
+   || (_src_eq_ci(src, start, end, *(u8)("hint"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("success"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("check"), i32(5))
+   || (_src_eq_ci(src, start, end, *(u8)("done"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("question"), i32(8))
+   || (_src_eq_ci(src, start, end, *(u8)("help"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("faq"), i32(3))
+   || (_src_eq_ci(src, start, end, *(u8)("warning"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("attention"), i32(9))
+   || (_src_eq_ci(src, start, end, *(u8)("caution"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("failure"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("fail"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("missing"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("danger"), i32(6))
+   || (_src_eq_ci(src, start, end, *(u8)("error"), i32(5))
+   || (_src_eq_ci(src, start, end, *(u8)("bug"), i32(3))
+   || (_src_eq_ci(src, start, end, *(u8)("example"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("snippet"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("quote"), i32(5))
+   || (_src_eq_ci(src, start, end, *(u8)("cite"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("important"), i32(9))
+  ))))))))))))))))))))))))))))
+);
+
 HtmlRenderer :: struct(
   buf : ArrayList(u8),    // output buffer
   img_nest : i32,         // depth inside <img> alt text (suppress HTML tags)
@@ -584,6 +633,27 @@ impl(HtmlRenderer,
     );
   }),
 
+  // Copy raw source bytes [start, end) to output buffer
+  push_range : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    if((start < end), {
+      self.*.buf.extend_from_ptr((self.*.src_ptr &+ usize(start)), usize((end - start)));
+    });
+  }),
+
+  // Copy source bytes [start, end) to output, converting ASCII uppercase to lowercase
+  push_range_lower : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    (ri : i32) = start;
+    while (ri < end), {
+      (ch : u8) = (self.*.src_ptr &+ usize(ri)).*;
+      if(((ch >= u8(0x41)) && (ch <= u8(0x5A))), {
+        self.*.buf.push((ch + u8(0x20)));
+      }, {
+        self.*.buf.push(ch);
+      });
+      ri = (ri + i32(1));
+    };
+  }),
+
   // Append HTML-escaped content from a String
   escaped_string : (fn(self: *(Self), s: String) -> unit)({
     (bytes : ArrayList(u8)) = s.as_bytes();
@@ -729,6 +799,119 @@ impl(HtmlRenderer,
     });
     self.*.lit("</dd>\n");
   }),
+
+  // Admonition: !!! type optional title
+  admonition_open : (fn(self: *(Self), type_start: i32, type_end: i32, title_start: i32, title_end: i32) -> unit)({
+    // If type is not in the known list, default to "note"
+    (known_type : bool) = _is_known_admonition_type(self.*.src_ptr, type_start, type_end);
+    self.*.lit("<div class=\"admonition ");
+    if(known_type, {
+      self.*.push_range_lower(type_start, type_end);
+    }, {
+      self.*.lit("note");
+    });
+    self.*.lit("\">\n");
+    // Title: if explicit title given, use it; else capitalize type
+    if((title_start < title_end), {
+      // Check for empty title '""'
+      if(((((title_end - title_start) == i32(2)) &&
+           ((self.*.src_ptr &+ usize(title_start)).* == u8(0x22))) &&
+          ((self.*.src_ptr &+ usize((title_end - i32(1)))).* == u8(0x22))), {
+        // title is "" — no title element
+        ()
+      }, {
+        self.*.lit("<p class=\"admonition-title\">");
+        self.*.escaped(title_start, title_end);
+        self.*.lit("</p>\n");
+      });
+    }, {
+      // Default title = capitalize first letter of validated type
+      self.*.lit("<p class=\"admonition-title\">");
+      if(known_type, {
+        // Special cases: tldr → TL;DR, faq → FAQ
+        if(_src_eq_ci(self.*.src_ptr, type_start, type_end, *(u8)("tldr"), i32(4)), {
+          self.*.lit("TL;DR");
+        }, {
+          if(_src_eq_ci(self.*.src_ptr, type_start, type_end, *(u8)("faq"), i32(3)), {
+            self.*.lit("FAQ");
+          }, {
+            // Capitalize first letter of the source type
+            (tc : u8) = (self.*.src_ptr &+ usize(type_start)).*;
+            if(((tc >= u8(0x61)) && (tc <= u8(0x7A))), {
+              self.*.buf.push((tc - u8(0x20)));
+            }, {
+              self.*.buf.push(tc);
+            });
+            if(((type_start + i32(1)) < type_end), {
+              self.*.push_range((type_start + i32(1)), type_end);
+            });
+          });
+        });
+      }, {
+        // Unknown type defaults to "Note"
+        self.*.lit("Note");
+      });
+      self.*.lit("</p>\n");
+    });
+  }),
+
+  admonition_close : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</div>\n")
+  ),
+
+  // Callout: > [!type] optional title — rendered from blockquote detection
+  callout_open : (fn(self: *(Self), type_start: i32, type_end: i32, title_start: i32, title_end: i32, foldable: i32) -> unit)({
+    // foldable: 0 = not foldable, 1 = foldable open, -1 = foldable closed
+    if((foldable != i32(0)), {
+      self.*.lit("<details class=\"callout\" data-callout=\"");
+      self.*.push_range_lower(type_start, type_end);
+      self.*.lit("\"");
+      if((foldable == i32(1)), {
+        self.*.lit(" open");
+      });
+      self.*.lit(">\n<summary class=\"callout-title\">");
+    }, {
+      self.*.lit("<div class=\"callout\" data-callout=\"");
+      self.*.push_range_lower(type_start, type_end);
+      self.*.lit("\">\n<div class=\"callout-title\">");
+    });
+    // Title content
+    if((title_start < title_end), {
+      self.*.escaped(title_start, title_end);
+    }, {
+      // Default titles — special cases first, then capitalize first letter
+      if(_src_eq_ci(self.*.src_ptr, type_start, type_end, *(u8)("tldr"), i32(4)), {
+        self.*.lit("TL;DR");
+      }, {
+        if(_src_eq_ci(self.*.src_ptr, type_start, type_end, *(u8)("faq"), i32(3)), {
+          self.*.lit("FAQ");
+        }, {
+          // Capitalize first letter of type, rest lowercase
+          (tc : u8) = (self.*.src_ptr &+ usize(type_start)).*;
+          if(((tc >= u8(0x61)) && (tc <= u8(0x7A))), {
+            self.*.buf.push((tc - u8(0x20)));
+          }, {
+            self.*.buf.push(tc);
+          });
+          if(((type_start + i32(1)) < type_end), {
+            self.*.push_range_lower((type_start + i32(1)), type_end);
+          });
+        });
+      });
+    });
+    if((foldable != i32(0)), {
+      self.*.lit("</summary>\n");
+    }, {
+      self.*.lit("</div>\n");
+    });
+  }),
+
+  callout_close : (fn(self: *(Self), foldable: i32) -> unit)(
+    cond(
+      (foldable != i32(0)) => self.*.lit("</details>\n"),
+      true => self.*.lit("</div>\n")
+    )
+  ),
 
   hr : (fn(self: *(Self)) -> unit)(
     cond(

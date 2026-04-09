@@ -20,12 +20,14 @@ open import "std/string";
 { block_fence } :: import "./fence.yo";
 { block_hr } :: import "./hr.yo";
 { block_blockquote, blockquote_find_end } :: import "./blockquote.yo";
+{ check_callout_marker, is_known_callout_type } :: import "./callout.yo";
 { block_list, skip_bullet_list_marker, skip_ordered_list_marker, parse_list_number } :: import "./list.yo";
 { block_html } :: import "./html_block.yo";
 { block_table } :: import "./table.yo";
 { block_reference } :: import "./reference.yo";
 { block_abbr, prescan_abbr } :: import "./abbr.yo";
 { skip_deflist_marker } :: import "./deflist.yo";
+{ check_admonition_marker } :: import "./admonition.yo";
 { inline_parse_range } :: import "../inline/parser.yo";
 { block_paragraph } :: import "./paragraph.yo";
 { _try_list_terminate, _try_block_terminate } :: import "./terminators.yo";
@@ -87,6 +89,60 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
             matched = block_fence(state, line, end_line, false);
           });
 
+          // 3b. Admonition — !!! type title, with 4-space indented body
+          if((!(matched) && state.*.options.*.enable_admonition), {
+            if(((state.ts(line) - state.*.blk_indent) < i32(4)), {
+              (adm_type_start : i32) = i32(0);
+              (adm_type_end : i32) = i32(0);
+              (adm_title_start : i32) = i32(0);
+              (adm_title_end : i32) = i32(0);
+              if(check_admonition_marker(state, line,
+                  (&adm_type_start), (&adm_type_end),
+                  (&adm_title_start), (&adm_title_end)), {
+                // ── Begin inline admonition handling ──
+                (adm_old_parent : ParentType) = state.*.parent_type;
+                (adm_old_line_max : i32) = state.*.line_max;
+                (adm_old_blk_indent : i32) = state.*.blk_indent;
+
+                state.*.blk_indent = (state.*.blk_indent + i32(4));
+
+                // Find end: first non-empty line with sCount < blkIndent
+                (adm_next : i32) = (line + i32(1));
+                (adm_found_end : bool) = false;
+                while (((adm_next < end_line) && !(adm_found_end))), {
+                  if(state.*.is_empty(adm_next), {
+                    adm_next = (adm_next + i32(1));
+                  }, {
+                    if((state.sc(adm_next) < state.*.blk_indent), {
+                      adm_found_end = true;
+                    }, {
+                      adm_next = (adm_next + i32(1));
+                    });
+                  });
+                };
+
+                state.*.parent_type = .Admonition;
+                state.*.line_max = adm_next;
+
+                // Emit open tag with type and title
+                state.*.renderer.*.admonition_open(adm_type_start, adm_type_end, adm_title_start, adm_title_end);
+
+                // Recursive parse of admonition body
+                recur(state, (line + i32(1)), adm_next);
+
+                // Emit close tag
+                state.*.renderer.*.admonition_close();
+
+                state.*.parent_type = adm_old_parent;
+                state.*.line_max = adm_old_line_max;
+                state.*.line = adm_next;
+                state.*.blk_indent = adm_old_blk_indent;
+                matched = true;
+                // ── End inline admonition handling ──
+              });
+            });
+          });
+
           // 4. Blockquote — handle recursion here to avoid circular import
           if(!(matched), {
             // Dry-run scan: compute bq_end without modifying state
@@ -115,13 +171,43 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               (old_parent_type : ParentType) = state.*.parent_type;
               (old_blk_indent : i32) = state.*.blk_indent;
 
-              state.*.renderer.*.open_blockquote();
+              // Check for callout pattern [!type]+/- title on first content line
+              (is_callout : bool) = false;
+              (co_type_start : i32) = i32(0);
+              (co_type_end : i32) = i32(0);
+              (co_title_start : i32) = i32(0);
+              (co_title_end : i32) = i32(0);
+              (co_foldable : i32) = i32(0);
+              (co_content_start : i32) = line;
+              if((state.*.options.*.enable_callout && (line < bq_end)), {
+                if(check_callout_marker(state, line,
+                    (&co_type_start), (&co_type_end),
+                    (&co_title_start), (&co_title_end),
+                    (&co_foldable)), {
+                  // Validate type against known callout types
+                  if(is_known_callout_type(state.*.src_ptr, co_type_start, co_type_end), {
+                    is_callout = true;
+                    // Skip the [!type] line from content parsing
+                    co_content_start = (line + i32(1));
+                    // If the next line is empty, also skip it (paragraph break after callout marker)
+                    if(((co_content_start < bq_end) && state.*.is_empty(co_content_start)), {
+                      co_content_start = (co_content_start + i32(1));
+                    });
+                  });
+                });
+              });
+
+              if(is_callout, {
+                state.*.renderer.*.callout_open(co_type_start, co_type_end, co_title_start, co_title_end, co_foldable);
+              }, {
+                state.*.renderer.*.open_blockquote();
+              });
               state.*.parent_type = .Blockquote;
               state.*.line_max = bq_end;
               state.*.blk_indent = i32(0);
 
-              // Recursive parse of blockquote content
-              recur(state, line, bq_end);
+              // Recursive parse of blockquote content (skip callout marker line)
+              recur(state, co_content_start, bq_end);
 
               // Inner tokenize may stop before bq_end (e.g., lazy continuation
               // lines with sCount=-1 that don't match any inner rule). Use the
@@ -129,7 +215,11 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               // the remaining lines.
               (inner_end : i32) = state.*.line;
 
-              state.*.renderer.*.close_blockquote();
+              if(is_callout, {
+                state.*.renderer.*.callout_close(co_foldable);
+              }, {
+                state.*.renderer.*.close_blockquote();
+              });
               state.*.line_max = old_line_max;
               state.*.parent_type = old_parent_type;
               state.*.line = inner_end;

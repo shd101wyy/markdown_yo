@@ -5,6 +5,7 @@
   },
   "devDependencies": {
     "markdown-it-abbr": "^2.0.0",
+    "markdown-it-container": "^4.0.0",
     "markdown-it-deflist": "^3.0.0",
     "markdown-it-emoji": "^3.0.0",
     "markdown-it-mark": "^4.0.0",

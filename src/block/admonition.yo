@@ -1,0 +1,77 @@
+// markdown_yo — Admonition block rule
+//
+// Syntax: !!! type [optional title]
+// Content is indented 4 spaces.
+// Ends at unindented line or EOF.
+//
+// Output:
+//   <div class="admonition TYPE">
+//   <p class="admonition-title">TITLE</p>
+//   ...content...
+//   </div>
+//
+// The main admonition handling is inlined in parser.yo (like lists)
+// because it needs recursive block_tokenize via `recur`.
+
+{ BlockState } :: import "./state.yo";
+
+// Check if a line starts with 3+ '!' characters followed by a space and a type word.
+// Returns: type_start, type_end, title_start, title_end (via out-params).
+// Returns true if valid admonition opener, false otherwise.
+check_admonition_marker :: (fn(state: *(BlockState), line: i32,
+                               type_start_out: *(i32), type_end_out: *(i32),
+                               title_start_out: *(i32), title_end_out: *(i32)) -> bool)({
+  (start : i32) = (state.bm(line) + state.ts(line));
+  (max : i32) = state.em(line);
+
+  // Need at least "!!! t"
+  if(((start + i32(4)) > max), { return false; });
+
+  // Check for 3+ '!' chars
+  if(((state.*.src_ptr &+ usize(start)).* != u8(0x21)), { return false; });
+  if(((state.*.src_ptr &+ usize((start + i32(1)))).* != u8(0x21)), { return false; });
+  if(((state.*.src_ptr &+ usize((start + i32(2)))).* != u8(0x21)), { return false; });
+
+  // Skip any additional '!' chars
+  (pos : i32) = (start + i32(3));
+  while ((pos < max) && ((state.*.src_ptr &+ usize(pos)).* == u8(0x21))), {
+    pos = (pos + i32(1));
+  };
+
+  // Must be followed by space
+  if((pos >= max), { return false; });
+  if(((state.*.src_ptr &+ usize(pos)).* != u8(0x20)), { return false; });
+
+  // Skip spaces
+  pos = state.skip_spaces(pos);
+  if((pos >= max), { return false; });
+
+  // Parse type word (alphanumeric chars)
+  (ts : i32) = pos;
+  while ((pos < max) && (
+    (((state.*.src_ptr &+ usize(pos)).* >= u8(0x61)) && ((state.*.src_ptr &+ usize(pos)).* <= u8(0x7A))) ||
+    (((state.*.src_ptr &+ usize(pos)).* >= u8(0x41)) && ((state.*.src_ptr &+ usize(pos)).* <= u8(0x5A))) ||
+    (((state.*.src_ptr &+ usize(pos)).* >= u8(0x30)) && ((state.*.src_ptr &+ usize(pos)).* <= u8(0x39))) ||
+    ((state.*.src_ptr &+ usize(pos)).* == u8(0x2D)) ||
+    ((state.*.src_ptr &+ usize(pos)).* == u8(0x5F))
+  )), {
+    pos = (pos + i32(1));
+  };
+  (te : i32) = pos;
+  if((te == ts), { return false; });
+
+  // Rest is optional title (after skipping spaces)
+  pos = state.skip_spaces(pos);
+  type_start_out.* = ts;
+  type_end_out.* = te;
+  title_start_out.* = pos;
+  // Trim trailing spaces from title
+  (title_end : i32) = max;
+  while (((title_end > pos) && ((state.*.src_ptr &+ usize((title_end - i32(1)))).* == u8(0x20)))), {
+    title_end = (title_end - i32(1));
+  };
+  title_end_out.* = title_end;
+  true
+});
+
+export check_admonition_marker;

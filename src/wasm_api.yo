@@ -18,6 +18,8 @@
 //   bit 9 (512) = critic
 //   bit 10 (1024) = abbr
 //   bit 11 (2048) = deflist
+//   bit 12 (4096) = admonition
+//   bit 13 (8192) = callout
 //
 // Usage from JS:
 //   const ptr = Module._wasm_render(inputPtr, inputLen, flags);
@@ -64,6 +66,8 @@ wasm_render :: (fn(input_ptr: *(u8), input_len: i32, flags: i32) -> *(u8))({
   if(((flags & i32(512)) != i32(0)), { opts.enable_critic = true; });
   if(((flags & i32(1024)) != i32(0)), { opts.enable_abbr = true; });
   if(((flags & i32(2048)) != i32(0)), { opts.enable_deflist = true; });
+  if(((flags & i32(4096)) != i32(0)), { opts.enable_admonition = true; });
+  if(((flags & i32(8192)) != i32(0)), { opts.enable_callout = true; });
 
   // Render
   result := markdown_to_html(input, (&opts));

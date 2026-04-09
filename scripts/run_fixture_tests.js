@@ -149,6 +149,18 @@ const suites = [
     yoOnly: true,
     yoFlags: ["--deflist"],
   },
+  {
+    name: "admonition",
+    file: "markdown_it/admonition.txt",
+    yoOnly: true,
+    yoFlags: ["--admonition"],
+  },
+  {
+    name: "callout",
+    file: "markdown_it/callout.txt",
+    yoOnly: true,
+    yoFlags: ["--callout"],
+  },
 ];
 
 function parseFixtures(content) {
