@@ -25,6 +25,8 @@ open import "std/string";
 { block_table } :: import "./table.yo";
 { block_reference } :: import "./reference.yo";
 { block_abbr, prescan_abbr } :: import "./abbr.yo";
+{ skip_deflist_marker } :: import "./deflist.yo";
+{ inline_parse_range } :: import "../inline/parser.yo";
 { block_paragraph } :: import "./paragraph.yo";
 { _try_list_terminate, _try_block_terminate } :: import "./terminators.yo";
 
@@ -379,7 +381,178 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
             matched = block_lheading(state, line, end_line, false);
           });
 
-          // 11. Paragraph (fallback — always matches)
+          // 11. Definition list — inline handling with recursive tokenize
+          if((!(matched) && state.*.options.*.enable_deflist), {
+            // Start detection: current line is a potential term, next line has `:` marker
+            (dl_next_line : i32) = (line + i32(1));
+            if((dl_next_line < end_line), {
+              if(state.*.is_empty(dl_next_line), {
+                dl_next_line = (dl_next_line + i32(1));
+              });
+              if((dl_next_line < end_line), {
+                if((state.sc(dl_next_line) >= state.*.blk_indent), {
+                  (dl_content_start : i32) = skip_deflist_marker(state, dl_next_line);
+                  if((dl_content_start >= i32(0)), {
+                    // ── Begin inline deflist handling ──
+                    (dl_tight : bool) = true;
+                    (dl_dt_line : i32) = line;
+                    (dl_dd_line : i32) = dl_next_line;
+
+                    // Open <dl>
+                    state.*.renderer.*.dl_open();
+                    (dl_buf_start : usize) = state.*.renderer.*.buf_pos();
+
+                    (dl_old_parent : ParentType) = state.*.parent_type;
+                    state.*.parent_type = .DefList;
+
+                    (dl_done : bool) = false;
+                    while !(dl_done), {
+                      (dl_prev_empty_end : bool) = false;
+
+                      // Emit <dt> with inline content of the term line
+                      state.*.renderer.*.dt_open();
+                      (dt_bm : i32) = state.bm(dl_dt_line);
+                      (dt_ts : i32) = state.ts(dl_dt_line);
+                      (dt_em : i32) = state.em(dl_dt_line);
+                      (dt_content_start : i32) = (dt_bm + dt_ts);
+                      (dt_content_end : i32) = dt_em;
+                      // Trim trailing spaces
+                      while (((dt_content_end > dt_content_start) && ((state.*.src_ptr &+ usize((dt_content_end - i32(1)))).* == u8(0x20)))), {
+                        dt_content_end = (dt_content_end - i32(1));
+                      };
+                      inline_parse_range((&state.*._inline_state), state.*.src_ptr, dt_content_start, dt_content_end);
+                      state.*.renderer.*.dt_close();
+
+                      // Inner loop: consume all <dd> definitions for this term
+                      (dd_done : bool) = false;
+                      while !(dd_done), {
+                        state.*.renderer.*.dd_open();
+
+                        // Calculate content offset — skip spaces after marker pos
+                        (dd_pos : i32) = dl_content_start;
+                        (dd_max : i32) = state.em(dl_dd_line);
+                        (dd_offset : i32) =
+                          ((state.sc(dl_dd_line) + dl_content_start) - (state.bm(dl_dd_line) + state.ts(dl_dd_line)));
+
+                        (dd_scanning : bool) = true;
+                        while ((dd_pos < dd_max) && dd_scanning), {
+                          (dd_ch : i32) = i32((state.*.src_ptr &+ usize(dd_pos)).*);
+                          if((dd_ch == i32(0x09)), {
+                            dd_offset = (dd_offset + (i32(4) - (dd_offset % i32(4))));
+                            dd_pos = (dd_pos + i32(1));
+                          }, {
+                            if((dd_ch == i32(0x20)), {
+                              dd_offset = (dd_offset + i32(1));
+                              dd_pos = (dd_pos + i32(1));
+                            }, {
+                              dd_scanning = false;
+                            });
+                          });
+                        };
+                        dl_content_start = dd_pos;
+
+                        // Save state
+                        (dd_old_tight : bool) = state.*.tight;
+                        (dd_old_dd_indent : i32) = state.*.dd_indent;
+                        (dd_old_indent : i32) = state.*.blk_indent;
+                        (dd_old_tshift : i32) = state.ts(dl_dd_line);
+                        (dd_old_scount : i32) = state.sc(dl_dd_line);
+                        (dd_old_parent_type : ParentType) = state.*.parent_type;
+
+                        state.*.blk_indent = (state.sc(dl_dd_line) + i32(2));
+                        state.*.dd_indent = state.*.blk_indent;
+                        state.set_ts(dl_dd_line, (dl_content_start - state.bm(dl_dd_line)));
+                        state.set_sc(dl_dd_line, dd_offset);
+                        state.*.tight = true;
+                        state.*.parent_type = .DefList;
+
+                        // Recursive block_tokenize for definition content
+                        recur(state, dl_dd_line, end_line);
+
+                        // Detect tight/loose
+                        if((!(state.*.tight) || dl_prev_empty_end), {
+                          dl_tight = false;
+                        });
+                        dl_prev_empty_end = (((state.*.line - dl_dd_line) > i32(1)) && state.*.is_empty((state.*.line - i32(1))));
+
+                        // Restore state
+                        state.set_ts(dl_dd_line, dd_old_tshift);
+                        state.set_sc(dl_dd_line, dd_old_scount);
+                        state.*.tight = dd_old_tight;
+                        state.*.parent_type = dd_old_parent_type;
+                        state.*.blk_indent = dd_old_indent;
+                        state.*.dd_indent = dd_old_dd_indent;
+
+                        state.*.renderer.*.dd_close();
+
+                        dl_next_line = state.*.line;
+
+                        if((dl_next_line >= end_line), { dl_done = true; dd_done = true; });
+
+                        if(!(dd_done), {
+                          if((state.sc(dl_next_line) < state.*.blk_indent), { dl_done = true; dd_done = true; });
+                        });
+
+                        if(!(dd_done), {
+                          dl_content_start = skip_deflist_marker(state, dl_next_line);
+                          if((dl_content_start < i32(0)), {
+                            dd_done = true;
+                          }, {
+                            dl_dd_line = dl_next_line;
+                          });
+                        });
+                      };
+
+                      // Check for another DT term
+                      if(!(dl_done), {
+                        if((dl_next_line >= end_line), { dl_done = true; });
+                      });
+                      if(!(dl_done), {
+                        dl_dt_line = dl_next_line;
+                        if(state.*.is_empty(dl_dt_line), { dl_done = true; });
+                      });
+                      if(!(dl_done), {
+                        if((state.sc(dl_dt_line) < state.*.blk_indent), { dl_done = true; });
+                      });
+
+                      if(!(dl_done), {
+                        dl_dd_line = (dl_dt_line + i32(1));
+                        if((dl_dd_line >= end_line), { dl_done = true; });
+                      });
+                      if(!(dl_done), {
+                        if(state.*.is_empty(dl_dd_line), {
+                          dl_dd_line = (dl_dd_line + i32(1));
+                        });
+                        if((dl_dd_line >= end_line), { dl_done = true; });
+                      });
+                      if(!(dl_done), {
+                        if((state.sc(dl_dd_line) < state.*.blk_indent), { dl_done = true; });
+                      });
+                      if(!(dl_done), {
+                        dl_content_start = skip_deflist_marker(state, dl_dd_line);
+                        if((dl_content_start < i32(0)), { dl_done = true; });
+                      });
+                    };
+
+                    // Close </dl>
+                    state.*.renderer.*.dl_close();
+                    state.*.line = dl_next_line;
+                    state.*.parent_type = dl_old_parent;
+
+                    // If tight, remove <p> tags from definition content
+                    if(dl_tight, {
+                      state.*.renderer.*.mark_tight_paragraphs(dl_buf_start);
+                    });
+
+                    matched = true;
+                    // ── End inline deflist handling ──
+                  });
+                });
+              });
+            });
+          });
+
+          // 12. Paragraph (fallback — always matches)
           if(!(matched), {
             matched = block_paragraph(state, line, end_line, false);
           });

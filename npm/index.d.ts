@@ -24,6 +24,8 @@ export interface RenderOptions {
   critic?: boolean;
   /** Enable abbreviations (*[abbr]: expansion) (default: false) */
   abbr?: boolean;
+  /** Enable definition lists (Term + : Definition) (default: false) */
+  deflist?: boolean;
   /** Enable all optional features (default: false) */
   fullFeatures?: boolean;
 }

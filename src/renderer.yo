@@ -700,6 +700,36 @@ impl(HtmlRenderer,
     self.*.lit("</li>\n");
   }),
 
+  // Definition list methods
+  dl_open : (fn(self: *(Self)) -> unit)(
+    self.*.lit("<dl>\n")
+  ),
+  dl_close : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</dl>\n")
+  ),
+  dt_open : (fn(self: *(Self)) -> unit)(
+    self.*.lit("<dt>")
+  ),
+  dt_close : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</dt>\n")
+  ),
+  dd_open : (fn(self: *(Self)) -> unit)(
+    self.*.lit("<dd>\n")
+  ),
+  dd_close : (fn(self: *(Self)) -> unit)({
+    // Same pattern as close_list_item: remove trailing \n after <dd> for empty defs
+    (bl : usize) = self.*.buf.len();
+    if(((bl >= usize(5)) &&
+        ((self.*.buf((bl - usize(5))) == u8(0x3C)) &&
+         ((self.*.buf((bl - usize(4))) == u8(0x64)) &&
+          ((self.*.buf((bl - usize(3))) == u8(0x64)) &&
+           ((self.*.buf((bl - usize(2))) == u8(0x3E)) &&
+            (self.*.buf((bl - usize(1))) == u8(0x0A))))))), {
+      self.*.buf.set_len((bl - usize(1)));
+    });
+    self.*.lit("</dd>\n");
+  }),
+
   hr : (fn(self: *(Self)) -> unit)(
     cond(
       self.*.options.*.xhtml_out => self.*.lit("<hr />\n"),
@@ -1329,6 +1359,25 @@ impl(HtmlRenderer,
           _memmove_inline(s, wi, ri, usize(4));
           ri = (ri + usize(4));
           wi = (wi + usize(4));
+        }, if(((remaining >= usize(5)) &&
+            (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
+             (((s &+ (ri + usize(2))).* == u8(0x64)) &&
+              (((s &+ (ri + usize(3))).* == u8(0x6C)) &&
+               ((s &+ (ri + usize(4))).* == u8(0x3E)))))), {
+          // </dl>
+          depth = (depth - i32(1));
+          _memmove_inline(s, wi, ri, usize(5));
+          ri = (ri + usize(5));
+          wi = (wi + usize(5));
+        }, if(((remaining >= usize(4)) &&
+            (((s &+ (ri + usize(1))).* == u8(0x64)) &&
+             (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
+              ((s &+ (ri + usize(3))).* == u8(0x3E))))), {
+          // <dl>
+          depth = (depth + i32(1));
+          _memmove_inline(s, wi, ri, usize(4));
+          ri = (ri + usize(4));
+          wi = (wi + usize(4));
         }, if(((remaining >= usize(6)) &&
             (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
              (((s &+ (ri + usize(2))).* == u8(0x70)) &&
@@ -1379,6 +1428,20 @@ impl(HtmlRenderer,
             _memmove_inline(s, wi, (ri + usize(5)), usize(5));
             ri = (ri + usize(10));
             wi = (wi + usize(5));
+          }, if((((depth == i32(0)) && (remaining >= usize(10))) &&
+              (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
+               (((s &+ (ri + usize(2))).* == u8(0x70)) &&
+                (((s &+ (ri + usize(3))).* == u8(0x3E)) &&
+                 (((s &+ (ri + usize(4))).* == u8(0x0A)) &&
+                  (((s &+ (ri + usize(5))).* == u8(0x3C)) &&
+                   (((s &+ (ri + usize(6))).* == u8(0x2F)) &&
+                    (((s &+ (ri + usize(7))).* == u8(0x64)) &&
+                     (((s &+ (ri + usize(8))).* == u8(0x64)) &&
+                      ((s &+ (ri + usize(9))).* == u8(0x3E))))))))))), {
+            // </p>\n</dd> → copy </dd> (from ri+5, 5 bytes)
+            _memmove_inline(s, wi, (ri + usize(5)), usize(5));
+            ri = (ri + usize(10));
+            wi = (wi + usize(5));
           }, if((((depth == i32(0)) && (remaining >= usize(5))) &&
               (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
                (((s &+ (ri + usize(2))).* == u8(0x70)) &&
@@ -1402,13 +1465,20 @@ impl(HtmlRenderer,
              (((s &+ (ri + usize(2))).* == u8(0x70)) &&
               ((s &+ (ri + usize(3))).* == u8(0x3E))))), {
           // \n<p> at depth 0
-          // Only skip the \n when previous output ends with <li>
+          // Only skip the \n when previous output ends with <li> or <dd>
           if(((wi >= usize(4)) &&
               (((s &+ (wi - usize(4))).* == u8(0x3C)) &&
                (((s &+ (wi - usize(3))).* == u8(0x6C)) &&
                 (((s &+ (wi - usize(2))).* == u8(0x69)) &&
                  ((s &+ (wi - usize(1))).* == u8(0x3E)))))), {
             // After <li>: skip \n<p> entirely
+            ri = (ri + usize(4));
+          }, if(((wi >= usize(4)) &&
+              (((s &+ (wi - usize(4))).* == u8(0x3C)) &&
+               (((s &+ (wi - usize(3))).* == u8(0x64)) &&
+                (((s &+ (wi - usize(2))).* == u8(0x64)) &&
+                 ((s &+ (wi - usize(1))).* == u8(0x3E)))))), {
+            // After <dd>: skip \n<p> entirely
             ri = (ri + usize(4));
           }, {
             // After other content: keep \n, skip <p>
@@ -1430,6 +1500,19 @@ impl(HtmlRenderer,
                       (((s &+ (ri + usize(4))).* == u8(0x69)) &&
                        ((s &+ (ri + usize(5))).* == u8(0x3E))))))))))), {
             // Skip \n for empty tight item
+            ri = (ri + usize(1));
+          }, if(((((depth == i32(0)) && (wi >= usize(4))) &&
+              (remaining >= usize(6))) &&
+               (((s &+ (wi - usize(4))).* == u8(0x3C)) &&
+                (((s &+ (wi - usize(3))).* == u8(0x64)) &&
+                 (((s &+ (wi - usize(2))).* == u8(0x64)) &&
+                  (((s &+ (wi - usize(1))).* == u8(0x3E)) &&
+                   (((s &+ (ri + usize(1))).* == u8(0x3C)) &&
+                    (((s &+ (ri + usize(2))).* == u8(0x2F)) &&
+                     (((s &+ (ri + usize(3))).* == u8(0x64)) &&
+                      (((s &+ (ri + usize(4))).* == u8(0x64)) &&
+                       ((s &+ (ri + usize(5))).* == u8(0x3E))))))))))), {
+            // Skip \n for empty tight dd item
             ri = (ri + usize(1));
           }, {
             (s &+ wi).* = ch;

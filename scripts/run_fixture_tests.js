@@ -143,6 +143,12 @@ const suites = [
     yoOnly: true,
     yoFlags: ["--abbr"],
   },
+  {
+    name: "deflist",
+    file: "markdown_it/deflist.txt",
+    yoOnly: true,
+    yoFlags: ["--deflist"],
+  },
 ];
 
 function parseFixtures(content) {

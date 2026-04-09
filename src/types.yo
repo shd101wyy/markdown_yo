@@ -27,6 +27,7 @@ Options :: struct(
   enable_wikilink : bool,   // Wiki-style links [[page]] or [[page|text]]
   enable_critic : bool,     // CriticMarkup {++add++} {--del--} {~~old~>new~~} {==mark==} {>>comment<<}
   enable_abbr : bool,       // Abbreviations *[abbr]: expansion
+  enable_deflist : bool,    // Definition lists (term + :   definition)
   max_nesting : i32         // Max nesting depth
 );
 
@@ -57,6 +58,7 @@ default_options :: (fn() -> Options)(
     enable_wikilink: false,
     enable_critic: false,
     enable_abbr: false,
+    enable_deflist: false,
     max_nesting: i32(100)
   )
 );
@@ -79,6 +81,7 @@ commonmark_options :: (fn() -> Options)(
     enable_wikilink: false,
     enable_critic: false,
     enable_abbr: false,
+    enable_deflist: false,
     max_nesting: i32(20)
   )
 );
@@ -91,6 +94,7 @@ ParentType :: enum(
   Root,
   Blockquote,
   List,
+  DefList,
   Paragraph
 );
 

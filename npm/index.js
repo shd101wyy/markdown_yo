@@ -29,6 +29,7 @@ const createMarkdownYo =
  * @property {boolean} [wikilink=false] - Enable [[wikilinks]]
  * @property {boolean} [critic=false] - Enable critic markup ({++add++}, {--del--}, etc.)
  * @property {boolean} [abbr=false] - Enable abbreviations (*[abbr]: expansion)
+ * @property {boolean} [deflist=false] - Enable definition lists (Term + : Definition)
  * @property {boolean} [fullFeatures=false] - Enable all optional features
  */
 
@@ -58,6 +59,7 @@ function buildFlags(options) {
   if (options.wikilink || options.fullFeatures) flags |= 256;
   if (options.critic || options.fullFeatures) flags |= 512;
   if (options.abbr || options.fullFeatures) flags |= 1024;
+  if (options.deflist || options.fullFeatures) flags |= 2048;
   return flags;
 }
 

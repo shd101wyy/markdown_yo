@@ -1,0 +1,35 @@
+// markdown_yo — Definition list helpers
+//
+// The main deflist handling is inlined in parser.yo (like lists)
+// because it needs recursive block_tokenize via `recur`.
+
+{ BlockState } :: import "./state.yo";
+{ is_space } :: import "../common/utils.yo";
+
+// Check if a line starts with [:~] followed by at least one space and content.
+// Returns the position right after the marker character (before spaces), or -1
+// if not a valid definition marker line. The caller must skip spaces separately.
+skip_deflist_marker :: (fn(state: *(BlockState), line: i32) -> i32)({
+  (start : i32) = (state.bm(line) + state.ts(line));
+  (max : i32) = state.em(line);
+
+  if((start >= max), { return i32(-1); });
+
+  // Check for ':' or '~' marker
+  (marker : i32) = i32((state.*.src_ptr &+ usize(start)).*);
+  if(((marker != i32(0x7E)) && (marker != i32(0x3A))), { return i32(-1); });
+
+  start = (start + i32(1));
+
+  // require space after marker
+  (pos : i32) = state.skip_spaces(start);
+  if((pos == start), { return i32(-1); });
+
+  // no empty definitions, e.g. "  : "
+  if((pos >= max), { return i32(-1); });
+
+  // Return position right after the marker (before spaces)
+  start
+});
+
+export skip_deflist_marker;
