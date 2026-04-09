@@ -127,6 +127,22 @@ const suites = [
     yoOnly: true,
     yoFlags: ["--wikilink"],
   },
+  {
+    name: "critic",
+    file: "markdown_it/critic.txt",
+    yoOnly: true,
+    yoFlags: ["--critic"],
+    // Last test "not triggered without enable" uses no flags
+    perTestFlags: {
+      "Critic Markup — not triggered without enable": [],
+    },
+  },
+  {
+    name: "abbr",
+    file: "markdown_it/abbr.txt",
+    yoOnly: true,
+    yoFlags: ["--abbr"],
+  },
 ];
 
 function parseFixtures(content) {
@@ -227,7 +243,11 @@ for (const suite of suites) {
 
     // For yoOnly suites, compare Yo output directly against fixture expected
     if (suite.yoOnly) {
-      const yoOutput = runYo(fix.input, suite.yoFlags);
+      const flags =
+        suite.perTestFlags && fix.title in suite.perTestFlags
+          ? suite.perTestFlags[fix.title]
+          : suite.yoFlags;
+      const yoOutput = runYo(fix.input, flags);
       if (yoOutput === fix.expected) {
         suitePassed++;
         totalPassed++;

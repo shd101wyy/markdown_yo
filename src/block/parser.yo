@@ -24,6 +24,7 @@ open import "std/string";
 { block_html } :: import "./html_block.yo";
 { block_table } :: import "./table.yo";
 { block_reference } :: import "./reference.yo";
+{ block_abbr, prescan_abbr } :: import "./abbr.yo";
 { block_paragraph } :: import "./paragraph.yo";
 { _try_list_terminate, _try_block_terminate } :: import "./terminators.yo";
 
@@ -353,12 +354,17 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
             });
           });
 
-          // 7. Reference
+          // 7. Abbreviation definition
+          if(!(matched), {
+            matched = block_abbr(state, line, end_line, false);
+          });
+
+          // 8. Reference
           if(!(matched), {
             matched = block_reference(state, line, end_line, false);
           });
 
-          // 8. HTML block
+          // 9. HTML block
           if((!(matched) && state.*.options.*.html), {
             matched = block_html(state, line, end_line, false);
           });
@@ -514,6 +520,8 @@ _prescan_references :: (fn(state: *(BlockState)) -> unit)({
 block_parse :: (fn(state: *(BlockState)) -> unit)({
   // Phase 1: Pre-scan for link reference definitions
   _prescan_references(state);
+  // Phase 1b: Pre-scan for abbreviation definitions
+  prescan_abbr(state);
   // Phase 2: Parse blocks and render
   block_tokenize(state, i32(0), state.*.line_max);
 });

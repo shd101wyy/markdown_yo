@@ -20,6 +20,10 @@ export interface RenderOptions {
   emoji?: boolean;
   /** Enable [[wikilinks]] (default: false) */
   wikilink?: boolean;
+  /** Enable critic markup ({++add++}, {--del--}, etc.) (default: false) */
+  critic?: boolean;
+  /** Enable abbreviations (*[abbr]: expansion) (default: false) */
+  abbr?: boolean;
   /** Enable all optional features (default: false) */
   fullFeatures?: boolean;
 }

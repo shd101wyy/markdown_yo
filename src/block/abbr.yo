@@ -1,0 +1,135 @@
+// Block rule for abbreviation definitions
+//
+// Parses lines matching: *[abbr]: Full Text
+//   - Must start at column 0 (no indent allowed)
+//   - Abbreviation must not be empty
+//   - Expansion can be empty (removes the <abbr> title)
+//   - Definition lines are consumed and produce no output
+//
+// Stores definitions in the renderer's abbreviation list for use during
+// inline text output.
+
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
+{ BlockState } :: import "./state.yo";
+{ AbbrEntry } :: import "../types.yo";
+
+// Parse a single abbreviation definition line.
+// Returns the number of bytes consumed, or 0 if not a valid definition.
+_parse_abbr_def :: (fn(state: *(BlockState), line: i32) -> bool)({
+  (src : *(u8)) = state.*.src_ptr;
+
+  (line_start : i32) = state.bm(line);
+  (line_end : i32) = state.em(line);
+  (shift : i32) = state.ts(line);
+
+  // No indent allowed for abbreviation definitions (use sCount for tab-awareness)
+  if((state.sc(line) >= i32(4)), return false);
+  if((shift > i32(0)), return false);
+
+  (pos : i32) = (line_start + shift);
+
+  // Must start with *[
+  if(((pos + i32(4)) > line_end), return false);
+  if((i32((src &+ usize(pos)).*) != i32(0x2A)), return false);       // *
+  if((i32((src &+ usize((pos + i32(1)))).*) != i32(0x5B)), return false);  // [
+
+  // Find closing ]
+  (label_start : i32) = (pos + i32(2));
+  (label_end : i32) = label_start;
+  while (label_end < line_end), {
+    if((i32((src &+ usize(label_end)).*) == i32(0x5D)), {
+      break;
+    });
+    label_end = (label_end + i32(1));
+  };
+
+  // Must have found ] and label must not be empty
+  if((label_end >= line_end), return false);
+  if((label_end == label_start), return false);
+
+  // Must be followed by ]: with space
+  (after_bracket : i32) = (label_end + i32(1));
+  if((after_bracket >= line_end), return false);
+  if((i32((src &+ usize(after_bracket)).*) != i32(0x3A)), return false);  // :
+
+  // Title starts after ": " — skip the colon and optional space
+  // Title starts after ": " — skip the colon and leading whitespace
+  (title_start : i32) = (after_bracket + i32(1));
+  while ((title_start < line_end) && (i32((src &+ usize(title_start)).*) == i32(0x20))), {
+    title_start = (title_start + i32(1));
+  };
+  (title_end : i32) = line_end;
+
+  // Empty or whitespace-only expansion — don't register
+  if((title_start >= title_end), return false);
+
+  // Store the abbreviation
+  entry := AbbrEntry(
+    pattern_start: label_start,
+    pattern_end: label_end,
+    title_start: title_start,
+    title_end: title_end,
+    pattern_len: (label_end - label_start)
+  );
+  _ := state.*.renderer.*.abbrs.push(entry);
+
+  // Advance past this line
+  state.*.line = (line + i32(1));
+  return true;
+});
+
+// Block rule: parse abbreviation definition
+// Called from block parser dispatch. Skips lines already consumed by prescan.
+block_abbr :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+  if(!(state.*.options.*.enable_abbr), return false);
+
+  // Check if this line was already consumed by prescan_abbr (marked with ts = -1)
+  if((state.ts(start_line) == i32(-1)), {
+    if(silent, return true);
+    // Skip all consecutive consumed lines
+    (line : i32) = start_line;
+    while ((line < end_line) && (state.ts(line) == i32(-1))), {
+      line = (line + i32(1));
+    };
+    state.*.line = line;
+    return true;
+  });
+
+  return false;
+});
+
+// Pre-scan all lines for abbreviation definitions.
+// Called before block tokenization so abbreviations defined anywhere in the
+// document (even at the end) are available during inline rendering.
+prescan_abbr :: (fn(state: *(BlockState)) -> unit)({
+  if(!(state.*.options.*.enable_abbr), return ());
+
+  (line : i32) = i32(0);
+  (max : i32) = state.*.line_max;
+  while (line < max), {
+    if(state.*.is_empty(line), {
+      line = (line + i32(1));
+    }, {
+      (old_line : i32) = state.*.line;
+      state.*.line = line;
+      (matched : bool) = _parse_abbr_def(state, line);
+      if(matched, {
+        // Mark consumed lines so block_tokenize skips them
+        (consumed : i32) = state.*.line;
+        (cl : i32) = line;
+        while (cl < consumed), {
+          state.*.set_ts(cl, i32(-1));
+          cl = (cl + i32(1));
+        };
+        line = consumed;
+      }, {
+        state.*.line = old_line;
+        line = (line + i32(1));
+      });
+    });
+  };
+  state.*.line = i32(0);
+});
+
+export block_abbr, prescan_abbr;

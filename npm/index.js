@@ -27,6 +27,8 @@ const createMarkdownYo =
  * @property {boolean} [math=false] - Enable $inline$ and $$block$$ math
  * @property {boolean} [emoji=false] - Enable :emoji: shortcodes
  * @property {boolean} [wikilink=false] - Enable [[wikilinks]]
+ * @property {boolean} [critic=false] - Enable critic markup ({++add++}, {--del--}, etc.)
+ * @property {boolean} [abbr=false] - Enable abbreviations (*[abbr]: expansion)
  * @property {boolean} [fullFeatures=false] - Enable all optional features
  */
 
@@ -54,6 +56,8 @@ function buildFlags(options) {
   if (options.math || options.fullFeatures) flags |= 64;
   if (options.emoji || options.fullFeatures) flags |= 128;
   if (options.wikilink || options.fullFeatures) flags |= 256;
+  if (options.critic || options.fullFeatures) flags |= 512;
+  if (options.abbr || options.fullFeatures) flags |= 1024;
   return flags;
 }
 

@@ -25,7 +25,18 @@ Options :: struct(
   enable_math : bool,       // Math with $...$ and $$...$$
   enable_emoji : bool,      // Emoji shortcodes :smile: → 😄
   enable_wikilink : bool,   // Wiki-style links [[page]] or [[page|text]]
+  enable_critic : bool,     // CriticMarkup {++add++} {--del--} {~~old~>new~~} {==mark==} {>>comment<<}
+  enable_abbr : bool,       // Abbreviations *[abbr]: expansion
   max_nesting : i32         // Max nesting depth
+);
+
+// An abbreviation entry: byte ranges into the source for pattern and title
+AbbrEntry :: struct(
+  pattern_start : i32,
+  pattern_end : i32,
+  title_start : i32,
+  title_end : i32,
+  pattern_len : i32
 );
 
 default_options :: (fn() -> Options)(
@@ -44,6 +55,8 @@ default_options :: (fn() -> Options)(
     enable_math: false,
     enable_emoji: false,
     enable_wikilink: false,
+    enable_critic: false,
+    enable_abbr: false,
     max_nesting: i32(100)
   )
 );
@@ -64,6 +77,8 @@ commonmark_options :: (fn() -> Options)(
     enable_math: false,
     enable_emoji: false,
     enable_wikilink: false,
+    enable_critic: false,
+    enable_abbr: false,
     max_nesting: i32(20)
   )
 );
@@ -113,6 +128,7 @@ InlineType :: enum(
   MathBlock,
   Emoji,
   Wikilink,
+  CriticMarkup,
   LinkOpen,
   LinkClose,
   ImageOpen,
@@ -192,4 +208,5 @@ export Options, default_options, commonmark_options,
        InlineType,
        Reference, Env, new_env,
        StringPair,
-       Delimiter, TokenMeta, LinkMarker, EmphasisPair;
+       Delimiter, TokenMeta, LinkMarker, EmphasisPair,
+       AbbrEntry;

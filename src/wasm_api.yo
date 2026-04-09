@@ -15,6 +15,8 @@
 //   bit 6 (64) = math
 //   bit 7 (128) = emoji
 //   bit 8 (256) = wikilink
+//   bit 9 (512) = critic
+//   bit 10 (1024) = abbr
 //
 // Usage from JS:
 //   const ptr = Module._wasm_render(inputPtr, inputLen, flags);
@@ -58,6 +60,8 @@ wasm_render :: (fn(input_ptr: *(u8), input_len: i32, flags: i32) -> *(u8))({
   if(((flags & i32(64)) != i32(0)), { opts.enable_math = true; });
   if(((flags & i32(128)) != i32(0)), { opts.enable_emoji = true; });
   if(((flags & i32(256)) != i32(0)), { opts.enable_wikilink = true; });
+  if(((flags & i32(512)) != i32(0)), { opts.enable_critic = true; });
+  if(((flags & i32(1024)) != i32(0)), { opts.enable_abbr = true; });
 
   // Render
   result := markdown_to_html(input, (&opts));

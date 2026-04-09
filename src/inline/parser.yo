@@ -23,6 +23,7 @@ open import "std/string";
 { inline_entity } :: import "./entity.yo";
 { inline_emoji } :: import "./emoji.yo";
 { inline_wikilink } :: import "./wikilink.yo";
+{ inline_critic } :: import "./critic.yo";
 { inline_render } :: import "./render.yo";
 
 // Check if a byte is a special inline character that could trigger a rule
@@ -32,7 +33,7 @@ _is_inline_special :: (fn(ch: u8) -> bool)(
    ((ch == u8(0x3D)) ||
    ((ch == u8(0x5B)) || ((ch == u8(0x5C)) || ((ch == u8(0x5D)) || ((ch == u8(0x5E)) ||
    ((ch == u8(0x5F)) || (ch == u8(0x60))))))))))))))))
-   || (ch == u8(0x7E)))
+   || ((ch == u8(0x7B)) || (ch == u8(0x7E))))
 );
 
 // Shared dispatch loop for inline parsing
@@ -120,6 +121,12 @@ _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
       // & — entity
       (ch == i32(0x26)) => {
         matched = inline_entity(state);
+      },
+      // { — critic markup
+      (ch == i32(0x7B)) => {
+        if(state.*.options.*.enable_critic, {
+          matched = inline_critic(state);
+        });
       },
       true => ()
     );
@@ -236,11 +243,11 @@ inline_parse_range :: (fn(inline_state: *(InlineState), src_ptr: *(u8), start: i
       inline_state.*.reset_for_ptr((src_ptr &+ usize(start)), len);
       _inline_dispatch(inline_state);
     }, {
-      if(has_html_char, {
-        // Has HTML chars but no inline specials — escape but skip inline dispatch
+      if(((has_html_char) || (inline_state.*.renderer.*.abbrs.len() > usize(0))), {
+        // Has HTML chars or abbreviations — escape/replace via text()
         inline_state.*.renderer.*.text(start, end);
       }, {
-        // Pure text, no HTML chars — direct copy to output buffer
+        // Pure text, no HTML chars, no abbreviations — direct copy to output buffer
         inline_state.*.renderer.*.buf.extend_from_ptr((src_ptr &+ usize(start)), usize((end - start)));
       });
     });

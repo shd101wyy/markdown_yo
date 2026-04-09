@@ -6,7 +6,7 @@
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
 { memmove } :: import "std/libc/string";
-{ Options, TableAlign } :: import "./types.yo";
+{ Options, TableAlign, AbbrEntry } :: import "./types.yo";
 { escape_html_buf, append_raw_buf, append_lit } :: import "./common/utils.yo";
 { decode_named_entity } :: import "./common/entities.yo";
 { lookup_emoji } :: import "./data/emoji_data.yo";
@@ -16,6 +16,14 @@ _memmove_inline :: (fn(s: *(u8), dst_off: usize, src_off: usize, count: usize) -
   if((dst_off != src_off), {
     _ := memmove(*(void)((s &+ dst_off)), *(void)((s &+ src_off)), count);
   })
+);
+
+// Check if byte is a word character (alphanumeric or underscore)
+_is_word_char :: (fn(ch: u8) -> bool)(
+  (((ch >= u8(0x30)) && (ch <= u8(0x39)))    // 0-9
+   || (((ch >= u8(0x41)) && (ch <= u8(0x5A)))  // A-Z
+   || (((ch >= u8(0x61)) && (ch <= u8(0x7A)))  // a-z
+   || (ch == u8(0x5F)))))                        // _
 );
 
 // Helper: write i32 as decimal ASCII digits to buffer
@@ -313,7 +321,9 @@ HtmlRenderer :: struct(
   list_nesting : i32,     // list nesting depth (for tight paragraph removal)
   tight_mode : bool,      // when true, paragraph open/close emit nothing
   bq_buf_pos : i32,       // buffer position at blockquote open (for empty detection)
-  _entity_buf : ArrayList(u8)  // reusable buffer for entity decoding
+  _entity_buf : ArrayList(u8),  // reusable buffer for entity decoding
+  abbrs : ArrayList(AbbrEntry), // abbreviation definitions (from *[abbr]: text)
+  _orig_src : *(u8)      // original source pointer (never swapped during inline render)
 );
 
 impl(HtmlRenderer,
@@ -330,7 +340,9 @@ impl(HtmlRenderer,
       list_nesting: i32(0),
       tight_mode: false,
       bq_buf_pos: i32(-1),
-      _entity_buf: ArrayList(u8).with_capacity(usize(16))
+      _entity_buf: ArrayList(u8).with_capacity(usize(16)),
+      abbrs: ArrayList(AbbrEntry).new(),
+      _orig_src: src_ptr
     )
   }),
 
@@ -352,6 +364,91 @@ impl(HtmlRenderer,
   escaped : (fn(self: *(Self), start: i32, end: i32) -> unit)(
     escape_html_buf((&self.*.buf), self.*.src_ptr, start, end)
   ),
+
+  // Append HTML-escaped source bytes with abbreviation replacement
+  // Scans text for abbreviation matches, wraps them in <abbr title="...">
+  // Uses src_ptr (current, possibly swapped) for text and _orig_src for pattern/title.
+  escaped_abbr : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    (src : *(u8)) = self.*.src_ptr;
+    (orig : *(u8)) = self.*._orig_src;
+    (abbr_list : *(ArrayList(AbbrEntry))) = (&self.*.abbrs);
+    (n_abbrs : usize) = abbr_list.*.len();
+    (pos : i32) = start;
+    (text_start : i32) = start;
+
+    while (pos < end), {
+      (found : bool) = false;
+      (ai : usize) = usize(0);
+      while (ai < n_abbrs), {
+        (entry : *(AbbrEntry)) = (&abbr_list.*.get(ai).unwrap());
+        (plen : i32) = entry.*.pattern_len;
+
+        // Check if pattern fits
+        if(((pos + plen) <= end), {
+          // Check word boundary before match
+          (boundary_before : bool) = cond(
+            (pos <= i32(0)) => true,
+            true => {
+              (prev : u8) = (src &+ usize((pos - i32(1)))).*;
+              !(_is_word_char(prev))
+            }
+          );
+
+          if(boundary_before, {
+            // Compare bytes: text from src (current), pattern from orig (original)
+            (match_ok : bool) = true;
+            (pi : i32) = i32(0);
+            while (pi < plen), {
+              if(((src &+ usize((pos + pi))).* != (orig &+ usize((entry.*.pattern_start + pi))).*), {
+                match_ok = false;
+                break;
+              });
+              pi = (pi + i32(1));
+            };
+
+            if(match_ok, {
+              // Check word boundary after match
+              (after_pos : i32) = (pos + plen);
+              (boundary_after : bool) = cond(
+                (after_pos >= end) => true,
+                true => {
+                  (next : u8) = (src &+ usize(after_pos)).*;
+                  !(_is_word_char(next))
+                }
+              );
+
+              if(boundary_after, {
+                // Emit text before match
+                if((pos > text_start), {
+                  escape_html_buf((&self.*.buf), src, text_start, pos);
+                });
+                // Emit <abbr title="expansion">pattern</abbr>
+                self.*.lit("<abbr title=\"");
+                escape_html_buf((&self.*.buf), orig, entry.*.title_start, entry.*.title_end);
+                self.*.lit("\">");
+                escape_html_buf((&self.*.buf), src, pos, after_pos);
+                self.*.lit("</abbr>");
+                pos = after_pos;
+                text_start = pos;
+                found = true;
+                break;
+              });
+            });
+          });
+        });
+        ai = (ai + usize(1));
+      };
+
+      if(!(found), {
+        pos = (pos + i32(1));
+      });
+    };
+
+    // Emit remaining text
+    if((text_start < end), {
+      escape_html_buf((&self.*.buf), src, text_start, end);
+    });
+  }),
 
   // Append HTML-escaped source bytes with backslash unescape + entity decode
   escaped_unesc : (fn(self: *(Self), start: i32, end: i32) -> unit)({
@@ -707,7 +804,11 @@ impl(HtmlRenderer,
     if(self.*.options.*.typographer, {
       _typographer_text((&self.*.buf), self.*.src_ptr, start, end);
     }, {
-      self.*.escaped(start, end);
+      if((self.*.abbrs.len() > usize(0)), {
+        self.*.escaped_abbr(start, end);
+      }, {
+        self.*.escaped(start, end);
+      });
     })
   ),
 
@@ -1075,6 +1176,45 @@ impl(HtmlRenderer,
     self.*.lit("\">");
     escape_html_buf((&self.*.buf), self.*.src_ptr, display_start, display_end);
     self.*.lit("</a>");
+  }),
+
+  critic_markup : (fn(self: *(Self), markup_char: u8, info_start: i32, info_end: i32, title_start: i32, title_end: i32) -> unit)({
+    (m : i32) = i32(markup_char);
+    cond(
+      // {++text++} → <ins>text</ins>
+      (m == i32(0x2B)) => {
+        self.*.lit("<ins>");
+        escape_html_buf((&self.*.buf), self.*.src_ptr, info_start, info_end);
+        self.*.lit("</ins>");
+      },
+      // {--text--} → <del>text</del>
+      (m == i32(0x2D)) => {
+        self.*.lit("<del>");
+        escape_html_buf((&self.*.buf), self.*.src_ptr, info_start, info_end);
+        self.*.lit("</del>");
+      },
+      // {~~old~>new~~} → <del>old</del><ins>new</ins>
+      (m == i32(0x7E)) => {
+        self.*.lit("<del>");
+        escape_html_buf((&self.*.buf), self.*.src_ptr, info_start, info_end);
+        self.*.lit("</del><ins>");
+        escape_html_buf((&self.*.buf), self.*.src_ptr, title_start, title_end);
+        self.*.lit("</ins>");
+      },
+      // {==text==} → <mark>text</mark>
+      (m == i32(0x3D)) => {
+        self.*.lit("<mark>");
+        escape_html_buf((&self.*.buf), self.*.src_ptr, info_start, info_end);
+        self.*.lit("</mark>");
+      },
+      // {>>text<<} → <span style="display:none">text</span>
+      (m == i32(0x3E)) => {
+        self.*.lit("<span style=\"display:none\">");
+        escape_html_buf((&self.*.buf), self.*.src_ptr, info_start, info_end);
+        self.*.lit("</span>");
+      },
+      true => ()
+    );
   }),
 
   // Newline in tight paragraph (hidden paragraph open/close)
