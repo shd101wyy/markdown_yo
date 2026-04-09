@@ -3,9 +3,9 @@ build :: import "std/build";
 
 mod :: build.module({ name: "markdown_yo", root: "./src/lib.yo" });
 
-exe :: build.executable({ name: "markdown_yo", root: "./src/main.yo" });
+exe :: build.executable({ name: "markdown_yo", root: "./src/main.yo", optimize: build.Optimize.ReleaseFast });
 exe.add_import_list(imports);
-exe.add_c_flags("-O2 -flto");
+exe.add_c_flags("-flto");
 
 wasm_exe :: build.executable({
   name: "markdown_yo_wasm",
