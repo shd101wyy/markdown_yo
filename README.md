@@ -31,7 +31,9 @@ This is in contrast to [markdown_it_yo](https://github.com/shd101wyy/markdown_it
 - **5-8× faster than markdown-it** (native), **2-6× faster** (WASM) at ≥1 MB
 - Compiles to native executables (macOS, Linux, Windows) and WebAssembly
 - Full support: CommonMark, tables, strikethrough, typographer, smartquotes, HTML blocks
-- **Inline extensions**: subscript (`~sub~`), superscript (`^sup^`), mark/highlight (`==mark==`), math (`$...$`, `$$...$$`)
+- **Inline extensions**: subscript (`~sub~`), superscript (`^sup^`), mark/highlight (`==mark==`), math (`$...$`, `$$...$$`), emoji (`:smile:`), wikilinks (`[[page]]`), critic markup (`{++add++}`, `{--del--}`, etc.)
+- **Block extensions**: abbreviations, definition lists, admonitions (`!!! type`), callouts (`> [!type]`), footnotes (`[^id]`)
+- **Source map**: optional `data-source-line` attributes on block-level elements for editor integration
 - [**Live Demo**](#live-demo) — try it in the browser via WebAssembly
 
 ## npm Package (WebAssembly)
@@ -59,6 +61,10 @@ md.render("H~2~O is ==water==", { subscript: true, mark: true });
 
 // Enable all optional features at once
 md.render(src, { fullFeatures: true });
+
+// Source map for editor integration
+md.render(src, { sourceMap: true });
+// Block elements get data-source-line="N" attributes
 ```
 
 See [docs/WASM.md](docs/WASM.md) for the full API reference, browser usage, and examples.
@@ -116,7 +122,16 @@ markdown_yo --commonmark file.md
 
 # Inline extensions
 markdown_yo --subscript --superscript --mark --math file.md
-markdown_yo --full-features file.md    # enable all at once
+markdown_yo --emoji --wikilink --critic file.md
+
+# Block extensions
+markdown_yo --abbr --deflist --admonition --callout --footnote file.md
+
+# Enable all extensions at once
+markdown_yo --full-features file.md
+
+# Source map (adds data-source-line attributes for editor integration)
+markdown_yo --source-map file.md
 
 markdown_yo --help
 ```

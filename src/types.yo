@@ -31,6 +31,7 @@ Options :: struct(
   enable_admonition : bool, // Admonition blocks !!! type title
   enable_callout : bool,    // GitHub/Obsidian callouts > [!type] title
   enable_footnote : bool,   // Footnotes [^id] and [^id]: content
+  enable_source_map : bool, // Emit data-source-line attributes on block elements
   max_nesting : i32         // Max nesting depth
 );
 
@@ -65,6 +66,7 @@ default_options :: (fn() -> Options)(
     enable_admonition: false,
     enable_callout: false,
     enable_footnote: false,
+    enable_source_map: false,
     max_nesting: i32(100)
   )
 );
@@ -91,6 +93,7 @@ commonmark_options :: (fn() -> Options)(
     enable_admonition: false,
     enable_callout: false,
     enable_footnote: false,
+    enable_source_map: false,
     max_nesting: i32(20)
   )
 );

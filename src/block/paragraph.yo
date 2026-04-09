@@ -73,6 +73,7 @@ block_paragraph :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
   });
 
   // Emit paragraph: open, inline content, close
+  state.*.renderer.*.set_source_line(start_line);
   state.*.renderer.*.open_paragraph();
 
   // Single-line paragraphs: zero-copy path using inline_parse_range directly

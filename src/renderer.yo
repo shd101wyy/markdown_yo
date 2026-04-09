@@ -18,6 +18,25 @@ _memmove_inline :: (fn(s: *(u8), dst_off: usize, src_off: usize, count: usize) -
   })
 );
 
+// Scan past optional attributes in an opening HTML tag.
+// `pos` points to the byte right after the tag name (e.g., after "<p" or "<ul").
+// Returns the number of bytes to skip to get past the closing '>'.
+// If `>` is found immediately, returns 1. If ` ` then attrs then `>`, returns N.
+// Returns 0 if no valid tag end found.
+_scan_tag_end :: (fn(s: *(u8), pos: usize, limit: usize) -> usize)({
+  (ch : u8) = (s &+ pos).*;
+  if((ch == u8(0x3E)), { return usize(1); }); // >
+  if((ch != u8(0x20)), { return usize(0); }); // not > or space
+  (p : usize) = (pos + usize(1));
+  while (p < limit), {
+    if(((s &+ p).* == u8(0x3E)), {
+      return (((p - pos) + usize(1)));
+    });
+    p = (p + usize(1));
+  };
+  usize(0)
+});
+
 // Check if byte is a word character (alphanumeric or underscore)
 _is_word_char :: (fn(ch: u8) -> bool)(
   (((ch >= u8(0x30)) && (ch <= u8(0x39)))    // 0-9
@@ -382,7 +401,8 @@ HtmlRenderer :: struct(
   _fn_inline_starts : ArrayList(i32),    // inline footnote ^[content] byte starts
   _fn_inline_ends : ArrayList(i32),      // inline footnote ^[content] byte ends
   _fn_in_section : bool,                 // true when rendering footnote section
-  _fn_current_backref : String           // backref HTML for current footnote
+  _fn_current_backref : String,          // backref HTML for current footnote
+  _source_line : i32                     // source line for next block open (-1 = none)
 );
 
 impl(HtmlRenderer,
@@ -410,7 +430,8 @@ impl(HtmlRenderer,
       _fn_inline_starts: ArrayList(i32).new(),
       _fn_inline_ends: ArrayList(i32).new(),
       _fn_in_section: false,
-      _fn_current_backref: ``
+      _fn_current_backref: ``,
+      _source_line: i32(-1)
     )
   }),
 
@@ -426,6 +447,24 @@ impl(HtmlRenderer,
   // Append literal string
   lit : (fn(self: *(Self), s: str) -> unit)(
     append_lit((&self.*.buf), s)
+  ),
+
+  // Set source line for next block element (used by block rules before open calls)
+  set_source_line : (fn(self: *(Self), line: i32) -> unit)(
+    if(self.*.options.*.enable_source_map, {
+      self.*._source_line = line;
+    })
+  ),
+
+  // Emit data-source-line attribute if source map is enabled and a line was set.
+  // Resets _source_line to -1 after emitting. Call between tag name and '>'.
+  _source_attr : (fn(self: *(Self)) -> unit)(
+    if((self.*.options.*.enable_source_map && (self.*._source_line >= i32(0))), {
+      self.*.lit(" data-source-line=\"");
+      _write_i32((&self.*.buf), self.*._source_line);
+      _ := self.*.buf.push(u8(0x22)); // "
+      self.*._source_line = i32(-1);
+    })
   ),
 
   // Append HTML-escaped source bytes [start, end)
@@ -694,24 +733,28 @@ impl(HtmlRenderer,
   // Block-level events
   // -------------------------------------------------------------------
 
-  open_paragraph : (fn(self: *(Self)) -> unit)(
-    self.*.lit("<p>")
-  ),
+  open_paragraph : (fn(self: *(Self)) -> unit)({
+    self.*.lit("<p");
+    self.*._source_attr();
+    _ := self.*.buf.push(u8(0x3E)); // >
+  }),
 
   close_paragraph : (fn(self: *(Self)) -> unit)(
     self.*.lit("</p>\n")
   ),
 
-  open_heading : (fn(self: *(Self), level: i32) -> unit)(
+  open_heading : (fn(self: *(Self), level: i32) -> unit)({
     cond(
-      (level == i32(1)) => self.*.lit("<h1>"),
-      (level == i32(2)) => self.*.lit("<h2>"),
-      (level == i32(3)) => self.*.lit("<h3>"),
-      (level == i32(4)) => self.*.lit("<h4>"),
-      (level == i32(5)) => self.*.lit("<h5>"),
-      true => self.*.lit("<h6>")
-    )
-  ),
+      (level == i32(1)) => self.*.lit("<h1"),
+      (level == i32(2)) => self.*.lit("<h2"),
+      (level == i32(3)) => self.*.lit("<h3"),
+      (level == i32(4)) => self.*.lit("<h4"),
+      (level == i32(5)) => self.*.lit("<h5"),
+      true => self.*.lit("<h6")
+    );
+    self.*._source_attr();
+    _ := self.*.buf.push(u8(0x3E)); // >
+  }),
 
   close_heading : (fn(self: *(Self), level: i32) -> unit)(
     cond(
@@ -725,7 +768,9 @@ impl(HtmlRenderer,
   ),
 
   open_blockquote : (fn(self: *(Self)) -> unit)({
-    self.*.lit("<blockquote>\n");
+    self.*.lit("<blockquote");
+    self.*._source_attr();
+    self.*.lit(">\n");
     // Save position after the \n to detect empty blockquotes
     self.*.bq_buf_pos = i32(self.*.buf.len());
   }),
@@ -741,9 +786,11 @@ impl(HtmlRenderer,
     self.*.lit("</blockquote>\n");
   }),
 
-  open_unordered_list : (fn(self: *(Self)) -> unit)(
-    self.*.lit("<ul>\n")
-  ),
+  open_unordered_list : (fn(self: *(Self)) -> unit)({
+    self.*.lit("<ul");
+    self.*._source_attr();
+    self.*.lit(">\n");
+  }),
 
   close_unordered_list : (fn(self: *(Self)) -> unit)(
     self.*.lit("</ul>\n")
@@ -751,10 +798,13 @@ impl(HtmlRenderer,
 
   open_ordered_list : (fn(self: *(Self), start: i32) -> unit)(
     if((start == i32(1)), {
-      self.*.lit("<ol>\n");
+      self.*.lit("<ol");
+      self.*._source_attr();
+      self.*.lit(">\n");
     }, {
-      self.*.lit("<ol start=\"");
-      // Write start number as ASCII digits
+      self.*.lit("<ol");
+      self.*._source_attr();
+      self.*.lit(" start=\"");
       _write_i32((&self.*.buf), start);
       self.*.lit("\">\n");
     })
@@ -790,21 +840,27 @@ impl(HtmlRenderer,
   }),
 
   // Definition list methods
-  dl_open : (fn(self: *(Self)) -> unit)(
-    self.*.lit("<dl>\n")
-  ),
+  dl_open : (fn(self: *(Self)) -> unit)({
+    self.*.lit("<dl");
+    self.*._source_attr();
+    self.*.lit(">\n");
+  }),
   dl_close : (fn(self: *(Self)) -> unit)(
     self.*.lit("</dl>\n")
   ),
-  dt_open : (fn(self: *(Self)) -> unit)(
-    self.*.lit("<dt>")
-  ),
+  dt_open : (fn(self: *(Self)) -> unit)({
+    self.*.lit("<dt");
+    self.*._source_attr();
+    _ := self.*.buf.push(u8(0x3E)); // >
+  }),
   dt_close : (fn(self: *(Self)) -> unit)(
     self.*.lit("</dt>\n")
   ),
-  dd_open : (fn(self: *(Self)) -> unit)(
-    self.*.lit("<dd>\n")
-  ),
+  dd_open : (fn(self: *(Self)) -> unit)({
+    self.*.lit("<dd");
+    self.*._source_attr();
+    self.*.lit(">\n");
+  }),
   dd_close : (fn(self: *(Self)) -> unit)({
     // Same pattern as close_list_item: remove trailing \n after <dd> for empty defs
     (bl : usize) = self.*.buf.len();
@@ -829,7 +885,9 @@ impl(HtmlRenderer,
     }, {
       self.*.lit("note");
     });
-    self.*.lit("\">\n");
+    self.*.lit("\"");
+    self.*._source_attr();
+    self.*.lit(">\n");
     // Title: if explicit title given, use it; else capitalize type
     if((title_start < title_end), {
       // Check for empty title '""'
@@ -885,6 +943,7 @@ impl(HtmlRenderer,
       self.*.lit("<details class=\"callout\" data-callout=\"");
       self.*.push_range_lower(type_start, type_end);
       self.*.lit("\"");
+      self.*._source_attr();
       if((foldable == i32(1)), {
         self.*.lit(" open");
       });
@@ -892,7 +951,9 @@ impl(HtmlRenderer,
     }, {
       self.*.lit("<div class=\"callout\" data-callout=\"");
       self.*.push_range_lower(type_start, type_end);
-      self.*.lit("\">\n<div class=\"callout-title\">");
+      self.*.lit("\"");
+      self.*._source_attr();
+      self.*.lit(">\n<div class=\"callout-title\">");
     });
     // Title content
     if((title_start < title_end), {
@@ -1042,27 +1103,39 @@ impl(HtmlRenderer,
 
   hr : (fn(self: *(Self)) -> unit)(
     cond(
-      self.*.options.*.xhtml_out => self.*.lit("<hr />\n"),
-      true => self.*.lit("<hr>\n")
+      self.*.options.*.xhtml_out => {
+        self.*.lit("<hr");
+        self.*._source_attr();
+        self.*.lit(" />\n");
+      },
+      true => {
+        self.*.lit("<hr");
+        self.*._source_attr();
+        self.*.lit(">\n");
+      }
     )
   ),
 
   // Code block (indented code, 4-space)
   code_block : (fn(self: *(Self), start: i32, end: i32) -> unit)({
-    self.*.lit("<pre><code>");
+    self.*.lit("<pre");
+    self.*._source_attr();
+    self.*.lit("><code>");
     self.*.escaped(start, end);
     self.*.lit("</code></pre>\n");
   }),
 
   // Fenced code block with optional language
   fence : (fn(self: *(Self), content_start: i32, content_end: i32, lang_start: i32, lang_end: i32) -> unit)({
+    self.*.lit("<pre");
+    self.*._source_attr();
     if((lang_start < lang_end), {
-      self.*.lit("<pre><code class=\"");
+      self.*.lit("><code class=\"");
       self.*.push_string(self.*.options.*.lang_prefix);
       self.*.escaped_unesc(lang_start, lang_end);
       self.*.lit("\">");
     }, {
-      self.*.lit("<pre><code>");
+      self.*.lit("><code>");
     });
     self.*.escaped(content_start, content_end);
     self.*.lit("</code></pre>\n");
@@ -1078,9 +1151,11 @@ impl(HtmlRenderer,
   // Table events
   // -------------------------------------------------------------------
 
-  open_table : (fn(self: *(Self)) -> unit)(
-    self.*.lit("<table>\n")
-  ),
+  open_table : (fn(self: *(Self)) -> unit)({
+    self.*.lit("<table");
+    self.*._source_attr();
+    self.*.lit(">\n");
+  }),
 
   close_table : (fn(self: *(Self)) -> unit)(
     self.*.lit("</table>\n")
@@ -1614,7 +1689,7 @@ impl(HtmlRenderer,
           _memmove_inline(s, wi, ri, usize(14));
           ri = (ri + usize(14));
           wi = (wi + usize(14));
-        }, if(((remaining >= usize(13)) &&
+        }, if(((remaining >= usize(12)) &&
             (((s &+ (ri + usize(1))).* == u8(0x62)) &&
              (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
               (((s &+ (ri + usize(3))).* == u8(0x6F)) &&
@@ -1624,13 +1699,25 @@ impl(HtmlRenderer,
                   (((s &+ (ri + usize(7))).* == u8(0x75)) &&
                    (((s &+ (ri + usize(8))).* == u8(0x6F)) &&
                     (((s &+ (ri + usize(9))).* == u8(0x74)) &&
-                     (((s &+ (ri + usize(10))).* == u8(0x65)) &&
-                      ((s &+ (ri + usize(11))).* == u8(0x3E))))))))))))), {
-          // <blockquote>\n
-          depth = (depth + i32(1));
-          _memmove_inline(s, wi, ri, usize(13));
-          ri = (ri + usize(13));
-          wi = (wi + usize(13));
+                     ((s &+ (ri + usize(10))).* == u8(0x65)))))))))))), {
+          // <blockquote...>\n — flexible match with optional attributes
+          (bq_tag_extra : usize) = _scan_tag_end(s, (ri + usize(11)), total);
+          if((bq_tag_extra > usize(0)), {
+            (bq_tag_len : usize) = (usize(11) + bq_tag_extra);
+            // Check for \n after >
+            (bq_total : usize) = cond(
+              (((ri + bq_tag_len) < total) && ((s &+ (ri + bq_tag_len)).* == u8(0x0A))) => (bq_tag_len + usize(1)),
+              true => bq_tag_len
+            );
+            depth = (depth + i32(1));
+            _memmove_inline(s, wi, ri, bq_total);
+            ri = (ri + bq_total);
+            wi = (wi + bq_total);
+          }, {
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
+            wi = (wi + usize(1));
+          });
         }, if(((remaining >= usize(5)) &&
             (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
              (((s &+ (ri + usize(2))).* == u8(0x6F)) &&
@@ -1653,22 +1740,45 @@ impl(HtmlRenderer,
           wi = (wi + usize(5));
         }, if(((remaining >= usize(4)) &&
             (((s &+ (ri + usize(1))).* == u8(0x6F)) &&
-             (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
-              ((s &+ (ri + usize(3))).* == u8(0x3E))))), {
-          // <ol>
-          depth = (depth + i32(1));
-          _memmove_inline(s, wi, ri, usize(4));
-          ri = (ri + usize(4));
-          wi = (wi + usize(4));
+             ((s &+ (ri + usize(2))).* == u8(0x6C)))), {
+          // <ol...> — flexible match with optional attributes
+          (ol_tag_extra : usize) = _scan_tag_end(s, (ri + usize(3)), total);
+          if((ol_tag_extra > usize(0)), {
+            (ol_tag_len : usize) = (usize(3) + ol_tag_extra);
+            // Check for \n after >
+            (ol_total : usize) = cond(
+              (((ri + ol_tag_len) < total) && ((s &+ (ri + ol_tag_len)).* == u8(0x0A))) => (ol_tag_len + usize(1)),
+              true => ol_tag_len
+            );
+            depth = (depth + i32(1));
+            _memmove_inline(s, wi, ri, ol_total);
+            ri = (ri + ol_total);
+            wi = (wi + ol_total);
+          }, {
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
+            wi = (wi + usize(1));
+          });
         }, if(((remaining >= usize(4)) &&
             (((s &+ (ri + usize(1))).* == u8(0x75)) &&
-             (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
-              ((s &+ (ri + usize(3))).* == u8(0x3E))))), {
-          // <ul>
-          depth = (depth + i32(1));
-          _memmove_inline(s, wi, ri, usize(4));
-          ri = (ri + usize(4));
-          wi = (wi + usize(4));
+             ((s &+ (ri + usize(2))).* == u8(0x6C)))), {
+          // <ul...> — flexible match with optional attributes
+          (ul_tag_extra : usize) = _scan_tag_end(s, (ri + usize(3)), total);
+          if((ul_tag_extra > usize(0)), {
+            (ul_tag_len : usize) = (usize(3) + ul_tag_extra);
+            (ul_total : usize) = cond(
+              (((ri + ul_tag_len) < total) && ((s &+ (ri + ul_tag_len)).* == u8(0x0A))) => (ul_tag_len + usize(1)),
+              true => ul_tag_len
+            );
+            depth = (depth + i32(1));
+            _memmove_inline(s, wi, ri, ul_total);
+            ri = (ri + ul_total);
+            wi = (wi + ul_total);
+          }, {
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
+            wi = (wi + usize(1));
+          });
         }, if(((remaining >= usize(5)) &&
             (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
              (((s &+ (ri + usize(2))).* == u8(0x64)) &&
@@ -1681,13 +1791,24 @@ impl(HtmlRenderer,
           wi = (wi + usize(5));
         }, if(((remaining >= usize(4)) &&
             (((s &+ (ri + usize(1))).* == u8(0x64)) &&
-             (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
-              ((s &+ (ri + usize(3))).* == u8(0x3E))))), {
-          // <dl>
-          depth = (depth + i32(1));
-          _memmove_inline(s, wi, ri, usize(4));
-          ri = (ri + usize(4));
-          wi = (wi + usize(4));
+             ((s &+ (ri + usize(2))).* == u8(0x6C)))), {
+          // <dl...> — flexible match with optional attributes
+          (dl_tag_extra : usize) = _scan_tag_end(s, (ri + usize(3)), total);
+          if((dl_tag_extra > usize(0)), {
+            (dl_tag_len : usize) = (usize(3) + dl_tag_extra);
+            (dl_total : usize) = cond(
+              (((ri + dl_tag_len) < total) && ((s &+ (ri + dl_tag_len)).* == u8(0x0A))) => (dl_tag_len + usize(1)),
+              true => dl_tag_len
+            );
+            depth = (depth + i32(1));
+            _memmove_inline(s, wi, ri, dl_total);
+            ri = (ri + dl_total);
+            wi = (wi + dl_total);
+          }, {
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
+            wi = (wi + usize(1));
+          });
         }, if(((remaining >= usize(6)) &&
             (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
              (((s &+ (ri + usize(2))).* == u8(0x70)) &&
@@ -1702,24 +1823,20 @@ impl(HtmlRenderer,
         }, if(((remaining >= usize(5)) &&
             (((s &+ (ri + usize(1))).* == u8(0x70)) &&
              (((s &+ (ri + usize(2))).* == u8(0x72)) &&
-              (((s &+ (ri + usize(3))).* == u8(0x65)) &&
-               ((s &+ (ri + usize(4))).* == u8(0x3E)))))), {
-          // <pre>
-          depth = (depth + i32(1));
-          _memmove_inline(s, wi, ri, usize(5));
-          ri = (ri + usize(5));
-          wi = (wi + usize(5));
-        }, if(((remaining >= usize(14)) &&
-            (((s &+ (ri + usize(1))).* == u8(0x6F)) &&
-             (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
-              (((s &+ (ri + usize(3))).* == u8(0x20)) &&
-               (((s &+ (ri + usize(4))).* == u8(0x73)) &&
-                ((s &+ (ri + usize(5))).* == u8(0x74))))))), {
-          // <ol start=... — increment depth
-          depth = (depth + i32(1));
-          (s &+ wi).* = ch;
-          ri = (ri + usize(1));
-          wi = (wi + usize(1));
+              ((s &+ (ri + usize(3))).* == u8(0x65))))), {
+          // <pre...> — flexible match with optional attributes
+          (pre_tag_extra : usize) = _scan_tag_end(s, (ri + usize(4)), total);
+          if((pre_tag_extra > usize(0)), {
+            (pre_tag_len : usize) = (usize(4) + pre_tag_extra);
+            depth = (depth + i32(1));
+            _memmove_inline(s, wi, ri, pre_tag_len);
+            ri = (ri + pre_tag_len);
+            wi = (wi + pre_tag_len);
+          }, {
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
+            wi = (wi + usize(1));
+          });
         }, {
           // --- Paragraph removal at depth 0 ---
 
@@ -1767,33 +1884,42 @@ impl(HtmlRenderer,
             ri = (ri + usize(1));
             wi = (wi + usize(1));
           }));
-        })))))))))
+        }))))))))
       }, if((ch == u8(0x0A)), {
-        // Check for \n<p> at depth 0
+        // Check for \n<p...> at depth 0
         if((((depth == i32(0)) && (remaining >= usize(4))) &&
             (((s &+ (ri + usize(1))).* == u8(0x3C)) &&
-             (((s &+ (ri + usize(2))).* == u8(0x70)) &&
-              ((s &+ (ri + usize(3))).* == u8(0x3E))))), {
-          // \n<p> at depth 0
-          // Only skip the \n when previous output ends with <li> or <dd>
-          if(((wi >= usize(4)) &&
-              (((s &+ (wi - usize(4))).* == u8(0x3C)) &&
-               (((s &+ (wi - usize(3))).* == u8(0x6C)) &&
-                (((s &+ (wi - usize(2))).* == u8(0x69)) &&
-                 ((s &+ (wi - usize(1))).* == u8(0x3E)))))), {
-            // After <li>: skip \n<p> entirely
-            ri = (ri + usize(4));
-          }, if(((wi >= usize(4)) &&
-              (((s &+ (wi - usize(4))).* == u8(0x3C)) &&
-               (((s &+ (wi - usize(3))).* == u8(0x64)) &&
-                (((s &+ (wi - usize(2))).* == u8(0x64)) &&
-                 ((s &+ (wi - usize(1))).* == u8(0x3E)))))), {
-            // After <dd>: skip \n<p> entirely
-            ri = (ri + usize(4));
+             ((s &+ (ri + usize(2))).* == u8(0x70)))), {
+          // Matched \n<p — check if next is > or space (attributes)
+          (p_tag_extra : usize) = _scan_tag_end(s, (ri + usize(3)), total);
+          if((p_tag_extra > usize(0)), {
+            // \n<p...> at depth 0 — total bytes to skip: 1 (\n) + 2 (<p) + p_tag_extra
+            (p_skip : usize) = (usize(3) + p_tag_extra);
+            // Only skip the \n when previous output ends with <li> or <dd>
+            if(((wi >= usize(4)) &&
+                (((s &+ (wi - usize(4))).* == u8(0x3C)) &&
+                 (((s &+ (wi - usize(3))).* == u8(0x6C)) &&
+                  (((s &+ (wi - usize(2))).* == u8(0x69)) &&
+                   ((s &+ (wi - usize(1))).* == u8(0x3E)))))), {
+              // After <li>: skip \n<p...> entirely
+              ri = (ri + p_skip);
+            }, if(((wi >= usize(4)) &&
+                (((s &+ (wi - usize(4))).* == u8(0x3C)) &&
+                 (((s &+ (wi - usize(3))).* == u8(0x64)) &&
+                  (((s &+ (wi - usize(2))).* == u8(0x64)) &&
+                   ((s &+ (wi - usize(1))).* == u8(0x3E)))))), {
+              // After <dd>: skip \n<p...> entirely
+              ri = (ri + p_skip);
+            }, {
+              // After other content: keep \n, skip <p...>
+              (s &+ wi).* = u8(0x0A);
+              ri = (ri + p_skip);
+              wi = (wi + usize(1));
+            });
           }, {
-            // After other content: keep \n, skip <p>
-            (s &+ wi).* = u8(0x0A);
-            ri = (ri + usize(4));
+            // <p not followed by > or space — not a tag, copy bytes
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
             wi = (wi + usize(1));
           });
         }, {

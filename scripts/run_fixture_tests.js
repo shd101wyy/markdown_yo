@@ -167,6 +167,12 @@ const suites = [
     yoOnly: true,
     yoFlags: ["--footnote"],
   },
+  {
+    name: "source_map",
+    file: "markdown_it/source_map.txt",
+    yoOnly: true,
+    yoFlags: ["--source-map"],
+  },
 ];
 
 function parseFixtures(content) {

@@ -32,6 +32,8 @@ const createMarkdownYo =
  * @property {boolean} [deflist=false] - Enable definition lists (Term + : Definition)
  * @property {boolean} [admonition=false] - Enable admonition blocks (!!! type title)
  * @property {boolean} [callout=false] - Enable callout blocks (> [!type] title)
+ * @property {boolean} [footnote=false] - Enable footnotes ([^id] refs and ^[inline])
+ * @property {boolean} [sourceMap=false] - Emit data-source-line attributes on block elements
  * @property {boolean} [fullFeatures=false] - Enable all optional features
  */
 
@@ -64,6 +66,8 @@ function buildFlags(options) {
   if (options.deflist || options.fullFeatures) flags |= 2048;
   if (options.admonition || options.fullFeatures) flags |= 4096;
   if (options.callout || options.fullFeatures) flags |= 8192;
+  if (options.footnote || options.fullFeatures) flags |= 16384;
+  if (options.sourceMap) flags |= 32768;
   return flags;
 }
 
@@ -75,6 +79,7 @@ function buildFlags(options) {
  *
  * @param {Object} [wasmOptions] - Options passed to the Emscripten module loader
  * @param {string} [wasmOptions.locateFile] - Custom path resolver for .wasm file
+ * @param {RenderOptions} [defaultOptions] - Default rendering options applied to every render() call
  * @returns {Promise<MarkdownRenderer>}
  *
  * @example
@@ -86,9 +91,14 @@ function buildFlags(options) {
  * // => <p><strong>bold</strong></p>
  *
  * console.log(md.render("# Title", { commonmark: true, html: true }));
+ *
+ * // Set default options once — applied to all render() calls
+ * const md2 = await createRenderer(null, { html: true, fullFeatures: true });
+ * console.log(md2.render("H~2~O"));
+ * // => <p>H<sub>2</sub>O</p>
  * ```
  */
-async function createRenderer(wasmOptions) {
+async function createRenderer(wasmOptions, defaultOptions) {
   let loader;
   if (createMarkdownYo) {
     loader = createMarkdownYo;
@@ -110,11 +120,14 @@ async function createRenderer(wasmOptions) {
      * @returns {string} The rendered HTML
      */
     render(markdown, options) {
+      const merged = defaultOptions
+        ? { ...defaultOptions, ...options }
+        : options;
       const inputBytes = encoder.encode(markdown);
       const inputPtr = Module._malloc(inputBytes.length);
       try {
         Module.HEAPU8.set(inputBytes, inputPtr);
-        const flags = buildFlags(options);
+        const flags = buildFlags(merged);
         const resultPtr = Module._wasm_render(
           inputPtr,
           inputBytes.length,

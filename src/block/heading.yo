@@ -65,6 +65,7 @@ block_heading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silen
   });
 
   // Emit heading open, inline content, heading close
+  state.*.renderer.*.set_source_line(start_line);
   state.*.renderer.*.open_heading(level);
   // Parse inline content between pos and content_end
   if((content_end > pos), {

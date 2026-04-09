@@ -71,7 +71,7 @@ _read_stdin :: (fn() -> String)({
   String.from_bytes(buf)
 });
 
-_HELP_TEXT :: "markdown_yo — Fast markdown to HTML converter\n\nUsage:\n  markdown_yo [options] <file>   Render file to stdout\n  cat file.md | markdown_yo -   Read from stdin\n\nOptions:\n  --html            Enable HTML tags in source\n  --typographer     Enable typographic replacements\n  --no-lang-prefix  Remove language prefix from fenced code blocks\n  --commonmark      Use CommonMark preset\n  --subscript       Enable subscript (~text~)\n  --superscript     Enable superscript (^text^)\n  --mark            Enable mark/highlight (==text==)\n  --math            Enable math ($..$ and $$..$$)\n  --emoji           Enable emoji shortcodes (:smile:)\n  --wikilink        Enable wikilinks ([[page]] or [[page|text]])\n  --critic          Enable critic markup ({++add++}, {--del--}, etc.)\n  --abbr            Enable abbreviations (*[abbr]: expansion)\n  --deflist         Enable definition lists\n  --admonition      Enable admonition blocks (!!! type title)\n  --callout         Enable callouts (> [!type] title)\n  --footnote        Enable footnotes ([^id] and [^id]: content)\n  --full-features   Enable all extensions\n  --repeat N        Run N iterations, output timing to stderr\n  -h, --help        Show this help\n";
+_HELP_TEXT :: "markdown_yo — Fast markdown to HTML converter\n\nUsage:\n  markdown_yo [options] <file>   Render file to stdout\n  cat file.md | markdown_yo -   Read from stdin\n\nOptions:\n  --html            Enable HTML tags in source\n  --typographer     Enable typographic replacements\n  --no-lang-prefix  Remove language prefix from fenced code blocks\n  --commonmark      Use CommonMark preset\n  --subscript       Enable subscript (~text~)\n  --superscript     Enable superscript (^text^)\n  --mark            Enable mark/highlight (==text==)\n  --math            Enable math ($..$ and $$..$$)\n  --emoji           Enable emoji shortcodes (:smile:)\n  --wikilink        Enable wikilinks ([[page]] or [[page|text]])\n  --critic          Enable critic markup ({++add++}, {--del--}, etc.)\n  --abbr            Enable abbreviations (*[abbr]: expansion)\n  --deflist         Enable definition lists\n  --admonition      Enable admonition blocks (!!! type title)\n  --callout         Enable callouts (> [!type] title)\n  --footnote        Enable footnotes ([^id] and [^id]: content)\n  --source-map      Emit data-source-line attributes on block elements\n  --full-features   Enable all extensions\n  --repeat N        Run N iterations, output timing to stderr\n  -h, --help        Show this help\n";
 
 main :: (fn() -> unit)({
   argv := args();
@@ -99,6 +99,7 @@ main :: (fn() -> unit)({
   (enable_admonition : bool) = false;
   (enable_callout : bool) = false;
   (enable_footnote : bool) = false;
+  (enable_source_map : bool) = false;
   (full_features : bool) = false;
   (file_path : Option(String)) = .None;
   (read_from_stdin : bool) = false;
@@ -129,6 +130,7 @@ main :: (fn() -> unit)({
       (arg == `--admonition`) => { enable_admonition = true; },
       (arg == `--callout`) => { enable_callout = true; },
       (arg == `--footnote`) => { enable_footnote = true; },
+      (arg == `--source-map`) => { enable_source_map = true; },
       (arg == `--full-features`) => { full_features = true; },
       (arg == `--repeat`) => {
         ai = (ai + usize(1));
@@ -161,6 +163,7 @@ main :: (fn() -> unit)({
   if((enable_admonition || full_features), { opts.enable_admonition = true; });
   if((enable_callout || full_features), { opts.enable_callout = true; });
   if((enable_footnote || full_features), { opts.enable_footnote = true; });
+  if(enable_source_map, { opts.enable_source_map = true; });
   if(full_features, {
     opts.enable_table = true;
     opts.enable_strikethrough = true;

@@ -126,6 +126,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                 state.*.line_max = adm_next;
 
                 // Emit open tag with type and title
+                state.*.renderer.*.set_source_line(line);
                 state.*.renderer.*.admonition_open(adm_type_start, adm_type_end, adm_title_start, adm_title_end);
 
                 // Recursive parse of admonition body
@@ -199,8 +200,10 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               });
 
               if(is_callout, {
+                state.*.renderer.*.set_source_line(line);
                 state.*.renderer.*.callout_open(co_type_start, co_type_end, co_title_start, co_title_end, co_foldable);
               }, {
+                state.*.renderer.*.set_source_line(line);
                 state.*.renderer.*.open_blockquote();
               });
               state.*.parent_type = .Blockquote;
@@ -285,6 +288,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               (list_marker_char : i32) = i32((state.*.src_ptr &+ usize((list_pam - i32(1)))).*);
 
               // Open list tag
+              state.*.renderer.*.set_source_line(line);
               if(list_is_ordered, {
                 state.*.renderer.*.open_ordered_list(list_marker_value);
               }, {
@@ -507,6 +511,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                     (dl_dd_line : i32) = dl_next_line;
 
                     // Open <dl>
+                    state.*.renderer.*.set_source_line(line);
                     state.*.renderer.*.dl_open();
                     (dl_buf_start : usize) = state.*.renderer.*.buf_pos();
 
@@ -518,6 +523,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                       (dl_prev_empty_end : bool) = false;
 
                       // Emit <dt> with inline content of the term line
+                      state.*.renderer.*.set_source_line(dl_dt_line);
                       state.*.renderer.*.dt_open();
                       (dt_bm : i32) = state.bm(dl_dt_line);
                       (dt_ts : i32) = state.ts(dl_dt_line);
@@ -534,6 +540,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                       // Inner loop: consume all <dd> definitions for this term
                       (dd_done : bool) = false;
                       while !(dd_done), {
+                        state.*.renderer.*.set_source_line(dl_dd_line);
                         state.*.renderer.*.dd_open();
 
                         // Calculate content offset — skip spaces after marker pos
