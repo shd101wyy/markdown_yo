@@ -28,8 +28,8 @@ This is in contrast to [markdown_it_yo](https://github.com/shd101wyy/markdown_it
 ## Features
 
 - **98.7% CommonMark compatibility** — 815/826 spec tests passing
-- **5-7× faster than markdown-it** (native), **2-6× faster** (WASM) at ≥1 MB
-- Compiles to native executables (macOS, Linux) and WebAssembly
+- **5-8× faster than markdown-it** (native), **2-6× faster** (WASM) at ≥1 MB
+- Compiles to native executables (macOS, Linux, Windows) and WebAssembly
 - Full support: CommonMark, tables, strikethrough, typographer, smartquotes, HTML blocks
 - [**Live Demo**](#live-demo) — try it in the browser via WebAssembly
 
@@ -69,13 +69,13 @@ Comparison against markdown-it (Node.js) — median of 10 runs, 3 warmup:
 
 | Input Size | markdown-it (JS) | Native   | Speedup | WASM     | Speedup |
 | ---------- | ---------------- | -------- | ------- | -------- | ------- |
-| 64 KB      | 1.9 ms           | 0.4 ms   | 5.2×    | 12.8 ms  | 0.1×    |
-| 256 KB     | 7.0 ms           | 1.3 ms   | 5.4×    | 12.9 ms  | 0.5×    |
-| 1 MB       | 28.9 ms          | 4.9 ms   | 5.9×    | 13.3 ms  | 2.2×    |
-| 5 MB       | 153.0 ms         | 23.9 ms  | 6.4×    | 34.3 ms  | 4.5×    |
-| 20 MB      | 734.5 ms         | 97.5 ms  | 7.5×    | 127.7 ms | 5.8×    |
+| 64 KB      | 1.6 ms           | 0.4 ms   | 4.5×    | 12.9 ms  | 0.1×    |
+| 256 KB     | 6.7 ms           | 1.2 ms   | 5.3×    | 13.1 ms  | 0.5×    |
+| 1 MB       | 28.8 ms          | 4.8 ms   | 6.0×    | 13.5 ms  | 2.1×    |
+| 5 MB       | 158.9 ms         | 23.3 ms  | 6.8×    | 32.6 ms  | 4.9×    |
+| 20 MB      | 722.8 ms         | 95.4 ms  | 7.6×    | 121.5 ms | 6.0×    |
 
-_Native: Apple M4, macOS, clang -O2 -flto. WASM: Emscripten, Node.js, -O3 -flto._
+_Native: Apple M4, macOS, clang -O3 -flto. WASM: Emscripten, Node.js, -O3 -flto._
 _Native and WASM times use `--repeat 20` to amortize process/WASM startup._
 _WASM overhead at small sizes (64K, 256K) is dominated by Node.js WASM compilation startup (~12ms)._
 
