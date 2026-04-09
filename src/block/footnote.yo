@@ -1,0 +1,63 @@
+// markdown_yo — Footnote definition block rule
+//
+// Syntax: [^label]: content
+// Content can span multiple lines if indented by 4 spaces.
+//
+// The main footnote handling is inlined in parser.yo
+// because it needs recursive block_tokenize via `recur`.
+// This file provides the marker detection helper.
+
+{ BlockState } :: import "./state.yo";
+
+// Check if a line starts with a footnote definition: [^label]:
+// Returns true if valid, with label_start/label_end out-params.
+// Also sets content_start to the byte offset where content begins.
+check_footnote_def :: (fn(state: *(BlockState), line: i32,
+                          label_start_out: *(i32), label_end_out: *(i32),
+                          content_start_out: *(i32)) -> bool)({
+  (start : i32) = (state.bm(line) + state.ts(line));
+  (max : i32) = state.em(line);
+
+  // Need at least "[^x]:" = 5 chars
+  if(((start + i32(5)) > max), { return false; });
+
+  // Check for '[^'
+  if(((state.*.src_ptr &+ usize(start)).* != u8(0x5B)), { return false; });        // [
+  if(((state.*.src_ptr &+ usize((start + i32(1)))).* != u8(0x5E)), { return false; }); // ^
+
+  // Parse label: everything until ']', no spaces or newlines
+  (pos : i32) = (start + i32(2));
+  (ls : i32) = pos;
+  while ((pos < max) && ((state.*.src_ptr &+ usize(pos)).* != u8(0x5D))), {
+    (ch : u8) = (state.*.src_ptr &+ usize(pos)).*;
+    // No spaces or newlines in label
+    if(((ch == u8(0x20)) || ((ch == u8(0x09)) || ((ch == u8(0x0A)) || (ch == u8(0x0D))))), {
+      return false;
+    });
+    pos = (pos + i32(1));
+  };
+  (le : i32) = pos;
+
+  // Label must not be empty
+  if((le == ls), { return false; });
+
+  // Must be followed by ']:'
+  if((pos >= max), { return false; });
+  if(((state.*.src_ptr &+ usize(pos)).* != u8(0x5D)), { return false; });  // ]
+  pos = (pos + i32(1));
+  if((pos >= max), { return false; });
+  if(((state.*.src_ptr &+ usize(pos)).* != u8(0x3A)), { return false; });  // :
+  pos = (pos + i32(1));
+
+  // Skip spaces after colon
+  while ((pos < max) && ((state.*.src_ptr &+ usize(pos)).* == u8(0x20))), {
+    pos = (pos + i32(1));
+  };
+
+  label_start_out.* = ls;
+  label_end_out.* = le;
+  content_start_out.* = pos;
+  true
+});
+
+export check_footnote_def;

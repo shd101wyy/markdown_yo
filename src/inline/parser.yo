@@ -24,6 +24,7 @@ open import "std/string";
 { inline_emoji } :: import "./emoji.yo";
 { inline_wikilink } :: import "./wikilink.yo";
 { inline_critic } :: import "./critic.yo";
+{ inline_footnote_ref, inline_footnote_inline } :: import "./footnote.yo";
 { inline_render } :: import "./render.yo";
 
 // Check if a byte is a special inline character that could trigger a rule
@@ -72,9 +73,12 @@ _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
           matched = inline_subscript(state);
         });
       },
-      // ^ — superscript
+      // ^ — superscript or inline footnote
       (ch == i32(0x5E)) => {
-        if(state.*.options.*.enable_superscript, {
+        if(state.*.options.*.enable_footnote, {
+          matched = inline_footnote_inline(state);
+        });
+        if((!(matched) && state.*.options.*.enable_superscript), {
           matched = inline_superscript(state);
         });
       },
@@ -96,10 +100,13 @@ _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
           matched = inline_emoji(state);
         });
       },
-      // [ or ! — wikilink or link/image open bracket
+      // [ or ! — wikilink, footnote reference, or link/image open bracket
       ((ch == i32(0x5B)) || (ch == i32(0x21))) => {
         if((state.*.options.*.enable_wikilink && (ch == i32(0x5B))), {
           matched = inline_wikilink(state);
+        });
+        if((!(matched) && (state.*.options.*.enable_footnote && (ch == i32(0x5B)))), {
+          matched = inline_footnote_ref(state);
         });
         if(!(matched), {
           matched = inline_link_open(state);

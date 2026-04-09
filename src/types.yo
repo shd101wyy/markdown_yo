@@ -30,6 +30,7 @@ Options :: struct(
   enable_deflist : bool,    // Definition lists (term + :   definition)
   enable_admonition : bool, // Admonition blocks !!! type title
   enable_callout : bool,    // GitHub/Obsidian callouts > [!type] title
+  enable_footnote : bool,   // Footnotes [^id] and [^id]: content
   max_nesting : i32         // Max nesting depth
 );
 
@@ -63,6 +64,7 @@ default_options :: (fn() -> Options)(
     enable_deflist: false,
     enable_admonition: false,
     enable_callout: false,
+    enable_footnote: false,
     max_nesting: i32(100)
   )
 );
@@ -88,6 +90,7 @@ commonmark_options :: (fn() -> Options)(
     enable_deflist: false,
     enable_admonition: false,
     enable_callout: false,
+    enable_footnote: false,
     max_nesting: i32(20)
   )
 );
@@ -110,6 +113,22 @@ TableAlign :: enum(
   Left,
   Center,
   Right
+);
+
+// ---------------------------------------------------------------------------
+// Footnote definition — stores label and content for end-of-document rendering
+// ---------------------------------------------------------------------------
+
+FootnoteDef :: struct(
+  label_start : i32,    // byte offset of label start in source
+  label_end : i32,      // byte offset of label end in source
+  content_start : i32,  // byte offset of content start on first line
+  line_start : i32,     // first content line (after adjusting for [^label]:)
+  line_end : i32,       // line after last content line
+  // Adjusted first-line state for re-parsing
+  adj_bmark : i32,      // adjusted bMarks for first line
+  adj_tshift : i32,     // adjusted tShift for first line
+  adj_scount : i32      // adjusted sCount for first line
 );
 
 // ---------------------------------------------------------------------------
@@ -140,6 +159,8 @@ InlineType :: enum(
   Emoji,
   Wikilink,
   CriticMarkup,
+  FootnoteRef,
+  FootnoteInline,
   LinkOpen,
   LinkClose,
   ImageOpen,
@@ -220,4 +241,4 @@ export Options, default_options, commonmark_options,
        Reference, Env, new_env,
        StringPair,
        Delimiter, TokenMeta, LinkMarker, EmphasisPair,
-       AbbrEntry;
+       AbbrEntry, FootnoteDef;

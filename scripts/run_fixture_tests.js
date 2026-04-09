@@ -161,6 +161,12 @@ const suites = [
     yoOnly: true,
     yoFlags: ["--callout"],
   },
+  {
+    name: "footnote",
+    file: "markdown_it/footnote.txt",
+    yoOnly: true,
+    yoFlags: ["--footnote"],
+  },
 ];
 
 function parseFixtures(content) {

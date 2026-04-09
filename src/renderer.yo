@@ -6,7 +6,7 @@
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
 { memmove } :: import "std/libc/string";
-{ Options, TableAlign, AbbrEntry } :: import "./types.yo";
+{ Options, TableAlign, AbbrEntry, FootnoteDef } :: import "./types.yo";
 { escape_html_buf, append_raw_buf, append_lit } :: import "./common/utils.yo";
 { decode_named_entity } :: import "./common/entities.yo";
 { lookup_emoji } :: import "./data/emoji_data.yo";
@@ -372,7 +372,17 @@ HtmlRenderer :: struct(
   bq_buf_pos : i32,       // buffer position at blockquote open (for empty detection)
   _entity_buf : ArrayList(u8),  // reusable buffer for entity decoding
   abbrs : ArrayList(AbbrEntry), // abbreviation definitions (from *[abbr]: text)
-  _orig_src : *(u8)      // original source pointer (never swapped during inline render)
+  _orig_src : *(u8),      // original source pointer (never swapped during inline render)
+  // Footnote support
+  _fn_defs : ArrayList(FootnoteDef),     // footnote definitions found during prescan
+  _fn_ref_ids : ArrayList(i32),          // for each def, assigned reference number (-1 if unreferenced)
+  _fn_ref_counts : ArrayList(i32),       // reference count for each def
+  _fn_ref_order : ArrayList(i32),        // def indices in order of first reference
+  _fn_count : i32,                        // total footnotes referenced
+  _fn_inline_starts : ArrayList(i32),    // inline footnote ^[content] byte starts
+  _fn_inline_ends : ArrayList(i32),      // inline footnote ^[content] byte ends
+  _fn_in_section : bool,                 // true when rendering footnote section
+  _fn_current_backref : String           // backref HTML for current footnote
 );
 
 impl(HtmlRenderer,
@@ -391,7 +401,16 @@ impl(HtmlRenderer,
       bq_buf_pos: i32(-1),
       _entity_buf: ArrayList(u8).with_capacity(usize(16)),
       abbrs: ArrayList(AbbrEntry).new(),
-      _orig_src: src_ptr
+      _orig_src: src_ptr,
+      _fn_defs: ArrayList(FootnoteDef).new(),
+      _fn_ref_ids: ArrayList(i32).new(),
+      _fn_ref_counts: ArrayList(i32).new(),
+      _fn_ref_order: ArrayList(i32).new(),
+      _fn_count: i32(0),
+      _fn_inline_starts: ArrayList(i32).new(),
+      _fn_inline_ends: ArrayList(i32).new(),
+      _fn_in_section: false,
+      _fn_current_backref: ``
     )
   }),
 
@@ -911,6 +930,114 @@ impl(HtmlRenderer,
       (foldable != i32(0)) => self.*.lit("</details>\n"),
       true => self.*.lit("</div>\n")
     )
+  ),
+
+  // -------------------------------------------------------------------
+  // Footnote support
+  // -------------------------------------------------------------------
+
+  // Register a footnote definition (called during prescan)
+  fn_add_def : (fn(self: *(Self), def: FootnoteDef) -> unit)({
+    _ := self.*._fn_ref_ids.push(i32(-1));
+    _ := self.*._fn_ref_counts.push(i32(0));
+    _ := self.*._fn_defs.push(def);
+  }),
+
+  // Look up a footnote definition by label. Returns def index or -1.
+  // label_ptr is the base pointer for the query label bytes (may differ from _orig_src for inline state).
+  fn_find_def : (fn(self: *(Self), label_start: i32, label_end: i32, label_ptr: *(u8)) -> i32)({
+    (result : i32) = i32(-1);
+    (n : usize) = self.*._fn_defs.len();
+    if((n == usize(0)), { return i32(-1); });
+    (defs_ptr : *(FootnoteDef)) = self.*._fn_defs.ptr().unwrap();
+    (src : *(u8)) = self.*._orig_src;
+    (label_len : i32) = (label_end - label_start);
+    (i : usize) = usize(0);
+    while ((i < n) && (result == i32(-1))), {
+      (def : *(FootnoteDef)) = (defs_ptr &+ i);
+      (def_label_len : i32) = (def.*.label_end - def.*.label_start);
+      if((def_label_len == label_len), {
+        (lp : *(u8)) = (src &+ usize(def.*.label_start));
+        (sp : *(u8)) = (label_ptr &+ usize(label_start));
+        (j : i32) = i32(0);
+        (label_match : bool) = true;
+        while ((j < label_len) && label_match), {
+          (a : u8) = (lp &+ usize(j)).*;
+          (b : u8) = (sp &+ usize(j)).*;
+          (al : u8) = cond(((a >= u8(0x41)) && (a <= u8(0x5A))) => (a + u8(0x20)), true => a);
+          (bl : u8) = cond(((b >= u8(0x41)) && (b <= u8(0x5A))) => (b + u8(0x20)), true => b);
+          if((al != bl), { label_match = false; });
+          j = (j + i32(1));
+        };
+        if(label_match, { result = i32(i); });
+      });
+      i = (i + usize(1));
+    };
+    result
+  }),
+
+  // Record a footnote reference. Returns the 1-based footnote number
+  // and the subId (0 for first reference, 1 for second, etc.)
+  fn_ref : (fn(self: *(Self), def_idx: i32) -> unit)({
+    (idx : usize) = usize(def_idx);
+    (ids_ptr : *(i32)) = self.*._fn_ref_ids.ptr().unwrap();
+    (ref_id : i32) = (ids_ptr &+ idx).*;
+    (fn_num : i32) = cond(
+      (ref_id < i32(0)) => {
+        // First reference — assign next number
+        self.*._fn_count = (self.*._fn_count + i32(1));
+        consume((ids_ptr &+ idx).* = self.*._fn_count);
+        _ := self.*._fn_ref_order.push(def_idx);
+        self.*._fn_count
+      },
+      true => ref_id
+    );
+    (counts_ptr : *(i32)) = self.*._fn_ref_counts.ptr().unwrap();
+    (sub_id : i32) = (counts_ptr &+ idx).*;
+    consume((counts_ptr &+ idx).* = (sub_id + i32(1)));
+
+    // Emit: <sup class="footnote-ref"><a href="#fnN" id="fnrefN[:subId]">[N[:subId]]</a></sup>
+    self.*.lit("<sup class=\"footnote-ref\"><a href=\"#fn");
+    _write_i32((&self.*.buf), fn_num);
+    self.*.lit("\" id=\"fnref");
+    _write_i32((&self.*.buf), fn_num);
+    if((sub_id > i32(0)), {
+      self.*.byte(u8(0x3A)); // :
+      _write_i32((&self.*.buf), sub_id);
+    });
+    self.*.lit("\">[");
+    _write_i32((&self.*.buf), fn_num);
+    if((sub_id > i32(0)), {
+      self.*.byte(u8(0x3A)); // :
+      _write_i32((&self.*.buf), sub_id);
+    });
+    self.*.lit("]</a></sup>");
+  }),
+
+  // Record an inline footnote ^[content]. Returns the 1-based footnote number.
+  fn_inline_ref : (fn(self: *(Self), content_start: i32, content_end: i32) -> unit)({
+    self.*._fn_count = (self.*._fn_count + i32(1));
+    (fn_num : i32) = self.*._fn_count;
+    // Store inline content ranges — def_idx is -(inline_index + 1) to distinguish from regular defs
+    _ := self.*._fn_inline_starts.push(content_start);
+    _ := self.*._fn_inline_ends.push(content_end);
+    (inline_idx : i32) = (i32(self.*._fn_inline_starts.len()) - i32(1));
+    // Use negative def index: -(inline_idx + 1)
+    _ := self.*._fn_ref_order.push((i32(0) - (inline_idx + i32(1))));
+
+    // Emit reference
+    self.*.lit("<sup class=\"footnote-ref\"><a href=\"#fn");
+    _write_i32((&self.*.buf), fn_num);
+    self.*.lit("\" id=\"fnref");
+    _write_i32((&self.*.buf), fn_num);
+    self.*.lit("\">[");
+    _write_i32((&self.*.buf), fn_num);
+    self.*.lit("]</a></sup>");
+  }),
+
+  // Check if any footnotes were referenced
+  fn_has_refs : (fn(self: *(Self)) -> bool)(
+    (self.*._fn_count > i32(0))
   ),
 
   hr : (fn(self: *(Self)) -> unit)(
@@ -1716,4 +1843,4 @@ impl(HtmlRenderer,
   })
 );
 
-export HtmlRenderer;
+export HtmlRenderer, _write_i32;
