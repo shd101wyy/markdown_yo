@@ -46,7 +46,7 @@ BlockState :: struct(
   parent_type : ParentType,
   level : i32,                // nesting level
 
-  env : *(Env),               // link references
+  env : Env,                  // link references
   renderer : *(HtmlRenderer), // for direct SAX-style calls
   options : *(Options),
 
@@ -106,7 +106,7 @@ _normalize_source :: (fn(src_p: *(u8), len: i32) -> String)({
 });
 
 // Build BlockState from already-normalized source (rare path — only when \r or \0 found)
-_build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> BlockState)({
+_build_block_state_from_normalized :: (fn(src: String, env: Env, renderer: *(HtmlRenderer), options: *(Options)) -> BlockState)({
   (bytes : ArrayList(u8)) = src.as_bytes();
   (len : i32) = i32(bytes.len());
   (est_lines : usize) = ((usize(len) / usize(40)) + usize(16));
@@ -230,7 +230,7 @@ _build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(
 impl(BlockState,
   // Create a new BlockState with integrated normalization and line marker precomputation.
   // Merges normalize + line scan into a single pass over the source.
-  new : (fn(src: String, env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> Self)({
+  new : (fn(src: String, env: Env, renderer: *(HtmlRenderer), options: *(Options)) -> Self)({
     (bytes : ArrayList(u8)) = src.as_bytes();
     (len : i32) = i32(bytes.len());
 

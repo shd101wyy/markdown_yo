@@ -28,7 +28,7 @@ markdown_to_html :: (fn(src: String, options: *(Options)) -> String)({
   (renderer : HtmlRenderer) = HtmlRenderer.new(options, src_ptr, src_len);
 
   // 4. Create block state (includes normalization + line scan in one pass)
-  (state : BlockState) = BlockState.new(src, (&env), (&renderer), options);
+  (state : BlockState) = BlockState.new(src, env, (&renderer), options);
   block_parse((&state));
 
   // 5. Return rendered HTML

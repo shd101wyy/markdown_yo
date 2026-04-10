@@ -734,7 +734,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
     if((ref_start >= i32(0)), {
       (label : String) = _normalize_label(state.*.src_ptr, ref_start, ref_end);
       if((label.len() > usize(0)), {
-        (maybe_ref : Option(Reference)) = state.*.env.*.references.get(label);
+        (maybe_ref : Option(Reference)) = state.*.env.references.get(label);
         match(maybe_ref,
           .Some(r) => {
             ref_href = r.href;

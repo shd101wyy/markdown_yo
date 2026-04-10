@@ -128,7 +128,7 @@ InlineState :: struct(
   _str_buf : ArrayList(u8),
   _str_offsets : ArrayList(i32),
 
-  env : *(Env),
+  env : Env,
   renderer : *(HtmlRenderer),
   options : *(Options),
 
@@ -138,7 +138,7 @@ InlineState :: struct(
 
 impl(InlineState,
   // Create a reusable state with pre-allocated buffers
-  reusable : (fn(env: *(Env), renderer: *(HtmlRenderer), options: *(Options)) -> Self)(
+  reusable : (fn(env: Env, renderer: *(HtmlRenderer), options: *(Options)) -> Self)(
     Self(
       src: .None,
       src_ptr: *(u8)(""),

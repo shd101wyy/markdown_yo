@@ -184,7 +184,7 @@ Reference :: struct(
 // Environment — stores link references discovered during parsing
 // ---------------------------------------------------------------------------
 
-Env :: struct(
+Env :: newtype(
   references : HashMap(String, Reference)
 );
 
@@ -216,11 +216,6 @@ Delimiter :: struct(
   close : bool       // Can close emphasis
 );
 
-// Token metadata (for emphasis post-processing)
-TokenMeta :: struct(
-  delimiters : ArrayList(Delimiter)
-);
-
 // Link/image bracket marker — tracks pending [ and ![ positions
 LinkMarker :: struct(
   pos : i32,               // position of [ in source
@@ -243,5 +238,5 @@ export Options, default_options, commonmark_options,
        InlineType,
        Reference, Env, new_env,
        StringPair,
-       Delimiter, TokenMeta, LinkMarker, EmphasisPair,
+       Delimiter, LinkMarker, EmphasisPair,
        AbbrEntry, FootnoteDef;
