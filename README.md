@@ -99,12 +99,12 @@ _WASM overhead at small sizes (64K, 256K) is dominated by Node.js WASM compilati
 # Build native executable
 yo build
 
-# Build WASM target (Node.js CLI)
-yo build wasm
+# Build WASM CLI target (Node.js NODERAWFS)
+yo build wasm_exe
 
-# Build browser WASM demo
-yo build demo
-./scripts/build_demo.sh  # or manually: copy yo-out/wasm32-emscripten/bin/markdown_yo_demo.{js,wasm} to demo/
+# Build WASM API module (browser + Node.js)
+yo build wasm_api
+./scripts/build_demo.sh  # or manually: copy yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.{js,wasm} to demo/
 ```
 
 ## Usage

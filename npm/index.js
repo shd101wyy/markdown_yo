@@ -12,7 +12,7 @@
 // Re-export the Emscripten module loader
 const createMarkdownYo =
   typeof require !== "undefined"
-    ? require("./markdown_yo_demo.js")
+    ? require("./markdown_yo_wasm_api.js")
     : undefined;
 
 /**
@@ -104,7 +104,7 @@ async function createRenderer(wasmOptions, defaultOptions) {
     loader = createMarkdownYo;
   } else {
     // ESM / browser dynamic import
-    const mod = await import("./markdown_yo_demo.js");
+    const mod = await import("./markdown_yo_wasm_api.js");
     loader = mod.default || mod.createMarkdownYo || mod;
   }
 

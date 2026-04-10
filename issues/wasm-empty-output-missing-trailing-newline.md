@@ -52,11 +52,11 @@ Both code paths were fixed:
 
 ## Additional Issue: Stale npm/ WASM Files
 
-The `npm/` directory contains copies of `markdown_yo_demo.js` and `.wasm` that are NOT automatically updated by `yo build demo`. After rebuilding WASM, you must manually copy:
+The `npm/` directory contains copies of `markdown_yo_wasm_api.js` and `.wasm` that are NOT automatically updated by `yo build wasm_api`. After rebuilding WASM, you must manually copy:
 
 ```bash
-cp yo-out/wasm32-emscripten/bin/markdown_yo_demo.js npm/
-cp yo-out/wasm32-emscripten/bin/markdown_yo_demo.wasm npm/
+cp yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.js npm/
+cp yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.wasm npm/
 ```
 
 ## Verification

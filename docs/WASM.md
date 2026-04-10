@@ -112,7 +112,7 @@ document.getElementById("preview").innerHTML = md.render(markdownSource);
 ### Browser (script tag)
 
 ```html
-<script src="https://unpkg.com/markdown_yo/markdown_yo_demo.js"></script>
+<script src="https://unpkg.com/markdown_yo/markdown_yo_wasm_api.js"></script>
 <script src="https://unpkg.com/markdown_yo/index.js"></script>
 <script>
   markdownYo.createRenderer().then((md) => {
@@ -168,10 +168,10 @@ Requires the [Yo compiler](https://github.com/shd101wyy/Yo) and [Emscripten](htt
 # Install Yo compiler
 npm install -g @shd101wyy/yo
 
-# Build the WASM demo target
-yo build demo
+# Build the WASM API target
+yo build wasm_api
 
 # Output files:
-#   yo-out/wasm32-emscripten/bin/markdown_yo_demo.js
-#   yo-out/wasm32-emscripten/bin/markdown_yo_demo.wasm
+#   yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.js
+#   yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.wasm
 ```

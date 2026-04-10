@@ -35,10 +35,10 @@ markdown_yo*
 benchmark/samples/
 
 # WASM artifacts in demo/ (built, not committed)
-demo/markdown_yo_demo.js
-demo/markdown_yo_demo.wasm
+demo/markdown_yo_wasm_api.js
+demo/markdown_yo_wasm_api.wasm
 
 # WASM artifacts in npm/ (copied during release build)
-npm/markdown_yo_demo.js
-npm/markdown_yo_demo.wasm
+npm/markdown_yo_wasm_api.js
+npm/markdown_yo_wasm_api.wasm
 npm/README.md

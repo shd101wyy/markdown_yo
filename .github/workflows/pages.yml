@@ -32,11 +32,11 @@ jobs:
         with:
           version: "4.0.12"
 
-      - name: Build WASM demo
+      - name: Build WASM API
         run: |
-          yo build demo
-          cp yo-out/wasm32-emscripten/bin/markdown_yo_demo.js   demo/markdown_yo_demo.js
-          cp yo-out/wasm32-emscripten/bin/markdown_yo_demo.wasm demo/markdown_yo_demo.wasm
+          yo build wasm_api
+          cp yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.js   demo/markdown_yo_wasm_api.js
+          cp yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.wasm demo/markdown_yo_wasm_api.wasm
 
       - name: Delete old github-pages artifact
         uses: actions/github-script@v7

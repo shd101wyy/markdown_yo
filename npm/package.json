@@ -7,8 +7,8 @@
   "files": [
     "index.js",
     "index.d.ts",
-    "markdown_yo_demo.js",
-    "markdown_yo_demo.wasm",
+    "markdown_yo_wasm_api.js",
+    "markdown_yo_wasm_api.wasm",
     "README.md"
   ],
   "keywords": [
