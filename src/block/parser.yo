@@ -8,10 +8,10 @@
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
 { memmove } :: import "std/libc/string";
-{ Options, ParentType } :: import "../types.yo";
-{ HtmlRenderer } :: import "../renderer.yo";
+{ Options, ParentType, FootnoteDef } :: import "../types.yo";
+{ HtmlRenderer, _write_i32 } :: import "../renderer.yo";
 { BlockState } :: import "./state.yo";
-{ is_space } :: import "../common/utils.yo";
+{ is_space, append_lit } :: import "../common/utils.yo";
 
 // Forward declarations of block rules
 { block_heading } :: import "./heading.yo";
@@ -20,10 +20,16 @@ open import "std/string";
 { block_fence } :: import "./fence.yo";
 { block_hr } :: import "./hr.yo";
 { block_blockquote, blockquote_find_end } :: import "./blockquote.yo";
+{ check_callout_marker, is_known_callout_type } :: import "./callout.yo";
 { block_list, skip_bullet_list_marker, skip_ordered_list_marker, parse_list_number } :: import "./list.yo";
 { block_html } :: import "./html_block.yo";
 { block_table } :: import "./table.yo";
 { block_reference } :: import "./reference.yo";
+{ block_abbr, prescan_abbr } :: import "./abbr.yo";
+{ skip_deflist_marker } :: import "./deflist.yo";
+{ check_admonition_marker } :: import "./admonition.yo";
+{ check_footnote_def } :: import "./footnote.yo";
+{ inline_parse_range } :: import "../inline/parser.yo";
 { block_paragraph } :: import "./paragraph.yo";
 { _try_list_terminate, _try_block_terminate } :: import "./terminators.yo";
 
@@ -84,6 +90,61 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
             matched = block_fence(state, line, end_line, false);
           });
 
+          // 3b. Admonition — !!! type title, with 4-space indented body
+          if((!(matched) && state.*.options.*.enable_admonition), {
+            if(((state.ts(line) - state.*.blk_indent) < i32(4)), {
+              (adm_type_start : i32) = i32(0);
+              (adm_type_end : i32) = i32(0);
+              (adm_title_start : i32) = i32(0);
+              (adm_title_end : i32) = i32(0);
+              if(check_admonition_marker(state, line,
+                  (&adm_type_start), (&adm_type_end),
+                  (&adm_title_start), (&adm_title_end)), {
+                // ── Begin inline admonition handling ──
+                (adm_old_parent : ParentType) = state.*.parent_type;
+                (adm_old_line_max : i32) = state.*.line_max;
+                (adm_old_blk_indent : i32) = state.*.blk_indent;
+
+                state.*.blk_indent = (state.*.blk_indent + i32(4));
+
+                // Find end: first non-empty line with sCount < blkIndent
+                (adm_next : i32) = (line + i32(1));
+                (adm_found_end : bool) = false;
+                while (((adm_next < end_line) && !(adm_found_end))), {
+                  if(state.*.is_empty(adm_next), {
+                    adm_next = (adm_next + i32(1));
+                  }, {
+                    if((state.sc(adm_next) < state.*.blk_indent), {
+                      adm_found_end = true;
+                    }, {
+                      adm_next = (adm_next + i32(1));
+                    });
+                  });
+                };
+
+                state.*.parent_type = .Admonition;
+                state.*.line_max = adm_next;
+
+                // Emit open tag with type and title
+                state.*.renderer.*.set_source_line(line);
+                state.*.renderer.*.admonition_open(adm_type_start, adm_type_end, adm_title_start, adm_title_end);
+
+                // Recursive parse of admonition body
+                recur(state, (line + i32(1)), adm_next);
+
+                // Emit close tag
+                state.*.renderer.*.admonition_close();
+
+                state.*.parent_type = adm_old_parent;
+                state.*.line_max = adm_old_line_max;
+                state.*.line = adm_next;
+                state.*.blk_indent = adm_old_blk_indent;
+                matched = true;
+                // ── End inline admonition handling ──
+              });
+            });
+          });
+
           // 4. Blockquote — handle recursion here to avoid circular import
           if(!(matched), {
             // Dry-run scan: compute bq_end without modifying state
@@ -112,13 +173,45 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               (old_parent_type : ParentType) = state.*.parent_type;
               (old_blk_indent : i32) = state.*.blk_indent;
 
-              state.*.renderer.*.open_blockquote();
+              // Check for callout pattern [!type]+/- title on first content line
+              (is_callout : bool) = false;
+              (co_type_start : i32) = i32(0);
+              (co_type_end : i32) = i32(0);
+              (co_title_start : i32) = i32(0);
+              (co_title_end : i32) = i32(0);
+              (co_foldable : i32) = i32(0);
+              (co_content_start : i32) = line;
+              if((state.*.options.*.enable_callout && (line < bq_end)), {
+                if(check_callout_marker(state, line,
+                    (&co_type_start), (&co_type_end),
+                    (&co_title_start), (&co_title_end),
+                    (&co_foldable)), {
+                  // Validate type against known callout types
+                  if(is_known_callout_type(state.*.src_ptr, co_type_start, co_type_end), {
+                    is_callout = true;
+                    // Skip the [!type] line from content parsing
+                    co_content_start = (line + i32(1));
+                    // If the next line is empty, also skip it (paragraph break after callout marker)
+                    if(((co_content_start < bq_end) && state.*.is_empty(co_content_start)), {
+                      co_content_start = (co_content_start + i32(1));
+                    });
+                  });
+                });
+              });
+
+              if(is_callout, {
+                state.*.renderer.*.set_source_line(line);
+                state.*.renderer.*.callout_open(co_type_start, co_type_end, co_title_start, co_title_end, co_foldable);
+              }, {
+                state.*.renderer.*.set_source_line(line);
+                state.*.renderer.*.open_blockquote();
+              });
               state.*.parent_type = .Blockquote;
               state.*.line_max = bq_end;
               state.*.blk_indent = i32(0);
 
-              // Recursive parse of blockquote content
-              recur(state, line, bq_end);
+              // Recursive parse of blockquote content (skip callout marker line)
+              recur(state, co_content_start, bq_end);
 
               // Inner tokenize may stop before bq_end (e.g., lazy continuation
               // lines with sCount=-1 that don't match any inner rule). Use the
@@ -126,7 +219,11 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               // the remaining lines.
               (inner_end : i32) = state.*.line;
 
-              state.*.renderer.*.close_blockquote();
+              if(is_callout, {
+                state.*.renderer.*.callout_close(co_foldable);
+              }, {
+                state.*.renderer.*.close_blockquote();
+              });
               state.*.line_max = old_line_max;
               state.*.parent_type = old_parent_type;
               state.*.line = inner_end;
@@ -191,6 +288,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               (list_marker_char : i32) = i32((state.*.src_ptr &+ usize((list_pam - i32(1)))).*);
 
               // Open list tag
+              state.*.renderer.*.set_source_line(line);
               if(list_is_ordered, {
                 state.*.renderer.*.open_ordered_list(list_marker_value);
               }, {
@@ -353,12 +451,34 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
             });
           });
 
-          // 7. Reference
+          // 7. Abbreviation definition
+          if(!(matched), {
+            matched = block_abbr(state, line, end_line, false);
+          });
+
+          // 7b. Footnote definition — skip lines (content already stored in prescan)
+          if((!(matched) && state.*.options.*.enable_footnote), {
+            (fn_ls : i32) = i32(0);
+            (fn_le : i32) = i32(0);
+            (fn_cs : i32) = i32(0);
+            if(check_footnote_def(state, line, (&fn_ls), (&fn_le), (&fn_cs)), {
+              // Find the matching def to get its line_end
+              (fn_def_idx : i32) = state.*.renderer.*.fn_find_def(fn_ls, fn_le, state.*.src_ptr);
+              if((fn_def_idx >= i32(0)), {
+                (fn_defs_ptr : *(FootnoteDef)) = state.*.renderer.*._fn_defs.ptr().unwrap();
+                (fn_def : *(FootnoteDef)) = (fn_defs_ptr &+ usize(fn_def_idx));
+                state.*.line = fn_def.*.line_end;
+                matched = true;
+              });
+            });
+          });
+
+          // 8. Reference
           if(!(matched), {
             matched = block_reference(state, line, end_line, false);
           });
 
-          // 8. HTML block
+          // 9. HTML block
           if((!(matched) && state.*.options.*.html), {
             matched = block_html(state, line, end_line, false);
           });
@@ -373,7 +493,181 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
             matched = block_lheading(state, line, end_line, false);
           });
 
-          // 11. Paragraph (fallback — always matches)
+          // 11. Definition list — inline handling with recursive tokenize
+          if((!(matched) && state.*.options.*.enable_deflist), {
+            // Start detection: current line is a potential term, next line has `:` marker
+            (dl_next_line : i32) = (line + i32(1));
+            if((dl_next_line < end_line), {
+              if(state.*.is_empty(dl_next_line), {
+                dl_next_line = (dl_next_line + i32(1));
+              });
+              if((dl_next_line < end_line), {
+                if((state.sc(dl_next_line) >= state.*.blk_indent), {
+                  (dl_content_start : i32) = skip_deflist_marker(state, dl_next_line);
+                  if((dl_content_start >= i32(0)), {
+                    // ── Begin inline deflist handling ──
+                    (dl_tight : bool) = true;
+                    (dl_dt_line : i32) = line;
+                    (dl_dd_line : i32) = dl_next_line;
+
+                    // Open <dl>
+                    state.*.renderer.*.set_source_line(line);
+                    state.*.renderer.*.dl_open();
+                    (dl_buf_start : usize) = state.*.renderer.*.buf_pos();
+
+                    (dl_old_parent : ParentType) = state.*.parent_type;
+                    state.*.parent_type = .DefList;
+
+                    (dl_done : bool) = false;
+                    while !(dl_done), {
+                      (dl_prev_empty_end : bool) = false;
+
+                      // Emit <dt> with inline content of the term line
+                      state.*.renderer.*.set_source_line(dl_dt_line);
+                      state.*.renderer.*.dt_open();
+                      (dt_bm : i32) = state.bm(dl_dt_line);
+                      (dt_ts : i32) = state.ts(dl_dt_line);
+                      (dt_em : i32) = state.em(dl_dt_line);
+                      (dt_content_start : i32) = (dt_bm + dt_ts);
+                      (dt_content_end : i32) = dt_em;
+                      // Trim trailing spaces
+                      while (((dt_content_end > dt_content_start) && ((state.*.src_ptr &+ usize((dt_content_end - i32(1)))).* == u8(0x20)))), {
+                        dt_content_end = (dt_content_end - i32(1));
+                      };
+                      inline_parse_range((&state.*._inline_state), state.*.src_ptr, dt_content_start, dt_content_end);
+                      state.*.renderer.*.dt_close();
+
+                      // Inner loop: consume all <dd> definitions for this term
+                      (dd_done : bool) = false;
+                      while !(dd_done), {
+                        state.*.renderer.*.set_source_line(dl_dd_line);
+                        state.*.renderer.*.dd_open();
+
+                        // Calculate content offset — skip spaces after marker pos
+                        (dd_pos : i32) = dl_content_start;
+                        (dd_max : i32) = state.em(dl_dd_line);
+                        (dd_offset : i32) =
+                          ((state.sc(dl_dd_line) + dl_content_start) - (state.bm(dl_dd_line) + state.ts(dl_dd_line)));
+
+                        (dd_scanning : bool) = true;
+                        while ((dd_pos < dd_max) && dd_scanning), {
+                          (dd_ch : i32) = i32((state.*.src_ptr &+ usize(dd_pos)).*);
+                          if((dd_ch == i32(0x09)), {
+                            dd_offset = (dd_offset + (i32(4) - (dd_offset % i32(4))));
+                            dd_pos = (dd_pos + i32(1));
+                          }, {
+                            if((dd_ch == i32(0x20)), {
+                              dd_offset = (dd_offset + i32(1));
+                              dd_pos = (dd_pos + i32(1));
+                            }, {
+                              dd_scanning = false;
+                            });
+                          });
+                        };
+                        dl_content_start = dd_pos;
+
+                        // Save state
+                        (dd_old_tight : bool) = state.*.tight;
+                        (dd_old_dd_indent : i32) = state.*.dd_indent;
+                        (dd_old_indent : i32) = state.*.blk_indent;
+                        (dd_old_tshift : i32) = state.ts(dl_dd_line);
+                        (dd_old_scount : i32) = state.sc(dl_dd_line);
+                        (dd_old_parent_type : ParentType) = state.*.parent_type;
+
+                        state.*.blk_indent = (state.sc(dl_dd_line) + i32(2));
+                        state.*.dd_indent = state.*.blk_indent;
+                        state.set_ts(dl_dd_line, (dl_content_start - state.bm(dl_dd_line)));
+                        state.set_sc(dl_dd_line, dd_offset);
+                        state.*.tight = true;
+                        state.*.parent_type = .DefList;
+
+                        // Recursive block_tokenize for definition content
+                        recur(state, dl_dd_line, end_line);
+
+                        // Detect tight/loose
+                        if((!(state.*.tight) || dl_prev_empty_end), {
+                          dl_tight = false;
+                        });
+                        dl_prev_empty_end = (((state.*.line - dl_dd_line) > i32(1)) && state.*.is_empty((state.*.line - i32(1))));
+
+                        // Restore state
+                        state.set_ts(dl_dd_line, dd_old_tshift);
+                        state.set_sc(dl_dd_line, dd_old_scount);
+                        state.*.tight = dd_old_tight;
+                        state.*.parent_type = dd_old_parent_type;
+                        state.*.blk_indent = dd_old_indent;
+                        state.*.dd_indent = dd_old_dd_indent;
+
+                        state.*.renderer.*.dd_close();
+
+                        dl_next_line = state.*.line;
+
+                        if((dl_next_line >= end_line), { dl_done = true; dd_done = true; });
+
+                        if(!(dd_done), {
+                          if((state.sc(dl_next_line) < state.*.blk_indent), { dl_done = true; dd_done = true; });
+                        });
+
+                        if(!(dd_done), {
+                          dl_content_start = skip_deflist_marker(state, dl_next_line);
+                          if((dl_content_start < i32(0)), {
+                            dd_done = true;
+                          }, {
+                            dl_dd_line = dl_next_line;
+                          });
+                        });
+                      };
+
+                      // Check for another DT term
+                      if(!(dl_done), {
+                        if((dl_next_line >= end_line), { dl_done = true; });
+                      });
+                      if(!(dl_done), {
+                        dl_dt_line = dl_next_line;
+                        if(state.*.is_empty(dl_dt_line), { dl_done = true; });
+                      });
+                      if(!(dl_done), {
+                        if((state.sc(dl_dt_line) < state.*.blk_indent), { dl_done = true; });
+                      });
+
+                      if(!(dl_done), {
+                        dl_dd_line = (dl_dt_line + i32(1));
+                        if((dl_dd_line >= end_line), { dl_done = true; });
+                      });
+                      if(!(dl_done), {
+                        if(state.*.is_empty(dl_dd_line), {
+                          dl_dd_line = (dl_dd_line + i32(1));
+                        });
+                        if((dl_dd_line >= end_line), { dl_done = true; });
+                      });
+                      if(!(dl_done), {
+                        if((state.sc(dl_dd_line) < state.*.blk_indent), { dl_done = true; });
+                      });
+                      if(!(dl_done), {
+                        dl_content_start = skip_deflist_marker(state, dl_dd_line);
+                        if((dl_content_start < i32(0)), { dl_done = true; });
+                      });
+                    };
+
+                    // Close </dl>
+                    state.*.renderer.*.dl_close();
+                    state.*.line = dl_next_line;
+                    state.*.parent_type = dl_old_parent;
+
+                    // If tight, remove <p> tags from definition content
+                    if(dl_tight, {
+                      state.*.renderer.*.mark_tight_paragraphs(dl_buf_start);
+                    });
+
+                    matched = true;
+                    // ── End inline deflist handling ──
+                  });
+                });
+              });
+            });
+          });
+
+          // 12. Paragraph (fallback — always matches)
           if(!(matched), {
             matched = block_paragraph(state, line, end_line, false);
           });
@@ -510,12 +804,260 @@ _prescan_references :: (fn(state: *(BlockState)) -> unit)({
   state.*.line = i32(0);
 });
 
+// Pre-scan all lines for footnote definitions [^label]: content
+// Stores definitions in the renderer for later rendering at document end.
+_prescan_footnotes :: (fn(state: *(BlockState)) -> unit)({
+  (line : i32) = i32(0);
+  (max : i32) = state.*.line_max;
+  while (line < max), {
+    if(state.*.is_empty(line), {
+      line = (line + i32(1));
+    }, {
+      (sc : i32) = state.sc(line);
+      // Footnote defs cannot be indented
+      if((sc >= i32(4)), {
+        line = (line + i32(1));
+      }, {
+        (label_start : i32) = i32(0);
+        (label_end : i32) = i32(0);
+        (content_start : i32) = i32(0);
+        if(check_footnote_def(state, line, (&label_start), (&label_end), (&content_start)), {
+          // Found a footnote definition — compute adjusted state for first line
+          (start : i32) = (state.bm(line) + state.ts(line));
+          (pos_after_colon : i32) = content_start;
+
+          // Calculate content indent offset
+          (initial : i32) = (state.sc(line) + (pos_after_colon - start));
+          (offset : i32) = initial;
+          (pos : i32) = pos_after_colon;
+          (em : i32) = state.em(line);
+          while ((pos < em) && (((state.*.src_ptr &+ usize(pos)).* == u8(0x20)) || ((state.*.src_ptr &+ usize(pos)).* == u8(0x09)))), {
+            if(((state.*.src_ptr &+ usize(pos)).* == u8(0x09)), {
+              offset = (offset + (i32(4) - (offset % i32(4))));
+            }, {
+              offset = (offset + i32(1));
+            });
+            pos = (pos + i32(1));
+          };
+
+          // Adjusted first-line values (skip [^label]: prefix)
+          (adj_ts : i32) = (pos - pos_after_colon);
+          (adj_sc : i32) = (offset - initial);
+
+          // Find end of footnote block: continuation lines indented by 4+ or empty
+          (fn_end : i32) = (line + i32(1));
+          (fn_scan_done : bool) = false;
+          while ((fn_end < max) && !(fn_scan_done)), {
+            if(state.*.is_empty(fn_end), {
+              fn_end = (fn_end + i32(1));
+            }, {
+              if((state.sc(fn_end) >= i32(4)), {
+                fn_end = (fn_end + i32(1));
+              }, {
+                fn_scan_done = true;
+              });
+            });
+          };
+
+          // Trim trailing empty lines
+          while (((fn_end - i32(1)) > line) && state.*.is_empty((fn_end - i32(1)))), {
+            fn_end = (fn_end - i32(1));
+          };
+
+          (def : FootnoteDef) = FootnoteDef(
+            label_start: label_start,
+            label_end: label_end,
+            content_start: content_start,
+            line_start: line,
+            line_end: fn_end,
+            adj_bmark: pos_after_colon,
+            adj_tshift: adj_ts,
+            adj_scount: adj_sc
+          );
+          state.*.renderer.*.fn_add_def(def);
+          line = fn_end;
+        }, {
+          line = (line + i32(1));
+        });
+      });
+    });
+  };
+  // Reset line for the main parse
+  state.*.line = i32(0);
+});
+
+// Render the footnote section at the end of the document.
+// For each referenced footnote, re-parses its content and injects backref links.
+_render_footnote_section :: (fn(state: *(BlockState)) -> unit)({
+  (r : *(HtmlRenderer)) = state.*.renderer;
+
+  // Emit footnote section header
+  r.*.lit("<hr class=\"footnotes-sep\">\n<section class=\"footnotes\">\n<ol class=\"footnotes-list\">\n");
+
+  r.*._fn_in_section = true;
+
+  (fn_idx : usize) = usize(0);
+  (fn_total : usize) = r.*._fn_ref_order.len();
+  while (fn_idx < fn_total), {
+    (fn_num : i32) = (i32(fn_idx) + i32(1)); // 1-based
+    (order_val : i32) = r.*._fn_ref_order.get(fn_idx).unwrap();
+
+    // Emit <li id="fnN" class="footnote-item">
+    r.*.lit("<li id=\"fn");
+    _write_i32((&r.*.buf), fn_num);
+    r.*.lit("\" class=\"footnote-item\">");
+
+    // Record buffer position before content
+    (content_buf_start : usize) = r.*.buf.len();
+
+    if((order_val >= i32(0)), {
+      // Regular footnote definition
+      (def_idx : usize) = usize(order_val);
+      (defs_ptr : *(FootnoteDef)) = r.*._fn_defs.ptr().unwrap();
+      (def : *(FootnoteDef)) = (defs_ptr &+ def_idx);
+      (fn_line_start : i32) = def.*.line_start;
+      (fn_line_end : i32) = def.*.line_end;
+
+      // Save state for the first line (we need to modify it)
+      (old_bm : i32) = state.bm(fn_line_start);
+      (old_ts : i32) = state.ts(fn_line_start);
+      (old_sc : i32) = state.sc(fn_line_start);
+      (old_blk_indent : i32) = state.*.blk_indent;
+      (old_parent : ParentType) = state.*.parent_type;
+      (old_line_max : i32) = state.*.line_max;
+
+      // Adjust first line: skip [^label]: prefix
+      (state.*._bm &+ usize(fn_line_start)).* = def.*.adj_bmark;
+      (state.*._ts &+ usize(fn_line_start)).* = def.*.adj_tshift;
+      (state.*._sc &+ usize(fn_line_start)).* = def.*.adj_scount;
+
+      // If sCount < blkIndent, fix it
+      if(((state.*._sc &+ usize(fn_line_start)).* < i32(4)), {
+        (state.*._sc &+ usize(fn_line_start)).* = ((state.*._sc &+ usize(fn_line_start)).* + i32(4));
+      });
+
+      state.*.blk_indent = i32(4);
+      state.*.parent_type = .Root;
+      state.*.line_max = fn_line_end;
+
+      // Parse footnote content
+      block_tokenize(state, fn_line_start, fn_line_end);
+
+      // Restore state
+      (state.*._bm &+ usize(fn_line_start)).* = old_bm;
+      (state.*._ts &+ usize(fn_line_start)).* = old_ts;
+      (state.*._sc &+ usize(fn_line_start)).* = old_sc;
+      state.*.blk_indent = old_blk_indent;
+      state.*.parent_type = old_parent;
+      state.*.line_max = old_line_max;
+    }, {
+      // Inline footnote: ^[content]
+      (inline_idx : i32) = ((i32(0) - order_val) - i32(1));
+      (cs : i32) = r.*._fn_inline_starts.get(usize(inline_idx)).unwrap();
+      (ce : i32) = r.*._fn_inline_ends.get(usize(inline_idx)).unwrap();
+      r.*.lit("<p>");
+      inline_parse_range((&state.*._inline_state), state.*.src_ptr, cs, ce);
+      r.*.lit("</p>\n");
+    });
+
+    // Inject backref links before the last </p>\n in the rendered content
+    (content_buf_end : usize) = r.*.buf.len();
+    // Build backref HTML: " <a href="#fnrefN[:subId]" class="footnote-backref">↩︎</a>"
+    // For multiple references, emit multiple backrefs
+    (ref_count : i32) = cond(
+      (order_val >= i32(0)) => r.*._fn_ref_counts.get(usize(order_val)).unwrap(),
+      true => i32(1) // inline footnotes have exactly 1 reference
+    );
+    (backref_buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(64));
+    (sub : i32) = i32(0);
+    while (sub < ref_count), {
+      append_lit((&backref_buf), " <a href=\"#fnref");
+      _write_i32((&backref_buf), fn_num);
+      if((sub > i32(0)), {
+        _ := backref_buf.push(u8(0x3A)); // :
+        _write_i32((&backref_buf), sub);
+      });
+      // ↩︎ = U+21A9 U+FE0E = UTF-8: E2 86 A9 EF B8 8E
+      append_lit((&backref_buf), "\" class=\"footnote-backref\">");
+      _ := backref_buf.push(u8(0xE2));
+      _ := backref_buf.push(u8(0x86));
+      _ := backref_buf.push(u8(0xA9));
+      _ := backref_buf.push(u8(0xEF));
+      _ := backref_buf.push(u8(0xB8));
+      _ := backref_buf.push(u8(0x8E));
+      append_lit((&backref_buf), "</a>");
+      sub = (sub + i32(1));
+    };
+
+    // Find last "</p>\n" in [content_buf_start, content_buf_end)
+    (backref_len : usize) = backref_buf.len();
+    if((backref_len > usize(0)), {
+      // Scan backwards for "</p>\n"  (4 bytes: 3C 2F 70 3E 0A)
+      (scan : usize) = content_buf_end;
+      (found_p_close : bool) = false;
+      (insert_pos : usize) = usize(0);
+      while (((scan > content_buf_start) && !(found_p_close))), {
+        scan = (scan - usize(1));
+        // Check if buf[scan..scan+5] == "</p>\n"
+        if(((scan + usize(4)) <= content_buf_end), {
+          (bp : *(u8)) = match(r.*.buf.ptr(), .Some(p) => p, .None => *(u8)(""));
+          if(((((bp &+ scan).* == u8(0x3C)) && ((bp &+ (scan + usize(1))).* == u8(0x2F)))
+              && (((bp &+ (scan + usize(2))).* == u8(0x70)) && ((bp &+ (scan + usize(3))).* == u8(0x3E)))), {
+            insert_pos = scan;
+            found_p_close = true;
+          });
+        });
+      };
+
+      if(found_p_close, {
+        // Insert backref_buf at insert_pos (before "</p>\n")
+        // Grow buffer by backref_len bytes
+        (tail_len : usize) = (content_buf_end - insert_pos);
+        // Reserve space
+        (ri : usize) = usize(0);
+        while (ri < backref_len), {
+          _ := r.*.buf.push(u8(0));
+          ri = (ri + usize(1));
+        };
+        // Move tail forward by backref_len
+        (bp : *(u8)) = match(r.*.buf.ptr(), .Some(p) => p, .None => *(u8)(""));
+        _ := memmove(*(void)((bp &+ (insert_pos + backref_len))),
+                     *(void)((bp &+ insert_pos)),
+                     tail_len);
+        // Copy backref content to insert position
+        match(backref_buf.ptr(),
+          .Some(src) => {
+            _ := memmove(*(void)((bp &+ insert_pos)), *(void)(src), backref_len);
+          },
+          .None => ()
+        );
+      });
+    });
+
+    r.*.lit("</li>\n");
+    fn_idx = (fn_idx + usize(1));
+  };
+
+  r.*._fn_in_section = false;
+  r.*.lit("</ol>\n</section>\n");
+});
+
 // Entry point: parse entire source as blocks
 block_parse :: (fn(state: *(BlockState)) -> unit)({
   // Phase 1: Pre-scan for link reference definitions
   _prescan_references(state);
+  // Phase 1b: Pre-scan for abbreviation definitions
+  prescan_abbr(state);
+  // Phase 1c: Pre-scan for footnote definitions
+  if(state.*.options.*.enable_footnote, {
+    _prescan_footnotes(state);
+  });
   // Phase 2: Parse blocks and render
   block_tokenize(state, i32(0), state.*.line_max);
+  // Phase 3: Render footnote section at end of document
+  if((state.*.options.*.enable_footnote && state.*.renderer.*.fn_has_refs()), {
+    _render_footnote_section(state);
+  });
 });
 
 export block_parse, block_tokenize;

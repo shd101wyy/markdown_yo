@@ -1,0 +1,220 @@
+Basic abbreviation
+.
+*[CSS]: Cascading Style Sheets
+
+This is some CSS here.
+.
+<p>This is some <abbr title="Cascading Style Sheets">CSS</abbr> here.</p>
+.
+
+Multiple abbreviations
+.
+*[abbr]: Abbreviations
+*[CSS]: Cascading Style Sheets
+
+This abbr uses CSS.
+.
+<p>This <abbr title="Abbreviations">abbr</abbr> uses <abbr title="Cascading Style Sheets">CSS</abbr>.</p>
+.
+
+Word boundary - no match inside word
+.
+*[CSS]: Cascading Style Sheets
+
+NoCSS CSSNo xCSSx CSS
+.
+<p>NoCSS CSSNo xCSSx <abbr title="Cascading Style Sheets">CSS</abbr></p>
+.
+
+Abbreviation at start of text
+.
+*[CSS]: Cascading Style Sheets
+
+CSS at start.
+.
+<p><abbr title="Cascading Style Sheets">CSS</abbr> at start.</p>
+.
+
+Abbreviation at end of text
+.
+*[CSS]: Cascading Style Sheets
+
+At end CSS
+.
+<p>At end <abbr title="Cascading Style Sheets">CSS</abbr></p>
+.
+
+Multiple occurrences
+.
+*[CSS]: Cascading Style Sheets
+
+CSS and CSS and CSS
+.
+<p><abbr title="Cascading Style Sheets">CSS</abbr> and <abbr title="Cascading Style Sheets">CSS</abbr> and <abbr title="Cascading Style Sheets">CSS</abbr></p>
+.
+
+Definition at end of document
+.
+CSS here.
+
+*[CSS]: Cascading Style Sheets
+.
+<p><abbr title="Cascading Style Sheets">CSS</abbr> here.</p>
+.
+
+Abbreviation in bold
+.
+*[CSS]: Cascading Style Sheets
+
+This **CSS** is bold.
+.
+<p>This <strong><abbr title="Cascading Style Sheets">CSS</abbr></strong> is bold.</p>
+.
+
+Abbreviation in italic
+.
+*[CSS]: Cascading Style Sheets
+
+This *CSS* is italic.
+.
+<p>This <em><abbr title="Cascading Style Sheets">CSS</abbr></em> is italic.</p>
+.
+
+Abbreviation in heading
+.
+*[CSS]: Cascading
+
+# CSS heading
+.
+<h1><abbr title="Cascading">CSS</abbr> heading</h1>
+.
+
+Abbreviation in link text
+.
+*[CSS]: Cascading
+
+[CSS](http://example.com)
+.
+<p><a href="http://example.com"><abbr title="Cascading">CSS</abbr></a></p>
+.
+
+Abbreviation in list
+.
+*[CSS]: Cascading
+
+- list with CSS
+.
+<ul>
+<li>list with <abbr title="Cascading">CSS</abbr></li>
+</ul>
+.
+
+Abbreviation in blockquote
+.
+*[CSS]: Cascading
+
+> quote with CSS
+.
+<blockquote>
+<p>quote with <abbr title="Cascading">CSS</abbr></p>
+</blockquote>
+.
+
+Multiple paragraphs
+.
+*[CSS]: Cascading
+
+First CSS.
+
+Second CSS.
+.
+<p>First <abbr title="Cascading">CSS</abbr>.</p>
+<p>Second <abbr title="Cascading">CSS</abbr>.</p>
+.
+
+HTML chars in title
+.
+*[CSS]: Cascading <Style> & "Sheets"
+
+The CSS here.
+.
+<p>The <abbr title="Cascading &lt;Style&gt; &amp; &quot;Sheets&quot;">CSS</abbr> here.</p>
+.
+
+Empty title is invalid
+.
+*[CSS]:
+
+The CSS here.
+.
+<p>*[CSS]:</p>
+<p>The CSS here.</p>
+.
+
+Spaces-only title is invalid
+.
+*[CSS]:  
+
+The CSS here.
+.
+<p>*[CSS]:</p>
+<p>The CSS here.</p>
+.
+
+Single char abbreviation
+.
+*[C]: Charlie
+
+The letter C here.
+.
+<p>The letter <abbr title="Charlie">C</abbr> here.</p>
+.
+
+Abbreviation with numbers
+.
+*[CSS3]: Cascading Style Sheets 3
+
+CSS3 is modern.
+.
+<p><abbr title="Cascading Style Sheets 3">CSS3</abbr> is modern.</p>
+.
+
+Abbreviation next to punctuation
+.
+*[CSS]: Cascading
+
+CSS, CSS. CSS! CSS? (CSS) [CSS]
+.
+<p><abbr title="Cascading">CSS</abbr>, <abbr title="Cascading">CSS</abbr>. <abbr title="Cascading">CSS</abbr>! <abbr title="Cascading">CSS</abbr>? (<abbr title="Cascading">CSS</abbr>) [<abbr title="Cascading">CSS</abbr>]</p>
+.
+
+Definition between paragraphs
+.
+First paragraph.
+
+*[CSS]: Cascading
+
+Second CSS.
+.
+<p>First paragraph.</p>
+<p>Second <abbr title="Cascading">CSS</abbr>.</p>
+.
+
+Abbreviation with typographer enabled
+.
+*[HTML]: Hyper Text Markup Language
+
+The HTML spec is "great" -- really (c).
+.
+<p>The <abbr title="Hyper Text Markup Language">HTML</abbr> spec is &quot;great&quot; -- really (c).</p>
+.
+
+Abbreviation with multiple entries and no matches
+.
+*[CSS]: Cascading Style Sheets
+*[HTML]: Hyper Text Markup Language
+
+No abbreviations here.
+.
+<p>No abbreviations here.</p>
+.

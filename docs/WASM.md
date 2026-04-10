@@ -61,6 +61,11 @@ Render a Markdown string to HTML.
 | `commonmark` | `boolean` | `false` | Use CommonMark-compliant parsing |
 | `html` | `boolean` | `false` | Allow raw HTML tags in output |
 | `typographer` | `boolean` | `false` | Enable typographic replacements (`"` → `"`, `--` → `—`, etc.) |
+| `subscript` | `boolean` | `false` | Enable `~subscript~` syntax → `<sub>` |
+| `superscript` | `boolean` | `false` | Enable `^superscript^` syntax → `<sup>` |
+| `mark` | `boolean` | `false` | Enable `==highlight==` syntax → `<mark>` |
+| `math` | `boolean` | `false` | Enable `$inline$` and `$$block$$` math syntax |
+| `fullFeatures` | `boolean` | `false` | Enable all optional features at once |
 
 **Returns:** `string` — the rendered HTML
 
@@ -107,7 +112,7 @@ document.getElementById("preview").innerHTML = md.render(markdownSource);
 ### Browser (script tag)
 
 ```html
-<script src="https://unpkg.com/markdown_yo/markdown_yo_demo.js"></script>
+<script src="https://unpkg.com/markdown_yo/markdown_yo_wasm_api.js"></script>
 <script src="https://unpkg.com/markdown_yo/index.js"></script>
 <script>
   markdownYo.createRenderer().then((md) => {
@@ -146,6 +151,10 @@ const html: string = md.render("# Hello", opts);
 - **Fenced code blocks** — with language info strings
 - **HTML passthrough** — when `html: true` is set
 - **Typographic replacements** — when `typographer: true` is set
+- **Subscript** — `~text~` → `<sub>text</sub>` (when `subscript: true`)
+- **Superscript** — `^text^` → `<sup>text</sup>` (when `superscript: true`)
+- **Mark/Highlight** — `==text==` → `<mark>text</mark>` (when `mark: true`)
+- **Math** — `$inline$` and `$$block$$` math (when `math: true`)
 
 ## Live Demo
 
@@ -159,10 +168,10 @@ Requires the [Yo compiler](https://github.com/shd101wyy/Yo) and [Emscripten](htt
 # Install Yo compiler
 npm install -g @shd101wyy/yo
 
-# Build the WASM demo target
-yo build demo
+# Build the WASM API target
+yo build wasm_api
 
 # Output files:
-#   yo-out/wasm32-emscripten/bin/markdown_yo_demo.js
-#   yo-out/wasm32-emscripten/bin/markdown_yo_demo.wasm
+#   yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.js
+#   yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.wasm
 ```

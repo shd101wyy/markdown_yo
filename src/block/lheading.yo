@@ -112,6 +112,7 @@ block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sile
   });
 
   // Emit heading
+  state.*.renderer.*.set_source_line(start_line);
   state.*.renderer.*.open_heading(level);
 
   // Build inline content and parse it

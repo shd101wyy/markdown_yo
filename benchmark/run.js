@@ -45,7 +45,7 @@ let wasmJs = null;
 if (fs.existsSync(yoOutDir)) {
   for (const target of fs.readdirSync(yoOutDir)) {
     if (!target.startsWith('wasm')) continue;
-    const candidate = path.join(yoOutDir, target, 'bin', 'markdown_yo_wasm.js');
+    const candidate = path.join(yoOutDir, target, 'bin', 'markdown_yo_wasm_exe.js');
     if (fs.existsSync(candidate)) {
       wasmJs = candidate;
       break;

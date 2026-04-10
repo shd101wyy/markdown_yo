@@ -31,7 +31,10 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
 
   // Emit code block: lines from start_line to last (inclusive)
   // Use getLines logic: strip (4 + blkIndent) columns per line, tab-aware
-  state.*.renderer.*.lit("<pre><code>");
+  state.*.renderer.*.set_source_line(start_line);
+  state.*.renderer.*.lit("<pre");
+  state.*.renderer.*._source_attr();
+  state.*.renderer.*.lit("><code>");
 
   (indent : i32) = (i32(4) + state.*.blk_indent);
   (line : i32) = start_line;

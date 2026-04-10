@@ -1,5 +1,15 @@
 {
   "dependencies": {
-    "markdown-it": "^14.1.1"
+    "markdown-it": "^14.1.1",
+    "markdown-it-criticmarkup": "^0.0.1"
+  },
+  "devDependencies": {
+    "markdown-it-abbr": "^2.0.0",
+    "markdown-it-container": "^4.0.0",
+    "markdown-it-deflist": "^3.0.0",
+    "markdown-it-emoji": "^3.0.0",
+    "markdown-it-mark": "^4.0.0",
+    "markdown-it-sub": "^2.0.0",
+    "markdown-it-sup": "^2.0.0"
   }
 }

@@ -11,6 +11,7 @@
 { block_list } :: import "./list.yo";
 { block_html } :: import "./html_block.yo";
 { block_table } :: import "./table.yo";
+{ skip_deflist_marker } :: import "./deflist.yo";
 { GlobalAllocator } :: import "std/allocator";
 { calloc } :: GlobalAllocator;
 
@@ -28,6 +29,7 @@ _init_block_start_table :: (fn() -> *(u8))({
   (ptr &+ usize(0x2D)).* = u8(1);  // - hr/list
   (ptr &+ usize(0x3C)).* = u8(1);  // < html
   (ptr &+ usize(0x3E)).* = u8(1);  // > blockquote
+  (ptr &+ usize(0x3A)).* = u8(1);  // : deflist
   (ptr &+ usize(0x60)).* = u8(1);  // ` fence
   (ptr &+ usize(0x7E)).* = u8(1);  // ~ fence
   (ptr &+ usize(0x5F)).* = u8(1);  // _ hr
@@ -92,6 +94,11 @@ _try_block_terminate :: (fn(state: *(BlockState), line: i32, end_line: i32) -> b
 
   // ATX heading
   if(block_heading(state, line, end_line, true), { return true; });
+
+  // Definition list marker — only terminates paragraph when inside a deflist (dd_indent >= 0)
+  if(((state.*.options.*.enable_deflist && (state.*.dd_indent >= i32(0))) && (skip_deflist_marker(state, line) >= i32(0))), {
+    return true;
+  });
 
   false
 });

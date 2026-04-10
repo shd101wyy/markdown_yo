@@ -370,8 +370,9 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(EmphasisPair))) 
     if(closer.close, {
       (is_em_marker : bool) = ((i32(closer.marker) == i32(0x2A)) || (i32(closer.marker) == i32(0x5F)));
       (is_strike : bool) = (i32(closer.marker) == i32(0x7E));
+      (is_mark : bool) = (i32(closer.marker) == i32(0x3D));
 
-      if((is_em_marker || is_strike), {
+      if(((is_em_marker || is_strike) || is_mark), {
         // Keep consuming from this closer until depleted or no opener found
         (keep_matching : bool) = (closer.length > i32(0));
         while keep_matching, {
@@ -393,6 +394,11 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(EmphasisPair))) 
                 });
               });
 
+              // Mark/strikethrough require at least 2 chars to pair
+              if(((is_mark || is_strike) && ((opener.length < i32(2)) || (closer.length < i32(2)))), {
+                skip = true;
+              });
+
               if(!(skip), {
                 found = true;
               }, {
@@ -408,12 +414,14 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(EmphasisPair))) 
 
             (consume : i32) = cond(
               is_strike => i32(2),
+              is_mark => i32(2),
               ((opener.length >= i32(2)) && (closer.length >= i32(2))) => i32(2),
               true => i32(1)
             );
 
             (pt : i32) = cond(
               is_strike => i32(3),
+              is_mark => i32(4),
               (consume == i32(2)) => i32(2),
               true => i32(1)
             );
@@ -506,6 +514,19 @@ _emit_inline_token :: (fn(renderer: *(HtmlRenderer), tok: *(InlineToken), src: *
     (t == i32(InlineType.StrongClose)) => renderer.*.close_strong(),
     (t == i32(InlineType.StrikethroughOpen)) => renderer.*.open_strikethrough(),
     (t == i32(InlineType.StrikethroughClose)) => renderer.*.close_strikethrough(),
+    (t == i32(InlineType.SubscriptOpen)) => renderer.*.open_subscript(),
+    (t == i32(InlineType.SubscriptClose)) => renderer.*.close_subscript(),
+    (t == i32(InlineType.SuperscriptOpen)) => renderer.*.open_superscript(),
+    (t == i32(InlineType.SuperscriptClose)) => renderer.*.close_superscript(),
+    (t == i32(InlineType.MarkOpen)) => renderer.*.open_mark(),
+    (t == i32(InlineType.MarkClose)) => renderer.*.close_mark(),
+    (t == i32(InlineType.MathInline)) => renderer.*.math_inline(tok.*.start, tok.*.end),
+    (t == i32(InlineType.MathBlock)) => renderer.*.math_block(tok.*.start, tok.*.end),
+    (t == i32(InlineType.Emoji)) => renderer.*.emoji(tok.*.start, tok.*.end),
+    (t == i32(InlineType.Wikilink)) => renderer.*.wikilink(tok.*.info_start, tok.*.info_end, tok.*.title_start, tok.*.title_end),
+    (t == i32(InlineType.CriticMarkup)) => renderer.*.critic_markup(tok.*.markup_char, tok.*.info_start, tok.*.info_end, tok.*.title_start, tok.*.title_end),
+    (t == i32(InlineType.FootnoteRef)) => renderer.*.fn_ref(tok.*.info_start),
+    (t == i32(InlineType.FootnoteInline)) => renderer.*.fn_inline_ref(tok.*.start, tok.*.end),
     (t == i32(InlineType.LinkOpen)) => {
       // Use reusable buffers to avoid per-link allocation
       if((tok.*.href_idx >= i32(0)), {
@@ -562,6 +583,7 @@ _emit_open_tag :: (fn(renderer: *(HtmlRenderer), pt: i32) -> unit)(
     (pt == i32(1)) => renderer.*.open_em(),
     (pt == i32(2)) => renderer.*.open_strong(),
     (pt == i32(3)) => renderer.*.open_strikethrough(),
+    (pt == i32(4)) => renderer.*.open_mark(),
     true => ()
   )
 );
@@ -571,6 +593,7 @@ _emit_close_tag :: (fn(renderer: *(HtmlRenderer), pt: i32) -> unit)(
     (pt == i32(1)) => renderer.*.close_em(),
     (pt == i32(2)) => renderer.*.close_strong(),
     (pt == i32(3)) => renderer.*.close_strikethrough(),
+    (pt == i32(4)) => renderer.*.close_mark(),
     true => ()
   )
 );

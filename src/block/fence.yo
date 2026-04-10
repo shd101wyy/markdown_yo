@@ -148,13 +148,16 @@ block_fence :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
 
   // Emit <pre><code> with optional language class
   (r : *(HtmlRenderer)) = state.*.renderer;
+  r.*.set_source_line(start_line);
+  r.*.lit("<pre");
+  r.*._source_attr();
   if((lang_start < lang_end), {
-    r.*.lit("<pre><code class=\"");
+    r.*.lit("><code class=\"");
     r.*.push_string(r.*.options.*.lang_prefix);
     r.*.escaped_unesc(lang_start, lang_end);
     r.*.lit("\">");
   }, {
-    r.*.lit("<pre><code>");
+    r.*.lit("><code>");
   });
 
   // Emit content with indent stripping (markdown-it getLines logic)

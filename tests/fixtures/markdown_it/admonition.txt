@@ -1,0 +1,216 @@
+basic note with title
+.
+!!! note This is a note
+    Content inside admonition
+
+    More content
+.
+<div class="admonition note">
+<p class="admonition-title">This is a note</p>
+<p>Content inside admonition</p>
+<p>More content</p>
+</div>
+.
+
+warning with default title
+.
+!!! warning
+    No title given
+.
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>No title given</p>
+</div>
+.
+
+empty title ""
+.
+!!! tip ""
+    No title shown
+.
+<div class="admonition tip">
+<p>No title shown</p>
+</div>
+.
+
+unknown type defaults to note
+.
+!!! unknown Custom title
+    Body
+.
+<div class="admonition note">
+<p class="admonition-title">Custom title</p>
+<p>Body</p>
+</div>
+.
+
+nested admonitions
+.
+!!! note Outer
+    !!! tip Inner
+        Nested content
+
+    Back to outer
+.
+<div class="admonition note">
+<p class="admonition-title">Outer</p>
+<div class="admonition tip">
+<p class="admonition-title">Inner</p>
+<p>Nested content</p>
+</div>
+<p>Back to outer</p>
+</div>
+.
+
+extended bangs (4+)
+.
+!!!! danger Watch out
+    Body here
+.
+<div class="admonition danger">
+<p class="admonition-title">Watch out</p>
+<p>Body here</p>
+</div>
+.
+
+content after admonition
+.
+!!! note Title
+    Inside
+
+Outside paragraph
+.
+<div class="admonition note">
+<p class="admonition-title">Title</p>
+<p>Inside</p>
+</div>
+<p>Outside paragraph</p>
+.
+
+empty admonition body
+.
+!!! note Title
+
+After
+.
+<div class="admonition note">
+<p class="admonition-title">Title</p>
+</div>
+<p>After</p>
+.
+
+admonition with inline formatting
+.
+!!! note Title
+    **Bold** and *italic* text
+.
+<div class="admonition note">
+<p class="admonition-title">Title</p>
+<p><strong>Bold</strong> and <em>italic</em> text</p>
+</div>
+.
+
+multiple admonitions
+.
+!!! note First
+    Content 1
+
+!!! warning Second
+    Content 2
+.
+<div class="admonition note">
+<p class="admonition-title">First</p>
+<p>Content 1</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Second</p>
+<p>Content 2</p>
+</div>
+.
+
+admonition with code inside
+.
+!!! note Code example
+    Some text
+
+        code block
+
+    More text
+.
+<div class="admonition note">
+<p class="admonition-title">Code example</p>
+<p>Some text</p>
+<pre><code>code block
+</code></pre>
+<p>More text</p>
+</div>
+.
+
+admonition with list inside
+.
+!!! tip Lists
+    - item 1
+    - item 2
+    - item 3
+.
+<div class="admonition tip">
+<p class="admonition-title">Lists</p>
+<ul>
+<li>item 1</li>
+<li>item 2</li>
+<li>item 3</li>
+</ul>
+</div>
+.
+
+not admonition - only 2 bangs
+.
+!! note Not admonition
+    Content
+.
+<p>!! note Not admonition
+Content</p>
+.
+
+not admonition - indented 4 spaces
+.
+    !!! note Not admonition
+.
+<pre><code>!!! note Not admonition
+</code></pre>
+.
+
+tldr default title
+.
+!!! tldr
+    Summary
+.
+<div class="admonition tldr">
+<p class="admonition-title">TL;DR</p>
+<p>Summary</p>
+</div>
+.
+
+faq default title
+.
+!!! faq
+    Question
+.
+<div class="admonition faq">
+<p class="admonition-title">FAQ</p>
+<p>Question</p>
+</div>
+.
+
+admonition with blockquote inside
+.
+!!! note Title
+    > quoted text
+.
+<div class="admonition note">
+<p class="admonition-title">Title</p>
+<blockquote>
+<p>quoted text</p>
+</blockquote>
+</div>
+.

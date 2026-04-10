@@ -40,6 +40,7 @@ block_hr :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bo
 
   if(silent, { return true; });
 
+  state.*.renderer.*.set_source_line(start_line);
   state.*.renderer.*.hr();
   state.*.line = (start_line + i32(1));
   true

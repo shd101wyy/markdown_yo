@@ -6,15 +6,43 @@
 open import "std/string";
 { ArrayList } :: import "std/collections/array_list";
 { memmove } :: import "std/libc/string";
-{ Options, TableAlign } :: import "./types.yo";
+{ Options, TableAlign, AbbrEntry, FootnoteDef } :: import "./types.yo";
 { escape_html_buf, append_raw_buf, append_lit } :: import "./common/utils.yo";
 { decode_named_entity } :: import "./common/entities.yo";
+{ lookup_emoji } :: import "./data/emoji_data.yo";
 
 // In-place move: copy `count` bytes from s+src_off to s+dst_off (skip when equal)
 _memmove_inline :: (fn(s: *(u8), dst_off: usize, src_off: usize, count: usize) -> unit)(
   if((dst_off != src_off), {
     _ := memmove(*(void)((s &+ dst_off)), *(void)((s &+ src_off)), count);
   })
+);
+
+// Scan past optional attributes in an opening HTML tag.
+// `pos` points to the byte right after the tag name (e.g., after "<p" or "<ul").
+// Returns the number of bytes to skip to get past the closing '>'.
+// If `>` is found immediately, returns 1. If ` ` then attrs then `>`, returns N.
+// Returns 0 if no valid tag end found.
+_scan_tag_end :: (fn(s: *(u8), pos: usize, limit: usize) -> usize)({
+  (ch : u8) = (s &+ pos).*;
+  if((ch == u8(0x3E)), { return usize(1); }); // >
+  if((ch != u8(0x20)), { return usize(0); }); // not > or space
+  (p : usize) = (pos + usize(1));
+  while (p < limit), {
+    if(((s &+ p).* == u8(0x3E)), {
+      return (((p - pos) + usize(1)));
+    });
+    p = (p + usize(1));
+  };
+  usize(0)
+});
+
+// Check if byte is a word character (alphanumeric or underscore)
+_is_word_char :: (fn(ch: u8) -> bool)(
+  (((ch >= u8(0x30)) && (ch <= u8(0x39)))    // 0-9
+   || (((ch >= u8(0x41)) && (ch <= u8(0x5A)))  // A-Z
+   || (((ch >= u8(0x61)) && (ch <= u8(0x7A)))  // a-z
+   || (ch == u8(0x5F)))))                        // _
 );
 
 // Helper: write i32 as decimal ASCII digits to buffer
@@ -302,6 +330,55 @@ _typographer_text :: (fn(buf: *(ArrayList(u8)), src: *(u8), start: i32, end: i32
   };
 });
 
+// Helper: check if source bytes [start, end) case-insensitively match a literal string.
+_src_eq_ci :: (fn(src: *(u8), start: i32, end: i32, lit: *(u8), lit_len: i32) -> bool)({
+  if(((end - start) != lit_len), { return false; });
+  (i : i32) = i32(0);
+  while (i < lit_len), {
+    (a : u8) = (src &+ usize((start + i))).*;
+    (b : u8) = (lit &+ usize(i)).*;
+    // lowercase both
+    (al : u8) = cond(((a >= u8(0x41)) && (a <= u8(0x5A))) => (a + u8(0x20)), true => a);
+    (bl : u8) = cond(((b >= u8(0x41)) && (b <= u8(0x5A))) => (b + u8(0x20)), true => b);
+    if((al != bl), { return false; });
+    i = (i + i32(1));
+  };
+  true
+});
+
+// Check if source bytes [start, end) form a known admonition type (case-insensitive).
+_is_known_admonition_type :: (fn(src: *(u8), start: i32, end: i32) -> bool)(
+  (_src_eq_ci(src, start, end, *(u8)("note"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("summary"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("abstract"), i32(8))
+   || (_src_eq_ci(src, start, end, *(u8)("tldr"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("info"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("todo"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("tip"), i32(3))
+   || (_src_eq_ci(src, start, end, *(u8)("hint"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("success"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("check"), i32(5))
+   || (_src_eq_ci(src, start, end, *(u8)("done"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("question"), i32(8))
+   || (_src_eq_ci(src, start, end, *(u8)("help"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("faq"), i32(3))
+   || (_src_eq_ci(src, start, end, *(u8)("warning"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("attention"), i32(9))
+   || (_src_eq_ci(src, start, end, *(u8)("caution"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("failure"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("fail"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("missing"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("danger"), i32(6))
+   || (_src_eq_ci(src, start, end, *(u8)("error"), i32(5))
+   || (_src_eq_ci(src, start, end, *(u8)("bug"), i32(3))
+   || (_src_eq_ci(src, start, end, *(u8)("example"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("snippet"), i32(7))
+   || (_src_eq_ci(src, start, end, *(u8)("quote"), i32(5))
+   || (_src_eq_ci(src, start, end, *(u8)("cite"), i32(4))
+   || (_src_eq_ci(src, start, end, *(u8)("important"), i32(9))
+  ))))))))))))))))))))))))))))
+);
+
 HtmlRenderer :: struct(
   buf : ArrayList(u8),    // output buffer
   img_nest : i32,         // depth inside <img> alt text (suppress HTML tags)
@@ -312,7 +389,20 @@ HtmlRenderer :: struct(
   list_nesting : i32,     // list nesting depth (for tight paragraph removal)
   tight_mode : bool,      // when true, paragraph open/close emit nothing
   bq_buf_pos : i32,       // buffer position at blockquote open (for empty detection)
-  _entity_buf : ArrayList(u8)  // reusable buffer for entity decoding
+  _entity_buf : ArrayList(u8),  // reusable buffer for entity decoding
+  abbrs : ArrayList(AbbrEntry), // abbreviation definitions (from *[abbr]: text)
+  _orig_src : *(u8),      // original source pointer (never swapped during inline render)
+  // Footnote support
+  _fn_defs : ArrayList(FootnoteDef),     // footnote definitions found during prescan
+  _fn_ref_ids : ArrayList(i32),          // for each def, assigned reference number (-1 if unreferenced)
+  _fn_ref_counts : ArrayList(i32),       // reference count for each def
+  _fn_ref_order : ArrayList(i32),        // def indices in order of first reference
+  _fn_count : i32,                        // total footnotes referenced
+  _fn_inline_starts : ArrayList(i32),    // inline footnote ^[content] byte starts
+  _fn_inline_ends : ArrayList(i32),      // inline footnote ^[content] byte ends
+  _fn_in_section : bool,                 // true when rendering footnote section
+  _fn_current_backref : String,          // backref HTML for current footnote
+  _source_line : i32                     // source line for next block open (-1 = none)
 );
 
 impl(HtmlRenderer,
@@ -329,7 +419,19 @@ impl(HtmlRenderer,
       list_nesting: i32(0),
       tight_mode: false,
       bq_buf_pos: i32(-1),
-      _entity_buf: ArrayList(u8).with_capacity(usize(16))
+      _entity_buf: ArrayList(u8).with_capacity(usize(16)),
+      abbrs: ArrayList(AbbrEntry).new(),
+      _orig_src: src_ptr,
+      _fn_defs: ArrayList(FootnoteDef).new(),
+      _fn_ref_ids: ArrayList(i32).new(),
+      _fn_ref_counts: ArrayList(i32).new(),
+      _fn_ref_order: ArrayList(i32).new(),
+      _fn_count: i32(0),
+      _fn_inline_starts: ArrayList(i32).new(),
+      _fn_inline_ends: ArrayList(i32).new(),
+      _fn_in_section: false,
+      _fn_current_backref: ``,
+      _source_line: i32(-1)
     )
   }),
 
@@ -347,10 +449,123 @@ impl(HtmlRenderer,
     append_lit((&self.*.buf), s)
   ),
 
+  // Set source line for next block element (used by block rules before open calls)
+  set_source_line : (fn(self: *(Self), line: i32) -> unit)(
+    if(self.*.options.*.enable_source_map, {
+      self.*._source_line = line;
+    })
+  ),
+
+  // Emit data-source-line attribute if source map is enabled and a line was set.
+  // Resets _source_line to -1 after emitting. Call between tag name and '>'.
+  // Lines are stored 0-indexed internally but emitted as 1-indexed for crossnote compatibility.
+  _source_attr : (fn(self: *(Self)) -> unit)(
+    if((self.*.options.*.enable_source_map && (self.*._source_line >= i32(0))), {
+      self.*.lit(" data-source-line=\"");
+      _write_i32((&self.*.buf), (self.*._source_line + i32(1)));
+      _ := self.*.buf.push(u8(0x22)); // "
+      self.*._source_line = i32(-1);
+    })
+  ),
+
   // Append HTML-escaped source bytes [start, end)
   escaped : (fn(self: *(Self), start: i32, end: i32) -> unit)(
     escape_html_buf((&self.*.buf), self.*.src_ptr, start, end)
   ),
+
+  // Append HTML-escaped source bytes with abbreviation replacement
+  // Scans text for abbreviation matches, wraps them in <abbr title="...">
+  // Uses src_ptr (current, possibly swapped) for text and _orig_src for pattern/title.
+  escaped_abbr : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    (src : *(u8)) = self.*.src_ptr;
+    (orig : *(u8)) = self.*._orig_src;
+    (abbr_list : *(ArrayList(AbbrEntry))) = (&self.*.abbrs);
+    (n_abbrs : usize) = abbr_list.*.len();
+    (pos : i32) = start;
+    (text_start : i32) = start;
+    (use_typo : bool) = self.*.options.*.typographer;
+
+    while (pos < end), {
+      (found : bool) = false;
+      (ai : usize) = usize(0);
+      while (ai < n_abbrs), {
+        (entry : *(AbbrEntry)) = (&abbr_list.*.get(ai).unwrap());
+        (plen : i32) = entry.*.pattern_len;
+
+        // Check if pattern fits
+        if(((pos + plen) <= end), {
+          // Check word boundary before match
+          (boundary_before : bool) = cond(
+            (pos <= i32(0)) => true,
+            true => {
+              (prev : u8) = (src &+ usize((pos - i32(1)))).*;
+              !(_is_word_char(prev))
+            }
+          );
+
+          if(boundary_before, {
+            // Compare bytes: text from src (current), pattern from orig (original)
+            (match_ok : bool) = true;
+            (pi : i32) = i32(0);
+            while (pi < plen), {
+              if(((src &+ usize((pos + pi))).* != (orig &+ usize((entry.*.pattern_start + pi))).*), {
+                match_ok = false;
+                break;
+              });
+              pi = (pi + i32(1));
+            };
+
+            if(match_ok, {
+              // Check word boundary after match
+              (after_pos : i32) = (pos + plen);
+              (boundary_after : bool) = cond(
+                (after_pos >= end) => true,
+                true => {
+                  (next : u8) = (src &+ usize(after_pos)).*;
+                  !(_is_word_char(next))
+                }
+              );
+
+              if(boundary_after, {
+                // Emit text before match (with typographer if enabled)
+                if((pos > text_start), {
+                  if(use_typo, {
+                    _typographer_text((&self.*.buf), src, text_start, pos);
+                  }, {
+                    escape_html_buf((&self.*.buf), src, text_start, pos);
+                  });
+                });
+                // Emit <abbr title="expansion">pattern</abbr>
+                self.*.lit("<abbr title=\"");
+                escape_html_buf((&self.*.buf), orig, entry.*.title_start, entry.*.title_end);
+                self.*.lit("\">");
+                escape_html_buf((&self.*.buf), src, pos, after_pos);
+                self.*.lit("</abbr>");
+                pos = after_pos;
+                text_start = pos;
+                found = true;
+                break;
+              });
+            });
+          });
+        });
+        ai = (ai + usize(1));
+      };
+
+      if(!(found), {
+        pos = (pos + i32(1));
+      });
+    };
+
+    // Emit remaining text (with typographer if enabled)
+    if((text_start < end), {
+      if(use_typo, {
+        _typographer_text((&self.*.buf), src, text_start, end);
+      }, {
+        escape_html_buf((&self.*.buf), src, text_start, end);
+      });
+    });
+  }),
 
   // Append HTML-escaped source bytes with backslash unescape + entity decode
   escaped_unesc : (fn(self: *(Self), start: i32, end: i32) -> unit)({
@@ -486,6 +701,27 @@ impl(HtmlRenderer,
     );
   }),
 
+  // Copy raw source bytes [start, end) to output buffer
+  push_range : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    if((start < end), {
+      self.*.buf.extend_from_ptr((self.*.src_ptr &+ usize(start)), usize((end - start)));
+    });
+  }),
+
+  // Copy source bytes [start, end) to output, converting ASCII uppercase to lowercase
+  push_range_lower : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    (ri : i32) = start;
+    while (ri < end), {
+      (ch : u8) = (self.*.src_ptr &+ usize(ri)).*;
+      if(((ch >= u8(0x41)) && (ch <= u8(0x5A))), {
+        self.*.buf.push((ch + u8(0x20)));
+      }, {
+        self.*.buf.push(ch);
+      });
+      ri = (ri + i32(1));
+    };
+  }),
+
   // Append HTML-escaped content from a String
   escaped_string : (fn(self: *(Self), s: String) -> unit)({
     (bytes : ArrayList(u8)) = s.as_bytes();
@@ -507,24 +743,28 @@ impl(HtmlRenderer,
   // Block-level events
   // -------------------------------------------------------------------
 
-  open_paragraph : (fn(self: *(Self)) -> unit)(
-    self.*.lit("<p>")
-  ),
+  open_paragraph : (fn(self: *(Self)) -> unit)({
+    self.*.lit("<p");
+    self.*._source_attr();
+    _ := self.*.buf.push(u8(0x3E)); // >
+  }),
 
   close_paragraph : (fn(self: *(Self)) -> unit)(
     self.*.lit("</p>\n")
   ),
 
-  open_heading : (fn(self: *(Self), level: i32) -> unit)(
+  open_heading : (fn(self: *(Self), level: i32) -> unit)({
     cond(
-      (level == i32(1)) => self.*.lit("<h1>"),
-      (level == i32(2)) => self.*.lit("<h2>"),
-      (level == i32(3)) => self.*.lit("<h3>"),
-      (level == i32(4)) => self.*.lit("<h4>"),
-      (level == i32(5)) => self.*.lit("<h5>"),
-      true => self.*.lit("<h6>")
-    )
-  ),
+      (level == i32(1)) => self.*.lit("<h1"),
+      (level == i32(2)) => self.*.lit("<h2"),
+      (level == i32(3)) => self.*.lit("<h3"),
+      (level == i32(4)) => self.*.lit("<h4"),
+      (level == i32(5)) => self.*.lit("<h5"),
+      true => self.*.lit("<h6")
+    );
+    self.*._source_attr();
+    _ := self.*.buf.push(u8(0x3E)); // >
+  }),
 
   close_heading : (fn(self: *(Self), level: i32) -> unit)(
     cond(
@@ -538,7 +778,9 @@ impl(HtmlRenderer,
   ),
 
   open_blockquote : (fn(self: *(Self)) -> unit)({
-    self.*.lit("<blockquote>\n");
+    self.*.lit("<blockquote");
+    self.*._source_attr();
+    self.*.lit(">\n");
     // Save position after the \n to detect empty blockquotes
     self.*.bq_buf_pos = i32(self.*.buf.len());
   }),
@@ -554,9 +796,11 @@ impl(HtmlRenderer,
     self.*.lit("</blockquote>\n");
   }),
 
-  open_unordered_list : (fn(self: *(Self)) -> unit)(
-    self.*.lit("<ul>\n")
-  ),
+  open_unordered_list : (fn(self: *(Self)) -> unit)({
+    self.*.lit("<ul");
+    self.*._source_attr();
+    self.*.lit(">\n");
+  }),
 
   close_unordered_list : (fn(self: *(Self)) -> unit)(
     self.*.lit("</ul>\n")
@@ -564,10 +808,13 @@ impl(HtmlRenderer,
 
   open_ordered_list : (fn(self: *(Self), start: i32) -> unit)(
     if((start == i32(1)), {
-      self.*.lit("<ol>\n");
+      self.*.lit("<ol");
+      self.*._source_attr();
+      self.*.lit(">\n");
     }, {
-      self.*.lit("<ol start=\"");
-      // Write start number as ASCII digits
+      self.*.lit("<ol");
+      self.*._source_attr();
+      self.*.lit(" start=\"");
       _write_i32((&self.*.buf), start);
       self.*.lit("\">\n");
     })
@@ -602,29 +849,303 @@ impl(HtmlRenderer,
     self.*.lit("</li>\n");
   }),
 
+  // Definition list methods
+  dl_open : (fn(self: *(Self)) -> unit)({
+    self.*.lit("<dl");
+    self.*._source_attr();
+    self.*.lit(">\n");
+  }),
+  dl_close : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</dl>\n")
+  ),
+  dt_open : (fn(self: *(Self)) -> unit)({
+    self.*.lit("<dt");
+    self.*._source_attr();
+    _ := self.*.buf.push(u8(0x3E)); // >
+  }),
+  dt_close : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</dt>\n")
+  ),
+  dd_open : (fn(self: *(Self)) -> unit)({
+    self.*.lit("<dd");
+    self.*._source_attr();
+    self.*.lit(">\n");
+  }),
+  dd_close : (fn(self: *(Self)) -> unit)({
+    // Same pattern as close_list_item: remove trailing \n after <dd> for empty defs
+    (bl : usize) = self.*.buf.len();
+    if(((bl >= usize(5)) &&
+        ((self.*.buf((bl - usize(5))) == u8(0x3C)) &&
+         ((self.*.buf((bl - usize(4))) == u8(0x64)) &&
+          ((self.*.buf((bl - usize(3))) == u8(0x64)) &&
+           ((self.*.buf((bl - usize(2))) == u8(0x3E)) &&
+            (self.*.buf((bl - usize(1))) == u8(0x0A))))))), {
+      self.*.buf.set_len((bl - usize(1)));
+    });
+    self.*.lit("</dd>\n");
+  }),
+
+  // Admonition: !!! type optional title
+  admonition_open : (fn(self: *(Self), type_start: i32, type_end: i32, title_start: i32, title_end: i32) -> unit)({
+    // If type is not in the known list, default to "note"
+    (known_type : bool) = _is_known_admonition_type(self.*.src_ptr, type_start, type_end);
+    self.*.lit("<div class=\"admonition ");
+    if(known_type, {
+      self.*.push_range_lower(type_start, type_end);
+    }, {
+      self.*.lit("note");
+    });
+    self.*.lit("\"");
+    self.*._source_attr();
+    self.*.lit(">\n");
+    // Title: if explicit title given, use it; else capitalize type
+    if((title_start < title_end), {
+      // Check for empty title '""'
+      if(((((title_end - title_start) == i32(2)) &&
+           ((self.*.src_ptr &+ usize(title_start)).* == u8(0x22))) &&
+          ((self.*.src_ptr &+ usize((title_end - i32(1)))).* == u8(0x22))), {
+        // title is "" — no title element
+        ()
+      }, {
+        self.*.lit("<p class=\"admonition-title\">");
+        self.*.escaped(title_start, title_end);
+        self.*.lit("</p>\n");
+      });
+    }, {
+      // Default title = capitalize first letter of validated type
+      self.*.lit("<p class=\"admonition-title\">");
+      if(known_type, {
+        // Special cases: tldr → TL;DR, faq → FAQ
+        if(_src_eq_ci(self.*.src_ptr, type_start, type_end, *(u8)("tldr"), i32(4)), {
+          self.*.lit("TL;DR");
+        }, {
+          if(_src_eq_ci(self.*.src_ptr, type_start, type_end, *(u8)("faq"), i32(3)), {
+            self.*.lit("FAQ");
+          }, {
+            // Capitalize first letter of the source type
+            (tc : u8) = (self.*.src_ptr &+ usize(type_start)).*;
+            if(((tc >= u8(0x61)) && (tc <= u8(0x7A))), {
+              self.*.buf.push((tc - u8(0x20)));
+            }, {
+              self.*.buf.push(tc);
+            });
+            if(((type_start + i32(1)) < type_end), {
+              self.*.push_range((type_start + i32(1)), type_end);
+            });
+          });
+        });
+      }, {
+        // Unknown type defaults to "Note"
+        self.*.lit("Note");
+      });
+      self.*.lit("</p>\n");
+    });
+  }),
+
+  admonition_close : (fn(self: *(Self)) -> unit)(
+    self.*.lit("</div>\n")
+  ),
+
+  // Callout: > [!type] optional title — rendered from blockquote detection
+  callout_open : (fn(self: *(Self), type_start: i32, type_end: i32, title_start: i32, title_end: i32, foldable: i32) -> unit)({
+    // foldable: 0 = not foldable, 1 = foldable open, -1 = foldable closed
+    if((foldable != i32(0)), {
+      self.*.lit("<details class=\"callout\" data-callout=\"");
+      self.*.push_range_lower(type_start, type_end);
+      self.*.lit("\"");
+      self.*._source_attr();
+      if((foldable == i32(1)), {
+        self.*.lit(" open");
+      });
+      self.*.lit(">\n<summary class=\"callout-title\">");
+    }, {
+      self.*.lit("<div class=\"callout\" data-callout=\"");
+      self.*.push_range_lower(type_start, type_end);
+      self.*.lit("\"");
+      self.*._source_attr();
+      self.*.lit(">\n<div class=\"callout-title\">");
+    });
+    // Title content
+    if((title_start < title_end), {
+      self.*.escaped(title_start, title_end);
+    }, {
+      // Default titles — special cases first, then capitalize first letter
+      if(_src_eq_ci(self.*.src_ptr, type_start, type_end, *(u8)("tldr"), i32(4)), {
+        self.*.lit("TL;DR");
+      }, {
+        if(_src_eq_ci(self.*.src_ptr, type_start, type_end, *(u8)("faq"), i32(3)), {
+          self.*.lit("FAQ");
+        }, {
+          // Capitalize first letter of type, rest lowercase
+          (tc : u8) = (self.*.src_ptr &+ usize(type_start)).*;
+          if(((tc >= u8(0x61)) && (tc <= u8(0x7A))), {
+            self.*.buf.push((tc - u8(0x20)));
+          }, {
+            self.*.buf.push(tc);
+          });
+          if(((type_start + i32(1)) < type_end), {
+            self.*.push_range_lower((type_start + i32(1)), type_end);
+          });
+        });
+      });
+    });
+    if((foldable != i32(0)), {
+      self.*.lit("</summary>\n");
+    }, {
+      self.*.lit("</div>\n");
+    });
+  }),
+
+  callout_close : (fn(self: *(Self), foldable: i32) -> unit)(
+    cond(
+      (foldable != i32(0)) => self.*.lit("</details>\n"),
+      true => self.*.lit("</div>\n")
+    )
+  ),
+
+  // -------------------------------------------------------------------
+  // Footnote support
+  // -------------------------------------------------------------------
+
+  // Register a footnote definition (called during prescan)
+  fn_add_def : (fn(self: *(Self), def: FootnoteDef) -> unit)({
+    _ := self.*._fn_ref_ids.push(i32(-1));
+    _ := self.*._fn_ref_counts.push(i32(0));
+    _ := self.*._fn_defs.push(def);
+  }),
+
+  // Look up a footnote definition by label. Returns def index or -1.
+  // label_ptr is the base pointer for the query label bytes (may differ from _orig_src for inline state).
+  fn_find_def : (fn(self: *(Self), label_start: i32, label_end: i32, label_ptr: *(u8)) -> i32)({
+    (result : i32) = i32(-1);
+    (n : usize) = self.*._fn_defs.len();
+    if((n == usize(0)), { return i32(-1); });
+    (defs_ptr : *(FootnoteDef)) = self.*._fn_defs.ptr().unwrap();
+    (src : *(u8)) = self.*._orig_src;
+    (label_len : i32) = (label_end - label_start);
+    (i : usize) = usize(0);
+    while ((i < n) && (result == i32(-1))), {
+      (def : *(FootnoteDef)) = (defs_ptr &+ i);
+      (def_label_len : i32) = (def.*.label_end - def.*.label_start);
+      if((def_label_len == label_len), {
+        (lp : *(u8)) = (src &+ usize(def.*.label_start));
+        (sp : *(u8)) = (label_ptr &+ usize(label_start));
+        (j : i32) = i32(0);
+        (label_match : bool) = true;
+        while ((j < label_len) && label_match), {
+          (a : u8) = (lp &+ usize(j)).*;
+          (b : u8) = (sp &+ usize(j)).*;
+          (al : u8) = cond(((a >= u8(0x41)) && (a <= u8(0x5A))) => (a + u8(0x20)), true => a);
+          (bl : u8) = cond(((b >= u8(0x41)) && (b <= u8(0x5A))) => (b + u8(0x20)), true => b);
+          if((al != bl), { label_match = false; });
+          j = (j + i32(1));
+        };
+        if(label_match, { result = i32(i); });
+      });
+      i = (i + usize(1));
+    };
+    result
+  }),
+
+  // Record a footnote reference. Returns the 1-based footnote number
+  // and the subId (0 for first reference, 1 for second, etc.)
+  fn_ref : (fn(self: *(Self), def_idx: i32) -> unit)({
+    (idx : usize) = usize(def_idx);
+    (ids_ptr : *(i32)) = self.*._fn_ref_ids.ptr().unwrap();
+    (ref_id : i32) = (ids_ptr &+ idx).*;
+    (fn_num : i32) = cond(
+      (ref_id < i32(0)) => {
+        // First reference — assign next number
+        self.*._fn_count = (self.*._fn_count + i32(1));
+        consume((ids_ptr &+ idx).* = self.*._fn_count);
+        _ := self.*._fn_ref_order.push(def_idx);
+        self.*._fn_count
+      },
+      true => ref_id
+    );
+    (counts_ptr : *(i32)) = self.*._fn_ref_counts.ptr().unwrap();
+    (sub_id : i32) = (counts_ptr &+ idx).*;
+    consume((counts_ptr &+ idx).* = (sub_id + i32(1)));
+
+    // Emit: <sup class="footnote-ref"><a href="#fnN" id="fnrefN[:subId]">[N[:subId]]</a></sup>
+    self.*.lit("<sup class=\"footnote-ref\"><a href=\"#fn");
+    _write_i32((&self.*.buf), fn_num);
+    self.*.lit("\" id=\"fnref");
+    _write_i32((&self.*.buf), fn_num);
+    if((sub_id > i32(0)), {
+      self.*.byte(u8(0x3A)); // :
+      _write_i32((&self.*.buf), sub_id);
+    });
+    self.*.lit("\">[");
+    _write_i32((&self.*.buf), fn_num);
+    if((sub_id > i32(0)), {
+      self.*.byte(u8(0x3A)); // :
+      _write_i32((&self.*.buf), sub_id);
+    });
+    self.*.lit("]</a></sup>");
+  }),
+
+  // Record an inline footnote ^[content]. Returns the 1-based footnote number.
+  fn_inline_ref : (fn(self: *(Self), content_start: i32, content_end: i32) -> unit)({
+    self.*._fn_count = (self.*._fn_count + i32(1));
+    (fn_num : i32) = self.*._fn_count;
+    // Store inline content ranges — def_idx is -(inline_index + 1) to distinguish from regular defs
+    _ := self.*._fn_inline_starts.push(content_start);
+    _ := self.*._fn_inline_ends.push(content_end);
+    (inline_idx : i32) = (i32(self.*._fn_inline_starts.len()) - i32(1));
+    // Use negative def index: -(inline_idx + 1)
+    _ := self.*._fn_ref_order.push((i32(0) - (inline_idx + i32(1))));
+
+    // Emit reference
+    self.*.lit("<sup class=\"footnote-ref\"><a href=\"#fn");
+    _write_i32((&self.*.buf), fn_num);
+    self.*.lit("\" id=\"fnref");
+    _write_i32((&self.*.buf), fn_num);
+    self.*.lit("\">[");
+    _write_i32((&self.*.buf), fn_num);
+    self.*.lit("]</a></sup>");
+  }),
+
+  // Check if any footnotes were referenced
+  fn_has_refs : (fn(self: *(Self)) -> bool)(
+    (self.*._fn_count > i32(0))
+  ),
+
   hr : (fn(self: *(Self)) -> unit)(
     cond(
-      self.*.options.*.xhtml_out => self.*.lit("<hr />\n"),
-      true => self.*.lit("<hr>\n")
+      self.*.options.*.xhtml_out => {
+        self.*.lit("<hr");
+        self.*._source_attr();
+        self.*.lit(" />\n");
+      },
+      true => {
+        self.*.lit("<hr");
+        self.*._source_attr();
+        self.*.lit(">\n");
+      }
     )
   ),
 
   // Code block (indented code, 4-space)
   code_block : (fn(self: *(Self), start: i32, end: i32) -> unit)({
-    self.*.lit("<pre><code>");
+    self.*.lit("<pre");
+    self.*._source_attr();
+    self.*.lit("><code>");
     self.*.escaped(start, end);
     self.*.lit("</code></pre>\n");
   }),
 
   // Fenced code block with optional language
   fence : (fn(self: *(Self), content_start: i32, content_end: i32, lang_start: i32, lang_end: i32) -> unit)({
+    self.*.lit("<pre");
+    self.*._source_attr();
     if((lang_start < lang_end), {
-      self.*.lit("<pre><code class=\"");
+      self.*.lit("><code class=\"");
       self.*.push_string(self.*.options.*.lang_prefix);
       self.*.escaped_unesc(lang_start, lang_end);
       self.*.lit("\">");
     }, {
-      self.*.lit("<pre><code>");
+      self.*.lit("><code>");
     });
     self.*.escaped(content_start, content_end);
     self.*.lit("</code></pre>\n");
@@ -640,9 +1161,11 @@ impl(HtmlRenderer,
   // Table events
   // -------------------------------------------------------------------
 
-  open_table : (fn(self: *(Self)) -> unit)(
-    self.*.lit("<table>\n")
-  ),
+  open_table : (fn(self: *(Self)) -> unit)({
+    self.*.lit("<table");
+    self.*._source_attr();
+    self.*.lit(">\n");
+  }),
 
   close_table : (fn(self: *(Self)) -> unit)(
     self.*.lit("</table>\n")
@@ -703,10 +1226,14 @@ impl(HtmlRenderer,
   // -------------------------------------------------------------------
 
   text : (fn(self: *(Self), start: i32, end: i32) -> unit)(
-    if(self.*.options.*.typographer, {
-      _typographer_text((&self.*.buf), self.*.src_ptr, start, end);
+    if((self.*.abbrs.len() > usize(0)), {
+      self.*.escaped_abbr(start, end);
     }, {
-      self.*.escaped(start, end);
+      if(self.*.options.*.typographer, {
+        _typographer_text((&self.*.buf), self.*.src_ptr, start, end);
+      }, {
+        self.*.escaped(start, end);
+      });
     })
   ),
 
@@ -775,6 +1302,58 @@ impl(HtmlRenderer,
       self.*.lit("</s>");
     })
   ),
+
+  open_subscript : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("<sub>");
+    })
+  ),
+
+  close_subscript : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("</sub>");
+    })
+  ),
+
+  open_superscript : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("<sup>");
+    })
+  ),
+
+  close_superscript : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("</sup>");
+    })
+  ),
+
+  open_mark : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("<mark>");
+    })
+  ),
+
+  close_mark : (fn(self: *(Self)) -> unit)(
+    if((self.*.img_nest == i32(0)), {
+      self.*.lit("</mark>");
+    })
+  ),
+
+  // Math inline: <span class="mathjax-exps">$content$</span>
+  math_inline : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    if((self.*.img_nest > i32(0)), { return (); });
+    self.*.lit("<span class=\"mathjax-exps\">$");
+    escape_html_buf((&self.*.buf), self.*.src_ptr, start, end);
+    self.*.lit("$</span>");
+  }),
+
+  // Math block (inline context): <div class="mathjax-exps">$$content$$</div>
+  math_block : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    if((self.*.img_nest > i32(0)), { return (); });
+    self.*.lit("<div class=\"mathjax-exps\">$$");
+    escape_html_buf((&self.*.buf), self.*.src_ptr, start, end);
+    self.*.lit("$$</div>");
+  }),
 
   // Link open: <a href="..." title="...">
   open_link : (fn(self: *(Self), href: String, title: String) -> unit)({
@@ -996,6 +1575,73 @@ impl(HtmlRenderer,
     });
   }),
 
+  // Emoji — :shortname: → Unicode emoji character
+  // Decode at render time (same approach as entity)
+  emoji : (fn(self: *(Self), start: i32, end: i32) -> unit)({
+    // Name is between the colons: start+1 to end-1
+    (name_ptr : *(u8)) = (self.*.src_ptr &+ usize((start + i32(1))));
+    (name_len : i32) = ((end - start) - i32(2));
+    self.*._entity_buf.clear();
+    if(lookup_emoji(name_ptr, name_len, (&self.*._entity_buf)), {
+      // Output emoji bytes directly (no HTML escaping needed for Unicode chars)
+      match(self.*._entity_buf.ptr(),
+        .Some(p) => self.*.buf.extend_from_ptr(p, usize(self.*._entity_buf.len())),
+        .None => ()
+      );
+    }, {
+      // Unknown — pass through as-is (shouldn't happen since parser validated)
+      self.*.raw(start, end);
+    });
+  }),
+
+  // Wikilink — [[target]] or [[target|display text]]
+  wikilink : (fn(self: *(Self), href_start: i32, href_end: i32, display_start: i32, display_end: i32) -> unit)({
+    self.*.lit("<a href=\"");
+    escape_html_buf((&self.*.buf), self.*.src_ptr, href_start, href_end);
+    self.*.lit("\" class=\"wikilink\">");
+    escape_html_buf((&self.*.buf), self.*.src_ptr, display_start, display_end);
+    self.*.lit("</a>");
+  }),
+
+  critic_markup : (fn(self: *(Self), markup_char: u8, info_start: i32, info_end: i32, title_start: i32, title_end: i32) -> unit)({
+    (m : i32) = i32(markup_char);
+    cond(
+      // {++text++} → <ins>text</ins>
+      (m == i32(0x2B)) => {
+        self.*.lit("<ins>");
+        escape_html_buf((&self.*.buf), self.*.src_ptr, info_start, info_end);
+        self.*.lit("</ins>");
+      },
+      // {--text--} → <del>text</del>
+      (m == i32(0x2D)) => {
+        self.*.lit("<del>");
+        escape_html_buf((&self.*.buf), self.*.src_ptr, info_start, info_end);
+        self.*.lit("</del>");
+      },
+      // {~~old~>new~~} → <del>old</del><ins>new</ins>
+      (m == i32(0x7E)) => {
+        self.*.lit("<del>");
+        escape_html_buf((&self.*.buf), self.*.src_ptr, info_start, info_end);
+        self.*.lit("</del><ins>");
+        escape_html_buf((&self.*.buf), self.*.src_ptr, title_start, title_end);
+        self.*.lit("</ins>");
+      },
+      // {==text==} → <mark>text</mark>
+      (m == i32(0x3D)) => {
+        self.*.lit("<mark>");
+        escape_html_buf((&self.*.buf), self.*.src_ptr, info_start, info_end);
+        self.*.lit("</mark>");
+      },
+      // {>>text<<} → <span style="display:none">text</span>
+      (m == i32(0x3E)) => {
+        self.*.lit("<span style=\"display:none\">");
+        escape_html_buf((&self.*.buf), self.*.src_ptr, info_start, info_end);
+        self.*.lit("</span>");
+      },
+      true => ()
+    );
+  }),
+
   // Newline in tight paragraph (hidden paragraph open/close)
   hidden_paragraph_open : (fn(self: *(Self)) -> unit)(
     ()
@@ -1053,7 +1699,7 @@ impl(HtmlRenderer,
           _memmove_inline(s, wi, ri, usize(14));
           ri = (ri + usize(14));
           wi = (wi + usize(14));
-        }, if(((remaining >= usize(13)) &&
+        }, if(((remaining >= usize(12)) &&
             (((s &+ (ri + usize(1))).* == u8(0x62)) &&
              (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
               (((s &+ (ri + usize(3))).* == u8(0x6F)) &&
@@ -1063,13 +1709,25 @@ impl(HtmlRenderer,
                   (((s &+ (ri + usize(7))).* == u8(0x75)) &&
                    (((s &+ (ri + usize(8))).* == u8(0x6F)) &&
                     (((s &+ (ri + usize(9))).* == u8(0x74)) &&
-                     (((s &+ (ri + usize(10))).* == u8(0x65)) &&
-                      ((s &+ (ri + usize(11))).* == u8(0x3E))))))))))))), {
-          // <blockquote>\n
-          depth = (depth + i32(1));
-          _memmove_inline(s, wi, ri, usize(13));
-          ri = (ri + usize(13));
-          wi = (wi + usize(13));
+                     ((s &+ (ri + usize(10))).* == u8(0x65)))))))))))), {
+          // <blockquote...>\n — flexible match with optional attributes
+          (bq_tag_extra : usize) = _scan_tag_end(s, (ri + usize(11)), total);
+          if((bq_tag_extra > usize(0)), {
+            (bq_tag_len : usize) = (usize(11) + bq_tag_extra);
+            // Check for \n after >
+            (bq_total : usize) = cond(
+              (((ri + bq_tag_len) < total) && ((s &+ (ri + bq_tag_len)).* == u8(0x0A))) => (bq_tag_len + usize(1)),
+              true => bq_tag_len
+            );
+            depth = (depth + i32(1));
+            _memmove_inline(s, wi, ri, bq_total);
+            ri = (ri + bq_total);
+            wi = (wi + bq_total);
+          }, {
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
+            wi = (wi + usize(1));
+          });
         }, if(((remaining >= usize(5)) &&
             (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
              (((s &+ (ri + usize(2))).* == u8(0x6F)) &&
@@ -1092,22 +1750,75 @@ impl(HtmlRenderer,
           wi = (wi + usize(5));
         }, if(((remaining >= usize(4)) &&
             (((s &+ (ri + usize(1))).* == u8(0x6F)) &&
-             (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
-              ((s &+ (ri + usize(3))).* == u8(0x3E))))), {
-          // <ol>
-          depth = (depth + i32(1));
-          _memmove_inline(s, wi, ri, usize(4));
-          ri = (ri + usize(4));
-          wi = (wi + usize(4));
+             ((s &+ (ri + usize(2))).* == u8(0x6C)))), {
+          // <ol...> — flexible match with optional attributes
+          (ol_tag_extra : usize) = _scan_tag_end(s, (ri + usize(3)), total);
+          if((ol_tag_extra > usize(0)), {
+            (ol_tag_len : usize) = (usize(3) + ol_tag_extra);
+            // Check for \n after >
+            (ol_total : usize) = cond(
+              (((ri + ol_tag_len) < total) && ((s &+ (ri + ol_tag_len)).* == u8(0x0A))) => (ol_tag_len + usize(1)),
+              true => ol_tag_len
+            );
+            depth = (depth + i32(1));
+            _memmove_inline(s, wi, ri, ol_total);
+            ri = (ri + ol_total);
+            wi = (wi + ol_total);
+          }, {
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
+            wi = (wi + usize(1));
+          });
         }, if(((remaining >= usize(4)) &&
             (((s &+ (ri + usize(1))).* == u8(0x75)) &&
-             (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
-              ((s &+ (ri + usize(3))).* == u8(0x3E))))), {
-          // <ul>
-          depth = (depth + i32(1));
-          _memmove_inline(s, wi, ri, usize(4));
-          ri = (ri + usize(4));
-          wi = (wi + usize(4));
+             ((s &+ (ri + usize(2))).* == u8(0x6C)))), {
+          // <ul...> — flexible match with optional attributes
+          (ul_tag_extra : usize) = _scan_tag_end(s, (ri + usize(3)), total);
+          if((ul_tag_extra > usize(0)), {
+            (ul_tag_len : usize) = (usize(3) + ul_tag_extra);
+            (ul_total : usize) = cond(
+              (((ri + ul_tag_len) < total) && ((s &+ (ri + ul_tag_len)).* == u8(0x0A))) => (ul_tag_len + usize(1)),
+              true => ul_tag_len
+            );
+            depth = (depth + i32(1));
+            _memmove_inline(s, wi, ri, ul_total);
+            ri = (ri + ul_total);
+            wi = (wi + ul_total);
+          }, {
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
+            wi = (wi + usize(1));
+          });
+        }, if(((remaining >= usize(5)) &&
+            (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
+             (((s &+ (ri + usize(2))).* == u8(0x64)) &&
+              (((s &+ (ri + usize(3))).* == u8(0x6C)) &&
+               ((s &+ (ri + usize(4))).* == u8(0x3E)))))), {
+          // </dl>
+          depth = (depth - i32(1));
+          _memmove_inline(s, wi, ri, usize(5));
+          ri = (ri + usize(5));
+          wi = (wi + usize(5));
+        }, if(((remaining >= usize(4)) &&
+            (((s &+ (ri + usize(1))).* == u8(0x64)) &&
+             ((s &+ (ri + usize(2))).* == u8(0x6C)))), {
+          // <dl...> — flexible match with optional attributes
+          (dl_tag_extra : usize) = _scan_tag_end(s, (ri + usize(3)), total);
+          if((dl_tag_extra > usize(0)), {
+            (dl_tag_len : usize) = (usize(3) + dl_tag_extra);
+            (dl_total : usize) = cond(
+              (((ri + dl_tag_len) < total) && ((s &+ (ri + dl_tag_len)).* == u8(0x0A))) => (dl_tag_len + usize(1)),
+              true => dl_tag_len
+            );
+            depth = (depth + i32(1));
+            _memmove_inline(s, wi, ri, dl_total);
+            ri = (ri + dl_total);
+            wi = (wi + dl_total);
+          }, {
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
+            wi = (wi + usize(1));
+          });
         }, if(((remaining >= usize(6)) &&
             (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
              (((s &+ (ri + usize(2))).* == u8(0x70)) &&
@@ -1122,24 +1833,20 @@ impl(HtmlRenderer,
         }, if(((remaining >= usize(5)) &&
             (((s &+ (ri + usize(1))).* == u8(0x70)) &&
              (((s &+ (ri + usize(2))).* == u8(0x72)) &&
-              (((s &+ (ri + usize(3))).* == u8(0x65)) &&
-               ((s &+ (ri + usize(4))).* == u8(0x3E)))))), {
-          // <pre>
-          depth = (depth + i32(1));
-          _memmove_inline(s, wi, ri, usize(5));
-          ri = (ri + usize(5));
-          wi = (wi + usize(5));
-        }, if(((remaining >= usize(14)) &&
-            (((s &+ (ri + usize(1))).* == u8(0x6F)) &&
-             (((s &+ (ri + usize(2))).* == u8(0x6C)) &&
-              (((s &+ (ri + usize(3))).* == u8(0x20)) &&
-               (((s &+ (ri + usize(4))).* == u8(0x73)) &&
-                ((s &+ (ri + usize(5))).* == u8(0x74))))))), {
-          // <ol start=... — increment depth
-          depth = (depth + i32(1));
-          (s &+ wi).* = ch;
-          ri = (ri + usize(1));
-          wi = (wi + usize(1));
+              ((s &+ (ri + usize(3))).* == u8(0x65))))), {
+          // <pre...> — flexible match with optional attributes
+          (pre_tag_extra : usize) = _scan_tag_end(s, (ri + usize(4)), total);
+          if((pre_tag_extra > usize(0)), {
+            (pre_tag_len : usize) = (usize(4) + pre_tag_extra);
+            depth = (depth + i32(1));
+            _memmove_inline(s, wi, ri, pre_tag_len);
+            ri = (ri + pre_tag_len);
+            wi = (wi + pre_tag_len);
+          }, {
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
+            wi = (wi + usize(1));
+          });
         }, {
           // --- Paragraph removal at depth 0 ---
 
@@ -1158,6 +1865,20 @@ impl(HtmlRenderer,
             _memmove_inline(s, wi, (ri + usize(5)), usize(5));
             ri = (ri + usize(10));
             wi = (wi + usize(5));
+          }, if((((depth == i32(0)) && (remaining >= usize(10))) &&
+              (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
+               (((s &+ (ri + usize(2))).* == u8(0x70)) &&
+                (((s &+ (ri + usize(3))).* == u8(0x3E)) &&
+                 (((s &+ (ri + usize(4))).* == u8(0x0A)) &&
+                  (((s &+ (ri + usize(5))).* == u8(0x3C)) &&
+                   (((s &+ (ri + usize(6))).* == u8(0x2F)) &&
+                    (((s &+ (ri + usize(7))).* == u8(0x64)) &&
+                     (((s &+ (ri + usize(8))).* == u8(0x64)) &&
+                      ((s &+ (ri + usize(9))).* == u8(0x3E))))))))))), {
+            // </p>\n</dd> → copy </dd> (from ri+5, 5 bytes)
+            _memmove_inline(s, wi, (ri + usize(5)), usize(5));
+            ri = (ri + usize(10));
+            wi = (wi + usize(5));
           }, if((((depth == i32(0)) && (remaining >= usize(5))) &&
               (((s &+ (ri + usize(1))).* == u8(0x2F)) &&
                (((s &+ (ri + usize(2))).* == u8(0x70)) &&
@@ -1173,26 +1894,42 @@ impl(HtmlRenderer,
             ri = (ri + usize(1));
             wi = (wi + usize(1));
           }));
-        })))))))))
+        }))))))))
       }, if((ch == u8(0x0A)), {
-        // Check for \n<p> at depth 0
+        // Check for \n<p...> at depth 0
         if((((depth == i32(0)) && (remaining >= usize(4))) &&
             (((s &+ (ri + usize(1))).* == u8(0x3C)) &&
-             (((s &+ (ri + usize(2))).* == u8(0x70)) &&
-              ((s &+ (ri + usize(3))).* == u8(0x3E))))), {
-          // \n<p> at depth 0
-          // Only skip the \n when previous output ends with <li>
-          if(((wi >= usize(4)) &&
-              (((s &+ (wi - usize(4))).* == u8(0x3C)) &&
-               (((s &+ (wi - usize(3))).* == u8(0x6C)) &&
-                (((s &+ (wi - usize(2))).* == u8(0x69)) &&
-                 ((s &+ (wi - usize(1))).* == u8(0x3E)))))), {
-            // After <li>: skip \n<p> entirely
-            ri = (ri + usize(4));
+             ((s &+ (ri + usize(2))).* == u8(0x70)))), {
+          // Matched \n<p — check if next is > or space (attributes)
+          (p_tag_extra : usize) = _scan_tag_end(s, (ri + usize(3)), total);
+          if((p_tag_extra > usize(0)), {
+            // \n<p...> at depth 0 — total bytes to skip: 1 (\n) + 2 (<p) + p_tag_extra
+            (p_skip : usize) = (usize(3) + p_tag_extra);
+            // Only skip the \n when previous output ends with <li> or <dd>
+            if(((wi >= usize(4)) &&
+                (((s &+ (wi - usize(4))).* == u8(0x3C)) &&
+                 (((s &+ (wi - usize(3))).* == u8(0x6C)) &&
+                  (((s &+ (wi - usize(2))).* == u8(0x69)) &&
+                   ((s &+ (wi - usize(1))).* == u8(0x3E)))))), {
+              // After <li>: skip \n<p...> entirely
+              ri = (ri + p_skip);
+            }, if(((wi >= usize(4)) &&
+                (((s &+ (wi - usize(4))).* == u8(0x3C)) &&
+                 (((s &+ (wi - usize(3))).* == u8(0x64)) &&
+                  (((s &+ (wi - usize(2))).* == u8(0x64)) &&
+                   ((s &+ (wi - usize(1))).* == u8(0x3E)))))), {
+              // After <dd>: skip \n<p...> entirely
+              ri = (ri + p_skip);
+            }, {
+              // After other content: keep \n, skip <p...>
+              (s &+ wi).* = u8(0x0A);
+              ri = (ri + p_skip);
+              wi = (wi + usize(1));
+            });
           }, {
-            // After other content: keep \n, skip <p>
-            (s &+ wi).* = u8(0x0A);
-            ri = (ri + usize(4));
+            // <p not followed by > or space — not a tag, copy bytes
+            (s &+ wi).* = ch;
+            ri = (ri + usize(1));
             wi = (wi + usize(1));
           });
         }, {
@@ -1209,6 +1946,19 @@ impl(HtmlRenderer,
                       (((s &+ (ri + usize(4))).* == u8(0x69)) &&
                        ((s &+ (ri + usize(5))).* == u8(0x3E))))))))))), {
             // Skip \n for empty tight item
+            ri = (ri + usize(1));
+          }, if(((((depth == i32(0)) && (wi >= usize(4))) &&
+              (remaining >= usize(6))) &&
+               (((s &+ (wi - usize(4))).* == u8(0x3C)) &&
+                (((s &+ (wi - usize(3))).* == u8(0x64)) &&
+                 (((s &+ (wi - usize(2))).* == u8(0x64)) &&
+                  (((s &+ (wi - usize(1))).* == u8(0x3E)) &&
+                   (((s &+ (ri + usize(1))).* == u8(0x3C)) &&
+                    (((s &+ (ri + usize(2))).* == u8(0x2F)) &&
+                     (((s &+ (ri + usize(3))).* == u8(0x64)) &&
+                      (((s &+ (ri + usize(4))).* == u8(0x64)) &&
+                       ((s &+ (ri + usize(5))).* == u8(0x3E))))))))))), {
+            // Skip \n for empty tight dd item
             ri = (ri + usize(1));
           }, {
             (s &+ wi).* = ch;
@@ -1229,4 +1979,4 @@ impl(HtmlRenderer,
   })
 );
 
-export HtmlRenderer;
+export HtmlRenderer, _write_i32;

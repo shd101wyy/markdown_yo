@@ -19,7 +19,29 @@ Options :: struct(
   typographer : bool,       // Enable typographic replacements & smart quotes
   enable_table : bool,      // GFM tables
   enable_strikethrough : bool, // GFM strikethrough
+  enable_subscript : bool,  // Subscript with ~text~
+  enable_superscript : bool, // Superscript with ^text^
+  enable_mark : bool,       // Highlight with ==text==
+  enable_math : bool,       // Math with $...$ and $$...$$
+  enable_emoji : bool,      // Emoji shortcodes :smile: → 😄
+  enable_wikilink : bool,   // Wiki-style links [[page]] or [[page|text]]
+  enable_critic : bool,     // CriticMarkup {++add++} {--del--} {~~old~>new~~} {==mark==} {>>comment<<}
+  enable_abbr : bool,       // Abbreviations *[abbr]: expansion
+  enable_deflist : bool,    // Definition lists (term + :   definition)
+  enable_admonition : bool, // Admonition blocks !!! type title
+  enable_callout : bool,    // GitHub/Obsidian callouts > [!type] title
+  enable_footnote : bool,   // Footnotes [^id] and [^id]: content
+  enable_source_map : bool, // Emit data-source-line attributes on block elements
   max_nesting : i32         // Max nesting depth
+);
+
+// An abbreviation entry: byte ranges into the source for pattern and title
+AbbrEntry :: struct(
+  pattern_start : i32,
+  pattern_end : i32,
+  title_start : i32,
+  title_end : i32,
+  pattern_len : i32
 );
 
 default_options :: (fn() -> Options)(
@@ -32,6 +54,19 @@ default_options :: (fn() -> Options)(
     typographer: false,
     enable_table: true,
     enable_strikethrough: true,
+    enable_subscript: false,
+    enable_superscript: false,
+    enable_mark: false,
+    enable_math: false,
+    enable_emoji: false,
+    enable_wikilink: false,
+    enable_critic: false,
+    enable_abbr: false,
+    enable_deflist: false,
+    enable_admonition: false,
+    enable_callout: false,
+    enable_footnote: false,
+    enable_source_map: false,
     max_nesting: i32(100)
   )
 );
@@ -46,6 +81,19 @@ commonmark_options :: (fn() -> Options)(
     typographer: false,
     enable_table: false,
     enable_strikethrough: false,
+    enable_subscript: false,
+    enable_superscript: false,
+    enable_mark: false,
+    enable_math: false,
+    enable_emoji: false,
+    enable_wikilink: false,
+    enable_critic: false,
+    enable_abbr: false,
+    enable_deflist: false,
+    enable_admonition: false,
+    enable_callout: false,
+    enable_footnote: false,
+    enable_source_map: false,
     max_nesting: i32(20)
   )
 );
@@ -58,6 +106,8 @@ ParentType :: enum(
   Root,
   Blockquote,
   List,
+  DefList,
+  Admonition,
   Paragraph
 );
 
@@ -66,6 +116,22 @@ TableAlign :: enum(
   Left,
   Center,
   Right
+);
+
+// ---------------------------------------------------------------------------
+// Footnote definition — stores label and content for end-of-document rendering
+// ---------------------------------------------------------------------------
+
+FootnoteDef :: struct(
+  label_start : i32,    // byte offset of label start in source
+  label_end : i32,      // byte offset of label end in source
+  content_start : i32,  // byte offset of content start on first line
+  line_start : i32,     // first content line (after adjusting for [^label]:)
+  line_end : i32,       // line after last content line
+  // Adjusted first-line state for re-parsing
+  adj_bmark : i32,      // adjusted bMarks for first line
+  adj_tshift : i32,     // adjusted tShift for first line
+  adj_scount : i32      // adjusted sCount for first line
 );
 
 // ---------------------------------------------------------------------------
@@ -85,6 +151,19 @@ InlineType :: enum(
   StrongClose,
   StrikethroughOpen,
   StrikethroughClose,
+  SubscriptOpen,
+  SubscriptClose,
+  SuperscriptOpen,
+  SuperscriptClose,
+  MarkOpen,
+  MarkClose,
+  MathInline,
+  MathBlock,
+  Emoji,
+  Wikilink,
+  CriticMarkup,
+  FootnoteRef,
+  FootnoteInline,
   LinkOpen,
   LinkClose,
   ImageOpen,
@@ -105,7 +184,7 @@ Reference :: struct(
 // Environment — stores link references discovered during parsing
 // ---------------------------------------------------------------------------
 
-Env :: struct(
+Env :: newtype(
   references : HashMap(String, Reference)
 );
 
@@ -137,11 +216,6 @@ Delimiter :: struct(
   close : bool       // Can close emphasis
 );
 
-// Token metadata (for emphasis post-processing)
-TokenMeta :: struct(
-  delimiters : ArrayList(Delimiter)
-);
-
 // Link/image bracket marker — tracks pending [ and ![ positions
 LinkMarker :: struct(
   pos : i32,               // position of [ in source
@@ -164,4 +238,5 @@ export Options, default_options, commonmark_options,
        InlineType,
        Reference, Env, new_env,
        StringPair,
-       Delimiter, TokenMeta, LinkMarker, EmphasisPair;
+       Delimiter, LinkMarker, EmphasisPair,
+       AbbrEntry, FootnoteDef;

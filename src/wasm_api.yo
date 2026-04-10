@@ -6,9 +6,24 @@
 //   wasm_free(ptr) -> unit
 //
 // Flags (bitmask):
-//   bit 0 (1) = CommonMark preset
-//   bit 1 (2) = allow HTML tags
-//   bit 2 (4) = typographer
+//   bit 0 (1)  = CommonMark preset
+//   bit 1 (2)  = allow HTML tags
+//   bit 2 (4)  = typographer
+//   bit 3 (8)  = subscript
+//   bit 4 (16) = superscript
+//   bit 5 (32) = mark
+//   bit 6 (64) = math
+//   bit 7 (128) = emoji
+//   bit 8 (256) = wikilink
+//   bit 9 (512) = critic
+//   bit 10 (1024) = abbr
+//   bit 11 (2048) = deflist
+//   bit 12 (4096) = admonition
+//   bit 13 (8192) = callout
+//   bit 14 (16384) = footnote
+//   bit 15 (32768) = source_map
+//   bit 16 (65536) = breaks (convert \n to <br>)
+//   bit 17 (131072) = xhtml_out (self-close tags: <br /> vs <br>)
 //
 // Usage from JS:
 //   const ptr = Module._wasm_render(inputPtr, inputLen, flags);
@@ -46,6 +61,21 @@ wasm_render :: (fn(input_ptr: *(u8), input_len: i32, flags: i32) -> *(u8))({
   );
   if(((flags & i32(2)) != i32(0)), { opts.html = true; });
   if(((flags & i32(4)) != i32(0)), { opts.typographer = true; });
+  if(((flags & i32(8)) != i32(0)), { opts.enable_subscript = true; });
+  if(((flags & i32(16)) != i32(0)), { opts.enable_superscript = true; });
+  if(((flags & i32(32)) != i32(0)), { opts.enable_mark = true; });
+  if(((flags & i32(64)) != i32(0)), { opts.enable_math = true; });
+  if(((flags & i32(128)) != i32(0)), { opts.enable_emoji = true; });
+  if(((flags & i32(256)) != i32(0)), { opts.enable_wikilink = true; });
+  if(((flags & i32(512)) != i32(0)), { opts.enable_critic = true; });
+  if(((flags & i32(1024)) != i32(0)), { opts.enable_abbr = true; });
+  if(((flags & i32(2048)) != i32(0)), { opts.enable_deflist = true; });
+  if(((flags & i32(4096)) != i32(0)), { opts.enable_admonition = true; });
+  if(((flags & i32(8192)) != i32(0)), { opts.enable_callout = true; });
+  if(((flags & i32(16384)) != i32(0)), { opts.enable_footnote = true; });
+  if(((flags & i32(32768)) != i32(0)), { opts.enable_source_map = true; });
+  if(((flags & i32(65536)) != i32(0)), { opts.breaks = true; });
+  if(((flags & i32(131072)) != i32(0)), { opts.xhtml_out = true; });
 
   // Render
   result := markdown_to_html(input, (&opts));

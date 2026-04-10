@@ -12,7 +12,7 @@
 // Re-export the Emscripten module loader
 const createMarkdownYo =
   typeof require !== "undefined"
-    ? require("./markdown_yo_demo.js")
+    ? require("./markdown_yo_wasm_api.js")
     : undefined;
 
 /**
@@ -21,6 +21,22 @@ const createMarkdownYo =
  * @property {boolean} [commonmark=false] - Use CommonMark-compliant parsing
  * @property {boolean} [html=false] - Allow raw HTML tags in output
  * @property {boolean} [typographer=false] - Enable typographic replacements
+ * @property {boolean} [subscript=false] - Enable ~subscript~ syntax
+ * @property {boolean} [superscript=false] - Enable ^superscript^ syntax
+ * @property {boolean} [mark=false] - Enable ==highlight== syntax
+ * @property {boolean} [math=false] - Enable $inline$ and $$block$$ math
+ * @property {boolean} [emoji=false] - Enable :emoji: shortcodes
+ * @property {boolean} [wikilink=false] - Enable [[wikilinks]]
+ * @property {boolean} [critic=false] - Enable critic markup ({++add++}, {--del--}, etc.)
+ * @property {boolean} [abbr=false] - Enable abbreviations (*[abbr]: expansion)
+ * @property {boolean} [deflist=false] - Enable definition lists (Term + : Definition)
+ * @property {boolean} [admonition=false] - Enable admonition blocks (!!! type title)
+ * @property {boolean} [callout=false] - Enable callout blocks (> [!type] title)
+ * @property {boolean} [footnote=false] - Enable footnotes ([^id] refs and ^[inline])
+ * @property {boolean} [sourceMap=false] - Emit data-source-line attributes on block elements
+ * @property {boolean} [breaks=false] - Convert newlines in paragraphs to <br>
+ * @property {boolean} [xhtmlOut=false] - Self-close tags as <br /> instead of <br>
+ * @property {boolean} [fullFeatures=false] - Enable all optional features
  */
 
 /**
@@ -41,6 +57,21 @@ function buildFlags(options) {
   if (options.commonmark) flags |= 1;
   if (options.html) flags |= 2;
   if (options.typographer) flags |= 4;
+  if (options.subscript || options.fullFeatures) flags |= 8;
+  if (options.superscript || options.fullFeatures) flags |= 16;
+  if (options.mark || options.fullFeatures) flags |= 32;
+  if (options.math || options.fullFeatures) flags |= 64;
+  if (options.emoji || options.fullFeatures) flags |= 128;
+  if (options.wikilink || options.fullFeatures) flags |= 256;
+  if (options.critic || options.fullFeatures) flags |= 512;
+  if (options.abbr || options.fullFeatures) flags |= 1024;
+  if (options.deflist || options.fullFeatures) flags |= 2048;
+  if (options.admonition || options.fullFeatures) flags |= 4096;
+  if (options.callout || options.fullFeatures) flags |= 8192;
+  if (options.footnote || options.fullFeatures) flags |= 16384;
+  if (options.sourceMap) flags |= 32768;
+  if (options.breaks) flags |= 65536;
+  if (options.xhtmlOut) flags |= 131072;
   return flags;
 }
 
@@ -52,6 +83,7 @@ function buildFlags(options) {
  *
  * @param {Object} [wasmOptions] - Options passed to the Emscripten module loader
  * @param {string} [wasmOptions.locateFile] - Custom path resolver for .wasm file
+ * @param {RenderOptions} [defaultOptions] - Default rendering options applied to every render() call
  * @returns {Promise<MarkdownRenderer>}
  *
  * @example
@@ -63,19 +95,24 @@ function buildFlags(options) {
  * // => <p><strong>bold</strong></p>
  *
  * console.log(md.render("# Title", { commonmark: true, html: true }));
+ *
+ * // Set default options once — applied to all render() calls
+ * const md2 = await createRenderer(null, { html: true, fullFeatures: true });
+ * console.log(md2.render("H~2~O"));
+ * // => <p>H<sub>2</sub>O</p>
  * ```
  */
-async function createRenderer(wasmOptions) {
+async function createRenderer(wasmOptions, defaultOptions) {
   let loader;
   if (createMarkdownYo) {
     loader = createMarkdownYo;
   } else {
     // ESM / browser dynamic import
-    const mod = await import("./markdown_yo_demo.js");
+    const mod = await import("./markdown_yo_wasm_api.js");
     loader = mod.default || mod.createMarkdownYo || mod;
   }
 
-  const Module = await loader(wasmOptions || {});
+  let wasmModule = await loader(wasmOptions || {});
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
@@ -87,25 +124,28 @@ async function createRenderer(wasmOptions) {
      * @returns {string} The rendered HTML
      */
     render(markdown, options) {
+      const merged = defaultOptions
+        ? { ...defaultOptions, ...options }
+        : options;
       const inputBytes = encoder.encode(markdown);
-      const inputPtr = Module._malloc(inputBytes.length);
+      const inputPtr = wasmModule._malloc(inputBytes.length);
       try {
-        Module.HEAPU8.set(inputBytes, inputPtr);
-        const flags = buildFlags(options);
-        const resultPtr = Module._wasm_render(
+        wasmModule.HEAPU8.set(inputBytes, inputPtr);
+        const flags = buildFlags(merged);
+        const resultPtr = wasmModule._wasm_render(
           inputPtr,
           inputBytes.length,
           flags,
         );
-        const resultLen = Module._wasm_result_len();
-        const resultBytes = Module.HEAPU8.slice(
+        const resultLen = wasmModule._wasm_result_len();
+        const resultBytes = wasmModule.HEAPU8.slice(
           resultPtr,
           resultPtr + resultLen,
         );
-        Module._wasm_free(resultPtr);
+        wasmModule._wasm_free(resultPtr);
         return decoder.decode(resultBytes);
       } finally {
-        Module._free(inputPtr);
+        wasmModule._free(inputPtr);
       }
     },
 
@@ -115,7 +155,7 @@ async function createRenderer(wasmOptions) {
      */
     destroy() {
       // Emscripten modules don't have a standard destroy, but we clear the ref
-      Module = null;
+      wasmModule = null;
     },
   };
 }

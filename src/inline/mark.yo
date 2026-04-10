@@ -1,0 +1,86 @@
+// markdown_yo — Inline mark/highlight marker rule
+//
+// Handles == markers for <mark>: ==highlighted text==
+// Uses emphasis-style flanking rules and delimiter pair resolution.
+// Minimum 2 consecutive = signs to open/close.
+
+{ ArrayList } :: import "std/collections/array_list";
+{ InlineState, InlineToken } :: import "./state.yo";
+{ Delimiter } :: import "../types.yo";
+{ is_white_space, is_punct_char } :: import "../common/utils.yo";
+
+inline_mark :: (fn(state: *(InlineState)) -> bool)({
+  (pos : i32) = state.*.pos;
+  if((pos >= state.*.pos_max), { return false; });
+
+  (ch : u8) = (state.*.src_ptr &+ usize(pos)).*;
+  if((i32(ch) != i32(0x3D)), { return false; });
+
+  // Count consecutive =
+  (count : i32) = i32(0);
+  (p : i32) = pos;
+  while ((p < state.*.pos_max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x3D))), {
+    count = (count + i32(1));
+    p = (p + i32(1));
+  };
+
+  if((count < i32(2)), { return false; });
+
+  // Flanking rules (same as emphasis)
+  (char_before : i32) = cond(
+    (pos > i32(0)) => i32((state.*.src_ptr &+ usize((pos - i32(1)))).*),
+    true => i32(0x20)
+  );
+  (char_after : i32) = cond(
+    (p < state.*.pos_max) => i32((state.*.src_ptr &+ usize(p)).*),
+    true => i32(0x20)
+  );
+
+  (is_last_ws : bool) = is_white_space(char_before);
+  (is_last_punct : bool) = is_punct_char(char_before);
+  (is_next_ws : bool) = is_white_space(char_after);
+  (is_next_punct : bool) = is_punct_char(char_after);
+
+  // Left-flanking delimiter run
+  (can_open : bool) = !(is_next_ws);
+  if(is_next_punct, {
+    if((!(is_last_ws) && !(is_last_punct)), {
+      can_open = false;
+    });
+  });
+
+  // Right-flanking delimiter run
+  (can_close : bool) = !(is_last_ws);
+  if(is_last_punct, {
+    if((!(is_next_ws) && !(is_next_punct)), {
+      can_close = false;
+    });
+  });
+
+  if((!(can_open) && !(can_close)), { return false; });
+
+  state.*.push_pending();
+
+  // Emit one token for the entire run, one delimiter with full count.
+  // Rendering trims consumed chars from the inner edge, leaving any
+  // odd remainder on the outer edge (correct for both openers and closers).
+  _ := state.*.tokens.push(InlineToken.text(pos, p, state.*.level));
+  (tok_idx : i32) = (i32(state.*.tokens.len()) - i32(1));
+
+  _ := state.*.delimiters.push(Delimiter(
+    marker: u8(0x3D),
+    length: count,
+    token_idx: tok_idx,
+    end: i32(-1),
+    jump: i32(0),
+    open: can_open,
+    close: can_close
+  ));
+
+  state.*.pos = p;
+  state.*.pending_start = state.*.pos;
+  state.*.pending_end = state.*.pos;
+  true
+});
+
+export inline_mark;

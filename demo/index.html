@@ -5,18 +5,43 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>markdown_yo — Live Demo</title>
   <link rel="stylesheet" href="style.css">
+  <!-- Syntax highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github.min.css" media="(prefers-color-scheme: light)">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/styles/github-dark.min.css" media="(prefers-color-scheme: dark)">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.10.0/highlight.min.js"></script>
 </head>
 <body>
   <header>
     <h1>markdown_yo</h1>
     <span class="subtitle">Fast Markdown → HTML, powered by WebAssembly</span>
-    <div class="toolbar">
-      <label><input type="checkbox" id="opt-commonmark"> CommonMark</label>
-      <label><input type="checkbox" id="opt-html"> HTML tags</label>
-      <label><input type="checkbox" id="opt-typographer"> Typographer</label>
-      <span id="render-time" class="render-time"></span>
-    </div>
+    <span id="render-time" class="render-time"></span>
   </header>
+  <div class="options-bar">
+    <div class="option-group">
+      <span class="group-label">Core</span>
+      <label><input type="checkbox" id="opt-html" checked> HTML</label>
+      <label><input type="checkbox" id="opt-typographer"> Typographer</label>
+      <label><input type="checkbox" id="opt-breaks"> Breaks</label>
+    </div>
+    <div class="option-group">
+      <span class="group-label">Inline</span>
+      <label><input type="checkbox" id="opt-subscript" checked> Sub</label>
+      <label><input type="checkbox" id="opt-superscript" checked> Sup</label>
+      <label><input type="checkbox" id="opt-mark" checked> Mark</label>
+      <label><input type="checkbox" id="opt-math" checked> Math</label>
+      <label><input type="checkbox" id="opt-emoji" checked> Emoji</label>
+      <label><input type="checkbox" id="opt-wikilink"> Wikilink</label>
+      <label><input type="checkbox" id="opt-critic"> Critic</label>
+    </div>
+    <div class="option-group">
+      <span class="group-label">Block</span>
+      <label><input type="checkbox" id="opt-abbr" checked> Abbr</label>
+      <label><input type="checkbox" id="opt-deflist" checked> DefList</label>
+      <label><input type="checkbox" id="opt-footnote" checked> Footnote</label>
+      <label><input type="checkbox" id="opt-admonition" checked> Admonition</label>
+      <label><input type="checkbox" id="opt-callout" checked> Callout</label>
+    </div>
+  </div>
   <main>
     <div class="pane editor-pane">
       <div class="pane-header">Markdown</div>
@@ -28,7 +53,16 @@
     </div>
   </main>
   <div id="loading" class="loading">Loading WebAssembly…</div>
-  <script src="markdown_yo_demo.js"></script>
+  <script src="markdown_yo_wasm_api.js"></script>
+  <script>
+    // MathJax configuration — load after page, render on demand
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] },
+      options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'code'] },
+      startup: { typeset: false }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -1,0 +1,236 @@
+Paragraph
+.
+Hello world
+.
+<p data-source-line="1">Hello world</p>
+.
+
+Heading
+.
+# Heading 1
+.
+<h1 data-source-line="1">Heading 1</h1>
+.
+
+Multiple headings
+.
+# H1
+
+## H2
+
+### H3
+.
+<h1 data-source-line="1">H1</h1>
+<h2 data-source-line="3">H2</h2>
+<h3 data-source-line="5">H3</h3>
+.
+
+Setext heading
+.
+Heading
+=======
+.
+<h1 data-source-line="1">Heading</h1>
+.
+
+Horizontal rule
+.
+---
+.
+<hr data-source-line="1">
+.
+
+Blockquote
+.
+> blockquote text
+.
+<blockquote data-source-line="1">
+<p data-source-line="1">blockquote text</p>
+</blockquote>
+.
+
+Fenced code block
+.
+```js
+var x = 1;
+```
+.
+<pre data-source-line="1"><code class="language-js">var x = 1;
+</code></pre>
+.
+
+Indented code block
+.
+    code line 1
+    code line 2
+.
+<pre data-source-line="1"><code>code line 1
+code line 2
+</code></pre>
+.
+
+Tight unordered list
+.
+- item 1
+- item 2
+- item 3
+.
+<ul data-source-line="1">
+<li>item 1</li>
+<li>item 2</li>
+<li>item 3</li>
+</ul>
+.
+
+Tight ordered list
+.
+1. first
+2. second
+3. third
+.
+<ol data-source-line="1">
+<li>first</li>
+<li>second</li>
+<li>third</li>
+</ol>
+.
+
+Loose unordered list
+.
+- item 1
+
+- item 2
+
+- item 3
+.
+<ul data-source-line="1">
+<li>
+<p data-source-line="1">item 1</p>
+</li>
+<li>
+<p data-source-line="3">item 2</p>
+</li>
+<li>
+<p data-source-line="5">item 3</p>
+</li>
+</ul>
+.
+
+Loose ordered list
+.
+1. first
+
+2. second
+.
+<ol data-source-line="1">
+<li>
+<p data-source-line="1">first</p>
+</li>
+<li>
+<p data-source-line="3">second</p>
+</li>
+</ol>
+.
+
+Table
+.
+| A | B |
+|---|---|
+| 1 | 2 |
+.
+<table data-source-line="1">
+<thead>
+<tr>
+<th>A</th>
+<th>B</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>2</td>
+</tr>
+</tbody>
+</table>
+.
+
+Mixed blocks
+.
+# Title
+
+Paragraph here.
+
+- item a
+- item b
+
+> quote
+
+---
+.
+<h1 data-source-line="1">Title</h1>
+<p data-source-line="3">Paragraph here.</p>
+<ul data-source-line="5">
+<li>item a</li>
+<li>item b</li>
+</ul>
+<blockquote data-source-line="8">
+<p data-source-line="8">quote</p>
+</blockquote>
+<hr data-source-line="10">
+.
+
+Ordered list with start
+.
+3. three
+4. four
+.
+<ol data-source-line="1" start="3">
+<li>three</li>
+<li>four</li>
+</ol>
+.
+
+Nested blockquote
+.
+> outer
+>
+> > inner
+.
+<blockquote data-source-line="1">
+<p data-source-line="1">outer</p>
+<blockquote data-source-line="3">
+<p data-source-line="3">inner</p>
+</blockquote>
+</blockquote>
+.
+
+Nested list
+.
+- a
+  - b
+  - c
+- d
+.
+<ul data-source-line="1">
+<li>a
+<ul data-source-line="2">
+<li>b</li>
+<li>c</li>
+</ul>
+</li>
+<li>d</li>
+</ul>
+.
+
+Multiple paragraphs
+.
+First paragraph.
+
+Second paragraph.
+
+Third paragraph.
+.
+<p data-source-line="1">First paragraph.</p>
+<p data-source-line="3">Second paragraph.</p>
+<p data-source-line="5">Third paragraph.</p>
+.

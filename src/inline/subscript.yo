@@ -1,0 +1,101 @@
+// markdown_yo — Inline subscript marker rule
+//
+// Handles single ~ markers for subscript: ~text~
+// Must not conflict with ~~ strikethrough.
+// No unescaped spaces/newlines inside subscript content.
+// Backslash escapes: \X → X for ANY character X (including spaces).
+// So ~foo\ bar~ is valid (escaped space) but ~foo bar~ is not.
+
+open import "std/string";
+{ ArrayList } :: import "std/collections/array_list";
+{ InlineState, InlineToken } :: import "./state.yo";
+{ InlineType } :: import "../types.yo";
+
+inline_subscript :: (fn(state: *(InlineState)) -> bool)({
+  (pos : i32) = state.*.pos;
+  (max : i32) = state.*.pos_max;
+  if((pos >= max), { return false; });
+
+  (ch : u8) = (state.*.src_ptr &+ usize(pos)).*;
+  if((i32(ch) != i32(0x7E)), { return false; });
+
+  // Must be exactly one tilde — if next char is also ~, it's strikethrough
+  if((((pos + i32(1)) < max) && (i32((state.*.src_ptr &+ usize((pos + i32(1)))).*) == i32(0x7E))), {
+    return false;
+  });
+
+  (content_start : i32) = (pos + i32(1));
+  if((content_start >= max), { return false; });
+
+  // Scan forward for closing ~.
+  // \X skips next char (any char, including space/newline).
+  // Unescaped space or newline → reject.
+  (p : i32) = content_start;
+  (found : bool) = false;
+  (has_escapes : bool) = false;
+  while ((p < max) && !(found)), {
+    (c : u8) = (state.*.src_ptr &+ usize(p)).*;
+    cond(
+      (i32(c) == i32(0x5C)) => {
+        if(((p + i32(1)) < max), {
+          has_escapes = true;
+          p = (p + i32(2));
+        }, {
+          p = (p + i32(1));
+        });
+      },
+      (i32(c) == i32(0x7E)) => {
+        found = true;
+      },
+      ((i32(c) == i32(0x20)) || (i32(c) == i32(0x0A))) => {
+        p = max;
+      },
+      true => {
+        p = (p + i32(1));
+      }
+    );
+  };
+
+  if(!(found), { return false; });
+  if((p == content_start), { return false; });
+
+  state.*.push_pending();
+
+  _ := state.*.tokens.push(InlineToken.simple(.SubscriptOpen, i32(1), state.*.level));
+  state.*.level = (state.*.level + i32(1));
+
+  // Emit content — unescape \X → X for any character X
+  if(has_escapes, {
+    (buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize((p - content_start)));
+    (ci : i32) = content_start;
+    while (ci < p), {
+      (cc : u8) = (state.*.src_ptr &+ usize(ci)).*;
+      if(((i32(cc) == i32(0x5C)) && ((ci + i32(1)) < p)), {
+        _ := buf.push((state.*.src_ptr &+ usize((ci + i32(1)))).*);
+        ci = (ci + i32(2));
+      }, {
+        _ := buf.push(cc);
+        ci = (ci + i32(1));
+      });
+    };
+    (stored_idx : i32) = state.*.store_string(String.from_bytes(buf));
+    _ := state.*.tokens.push(
+      InlineToken(type_name: .Text, start: content_start, end: p, nesting: i32(0), level: state.*.level,
+                  info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
+                  markup_char: u8(0), markup_len: u8(0), block: false, hidden: false,
+                  content_idx: stored_idx, href_idx: i32(-1), title_idx: i32(-1))
+    );
+  }, {
+    _ := state.*.tokens.push(InlineToken.text_special(content_start, p, state.*.level));
+  });
+
+  state.*.level = (state.*.level - i32(1));
+  _ := state.*.tokens.push(InlineToken.simple(.SubscriptClose, i32(-1), state.*.level));
+
+  state.*.pos = (p + i32(1));
+  state.*.pending_start = state.*.pos;
+  state.*.pending_end = state.*.pos;
+  true
+});
+
+export inline_subscript;

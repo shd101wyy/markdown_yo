@@ -1,0 +1,150 @@
+wikilink — basic
+.
+[[page]]
+.
+<p><a href="page" class="wikilink">page</a></p>
+.
+
+wikilink — with display text
+.
+[[page|custom text]]
+.
+<p><a href="page" class="wikilink">custom text</a></p>
+.
+
+wikilink — in surrounding text
+.
+see [[page]] for details
+.
+<p>see <a href="page" class="wikilink">page</a> for details</p>
+.
+
+wikilink — with spaces in target
+.
+[[my page]]
+.
+<p><a href="my page" class="wikilink">my page</a></p>
+.
+
+wikilink — with spaces and display text
+.
+[[my page|click here]]
+.
+<p><a href="my page" class="wikilink">click here</a></p>
+.
+
+wikilink — empty not a wikilink
+.
+[[]]
+.
+<p>[[]]</p>
+.
+
+wikilink — with path
+.
+[[folder/page]]
+.
+<p><a href="folder/page" class="wikilink">folder/page</a></p>
+.
+
+wikilink — with anchor
+.
+[[page#section]]
+.
+<p><a href="page#section" class="wikilink">page#section</a></p>
+.
+
+wikilink — with path and anchor
+.
+[[folder/page#section]]
+.
+<p><a href="folder/page#section" class="wikilink">folder/page#section</a></p>
+.
+
+wikilink — in emphasis
+.
+*[[page]]*
+.
+<p><em><a href="page" class="wikilink">page</a></em></p>
+.
+
+wikilink — in strong
+.
+**[[page]]**
+.
+<p><strong><a href="page" class="wikilink">page</a></strong></p>
+.
+
+wikilink — HTML escaping in href
+.
+[[a&b|c<d]]
+.
+<p><a href="a&amp;b" class="wikilink">c&lt;d</a></p>
+.
+
+wikilink — multiple on same line
+.
+[[page]] and [[other|link text]]
+.
+<p><a href="page" class="wikilink">page</a> and <a href="other" class="wikilink">link text</a></p>
+.
+
+wikilink — in heading
+.
+# Heading with [[link]]
+.
+<h1>Heading with <a href="link" class="wikilink">link</a></h1>
+.
+
+wikilink — in list item
+.
+- item [[link]]
+.
+<ul>
+<li>item <a href="link" class="wikilink">link</a></li>
+</ul>
+.
+
+wikilink — not in code span
+.
+`[[not parsed]]`
+.
+<p><code>[[not parsed]]</code></p>
+.
+
+wikilink — multiline rejected
+.
+[[multi
+line]]
+.
+<p>[[multi
+line]]</p>
+.
+
+wikilink — escaped opening bracket
+.
+\[[not a wikilink]]
+.
+<p>[[not a wikilink]]</p>
+.
+
+wikilink — single bracket not wikilink
+.
+[page]
+.
+<p>[page]</p>
+.
+
+wikilink — pipe with empty display
+.
+[[target|]]
+.
+<p><a href="target" class="wikilink"></a></p>
+.
+
+wikilink — pipe with empty href
+.
+[[|display]]
+.
+<p><a href="" class="wikilink">display</a></p>
+.

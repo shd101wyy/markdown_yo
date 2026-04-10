@@ -100,19 +100,19 @@ jobs:
         with:
           version: "4.0.12"
 
-      - name: Build WASM demo
-        run: yo build demo
+      - name: Build WASM API
+        run: yo build wasm_api
 
       - name: Prepare npm package
         run: |
-          cp yo-out/wasm32-emscripten/bin/markdown_yo_demo.js  npm/markdown_yo_demo.js
-          cp yo-out/wasm32-emscripten/bin/markdown_yo_demo.wasm npm/markdown_yo_demo.wasm
+          cp yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.js  npm/markdown_yo_wasm_api.js
+          cp yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.wasm npm/markdown_yo_wasm_api.wasm
           cp docs/WASM.md npm/README.md
 
       - name: Package WASM release artifact
         run: |
           tar czf markdown_yo-wasm.tar.gz -C npm \
-            markdown_yo_demo.js markdown_yo_demo.wasm
+            markdown_yo_wasm_api.js markdown_yo_wasm_api.wasm
           echo "ASSET=markdown_yo-wasm.tar.gz" >> $GITHUB_ENV
 
       - name: Upload WASM artifact

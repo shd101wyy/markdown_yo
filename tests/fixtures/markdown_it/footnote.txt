@@ -1,0 +1,154 @@
+Basic footnote
+.
+This has a footnote[^1].
+
+[^1]: Footnote content here
+.
+<p>This has a footnote<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup>.</p>
+<hr class="footnotes-sep">
+<section class="footnotes">
+<ol class="footnotes-list">
+<li id="fn1" class="footnote-item"><p>Footnote content here <a href="#fnref1" class="footnote-backref">↩︎</a></p>
+</li>
+</ol>
+</section>
+.
+
+Multiple footnotes
+.
+A[^1] and B[^2].
+
+[^1]: First footnote
+
+[^2]: Second footnote
+.
+<p>A<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup> and B<sup class="footnote-ref"><a href="#fn2" id="fnref2">[2]</a></sup>.</p>
+<hr class="footnotes-sep">
+<section class="footnotes">
+<ol class="footnotes-list">
+<li id="fn1" class="footnote-item"><p>First footnote <a href="#fnref1" class="footnote-backref">↩︎</a></p>
+</li>
+<li id="fn2" class="footnote-item"><p>Second footnote <a href="#fnref2" class="footnote-backref">↩︎</a></p>
+</li>
+</ol>
+</section>
+.
+
+Duplicate references
+.
+A[^1] and B[^1].
+
+[^1]: Note
+.
+<p>A<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup> and B<sup class="footnote-ref"><a href="#fn1" id="fnref1:1">[1:1]</a></sup>.</p>
+<hr class="footnotes-sep">
+<section class="footnotes">
+<ol class="footnotes-list">
+<li id="fn1" class="footnote-item"><p>Note <a href="#fnref1" class="footnote-backref">↩︎</a> <a href="#fnref1:1" class="footnote-backref">↩︎</a></p>
+</li>
+</ol>
+</section>
+.
+
+Forward references
+.
+Forward ref[^2] then[^1].
+
+[^1]: First
+
+[^2]: Second
+.
+<p>Forward ref<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup> then<sup class="footnote-ref"><a href="#fn2" id="fnref2">[2]</a></sup>.</p>
+<hr class="footnotes-sep">
+<section class="footnotes">
+<ol class="footnotes-list">
+<li id="fn1" class="footnote-item"><p>Second <a href="#fnref1" class="footnote-backref">↩︎</a></p>
+</li>
+<li id="fn2" class="footnote-item"><p>First <a href="#fnref2" class="footnote-backref">↩︎</a></p>
+</li>
+</ol>
+</section>
+.
+
+Inline footnote
+.
+Inline^[This is inline] here.
+.
+<p>Inline<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup> here.</p>
+<hr class="footnotes-sep">
+<section class="footnotes">
+<ol class="footnotes-list">
+<li id="fn1" class="footnote-item"><p>This is inline <a href="#fnref1" class="footnote-backref">↩︎</a></p>
+</li>
+</ol>
+</section>
+.
+
+Mixed inline and regular footnotes
+.
+Inline^[This is inline] and ref[^1].
+
+[^1]: Regular note
+.
+<p>Inline<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup> and ref<sup class="footnote-ref"><a href="#fn2" id="fnref2">[2]</a></sup>.</p>
+<hr class="footnotes-sep">
+<section class="footnotes">
+<ol class="footnotes-list">
+<li id="fn1" class="footnote-item"><p>This is inline <a href="#fnref1" class="footnote-backref">↩︎</a></p>
+</li>
+<li id="fn2" class="footnote-item"><p>Regular note <a href="#fnref2" class="footnote-backref">↩︎</a></p>
+</li>
+</ol>
+</section>
+.
+
+Multi-paragraph footnote
+.
+Text[^1].
+
+[^1]: First paragraph.
+
+    Second paragraph.
+.
+<p>Text<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup>.</p>
+<hr class="footnotes-sep">
+<section class="footnotes">
+<ol class="footnotes-list">
+<li id="fn1" class="footnote-item"><p>First paragraph.</p>
+<p>Second paragraph. <a href="#fnref1" class="footnote-backref">↩︎</a></p>
+</li>
+</ol>
+</section>
+.
+
+Unreferenced footnote definition is not rendered
+.
+Text here.
+
+[^1]: This should not appear
+.
+<p>Text here.</p>
+.
+
+No footnote without definition
+.
+This is not a footnote[^1].
+.
+<p>This is not a footnote[^1].</p>
+.
+
+Footnote with emphasis in content
+.
+Text[^1].
+
+[^1]: This has **bold** and *italic*.
+.
+<p>Text<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup>.</p>
+<hr class="footnotes-sep">
+<section class="footnotes">
+<ol class="footnotes-list">
+<li id="fn1" class="footnote-item"><p>This has <strong>bold</strong> and <em>italic</em>. <a href="#fnref1" class="footnote-backref">↩︎</a></p>
+</li>
+</ol>
+</section>
+.

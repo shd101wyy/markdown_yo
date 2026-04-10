@@ -1,0 +1,73 @@
+Inline math
+.
+$1+1 = 2$
+.
+<p><span class="mathjax-exps">$1+1 = 2$</span></p>
+.
+
+Block math (inline context)
+.
+$$1+1 = 2$$
+.
+<p><div class="mathjax-exps">$$1+1 = 2$$</div></p>
+.
+
+Block math (multiline)
+.
+$$
+1+1 = 2
+$$
+.
+<p><div class="mathjax-exps">$$
+1+1 = 2
+$$</div></p>
+.
+
+Inline math with LaTeX commands
+.
+$\alpha + \beta$
+.
+<p><span class="mathjax-exps">$\alpha + \beta$</span></p>
+.
+
+Not math: space after opening $
+.
+$ not math $
+.
+<p>$ not math $</p>
+.
+
+Not math: space before closing $
+.
+$not math $
+.
+<p><span class="mathjax-exps">$not math $</span></p>
+.
+
+Not math: no content
+.
+$$
+.
+<p>$$</p>
+.
+
+Inline math with escaped dollar
+.
+$a \$ b$
+.
+<p><span class="mathjax-exps">$a \$ b$</span></p>
+.
+
+Adjacent math expressions
+.
+$a$ and $b$
+.
+<p><span class="mathjax-exps">$a$</span> and <span class="mathjax-exps">$b$</span></p>
+.
+
+Math in emphasis
+.
+*$a$*
+.
+<p><em><span class="mathjax-exps">$a$</span></em></p>
+.

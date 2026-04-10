@@ -410,8 +410,9 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
     (closer : Delimiter) = state.*.delimiters(usize(closer_idx));
     (is_em_marker : bool) = ((i32(closer.marker) == i32(0x2A)) || (i32(closer.marker) == i32(0x5F)));
     (is_strike : bool) = (i32(closer.marker) == i32(0x7E));
+    (is_mark : bool) = (i32(closer.marker) == i32(0x3D));
 
-    if((closer.close && (is_em_marker || is_strike)), {
+    if((closer.close && ((is_em_marker || is_strike) || is_mark)), {
       (keep_matching : bool) = (closer.length > i32(0));
       while keep_matching, {
         (opener_idx : i32) = (closer_idx - i32(1));
@@ -429,6 +430,10 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
                 });
               });
             });
+            // Mark/strikethrough require at least 2 chars to pair
+            if(((is_mark || is_strike) && ((opener.length < i32(2)) || (closer.length < i32(2)))), {
+              skip = true;
+            });
             if(!(skip), {
               found = true;
             }, {
@@ -442,11 +447,12 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
         if(found, {
           (opener : Delimiter) = state.*.delimiters(usize(opener_idx));
           (consume : i32) = cond(
-            is_strike => i32(2),
+            (is_strike || is_mark) => i32(2),
             ((opener.length >= i32(2)) && (closer.length >= i32(2))) => i32(2),
             true => i32(1)
           );
           (pt : i32) = cond(
+            is_mark => i32(4),
             is_strike => i32(3),
             (consume == i32(2)) => i32(2),
             true => i32(1)
@@ -728,7 +734,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
     if((ref_start >= i32(0)), {
       (label : String) = _normalize_label(state.*.src_ptr, ref_start, ref_end);
       if((label.len() > usize(0)), {
-        (maybe_ref : Option(Reference)) = state.*.env.*.references.get(label);
+        (maybe_ref : Option(Reference)) = state.*.env.references.get(label);
         match(maybe_ref,
           .Some(r) => {
             ref_href = r.href;

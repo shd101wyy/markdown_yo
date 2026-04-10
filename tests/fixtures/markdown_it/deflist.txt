@@ -1,0 +1,337 @@
+Basic definition
+.
+Term 1
+:   Definition 1
+.
+<dl>
+<dt>Term 1</dt>
+<dd>Definition 1</dd>
+</dl>
+.
+
+Multiple definitions
+.
+Term 1
+:   Definition 1a
+:   Definition 1b
+.
+<dl>
+<dt>Term 1</dt>
+<dd>Definition 1a</dd>
+<dd>Definition 1b</dd>
+</dl>
+.
+
+Multiple terms and definitions
+.
+Term 1
+:   Definition 1
+
+Term 2
+:   Definition 2a
+:   Definition 2b
+.
+<dl>
+<dt>Term 1</dt>
+<dd>Definition 1</dd>
+<dt>Term 2</dt>
+<dd>Definition 2a</dd>
+<dd>Definition 2b</dd>
+</dl>
+.
+
+Loose definition (blank line before colon)
+.
+Term 1
+
+:   Definition 1
+.
+<dl>
+<dt>Term 1</dt>
+<dd>Definition 1</dd>
+</dl>
+.
+
+Multi-paragraph
+.
+Term 1
+
+:   Definition 1
+
+    Second paragraph.
+.
+<dl>
+<dt>Term 1</dt>
+<dd>
+<p>Definition 1</p>
+<p>Second paragraph.</p>
+</dd>
+</dl>
+.
+
+Inline formatting in term
+.
+**Bold term**
+:   Definition
+.
+<dl>
+<dt><strong>Bold term</strong></dt>
+<dd>Definition</dd>
+</dl>
+.
+
+Inline formatting in definition
+.
+Term
+:   Definition with *emphasis* and **bold**
+.
+<dl>
+<dt>Term</dt>
+<dd>Definition with <em>emphasis</em> and <strong>bold</strong></dd>
+</dl>
+.
+
+Lazy continuation
+.
+Term
+:   Definition
+lazy continuation
+.
+<dl>
+<dt>Term</dt>
+<dd>Definition
+lazy continuation</dd>
+</dl>
+.
+
+Tab after colon
+.
+Term
+:	Definition
+.
+<dl>
+<dt>Term</dt>
+<dd>Definition</dd>
+</dl>
+.
+
+Tilde marker
+.
+Term
+~   Definition
+.
+<dl>
+<dt>Term</dt>
+<dd>Definition</dd>
+</dl>
+.
+
+Nested list in definition
+.
+Term
+:   Definition
+
+    - item 1
+    - item 2
+.
+<dl>
+<dt>Term</dt>
+<dd>
+<p>Definition</p>
+<ul>
+<li>item 1</li>
+<li>item 2</li>
+</ul>
+</dd>
+</dl>
+.
+
+Nested code block
+.
+Term
+:   Definition
+
+        code block
+.
+<dl>
+<dt>Term</dt>
+<dd>
+<p>Definition</p>
+<pre><code>  code block
+</code></pre>
+</dd>
+</dl>
+.
+
+Nested blockquote
+.
+Term
+:   Definition
+
+    > blockquote
+.
+<dl>
+<dt>Term</dt>
+<dd>
+<p>Definition</p>
+<blockquote>
+<p>blockquote</p>
+</blockquote>
+</dd>
+</dl>
+.
+
+Heading after deflist
+.
+Term
+:   Definition
+
+# Heading
+.
+<dl>
+<dt>Term</dt>
+<dd>Definition</dd>
+</dl>
+<h1>Heading</h1>
+.
+
+Empty definition rejected
+.
+Term
+:   
+.
+<p>Term
+:</p>
+.
+
+Bare colon rejected
+.
+Term
+:
+.
+<p>Term
+:</p>
+.
+
+Two terms not deflist
+.
+Term 1
+Term 2
+:   Definition
+.
+<p>Term 1
+Term 2
+:   Definition</p>
+.
+
+Deflist with paragraph before
+.
+Paragraph text.
+
+Term
+:   Definition
+.
+<p>Paragraph text.</p>
+<dl>
+<dt>Term</dt>
+<dd>Definition</dd>
+</dl>
+.
+
+Deflist with paragraph after
+.
+Term
+:   Definition
+
+Paragraph text.
+.
+<dl>
+<dt>Term</dt>
+<dd>Definition</dd>
+</dl>
+<p>Paragraph text.</p>
+.
+
+Mixed tight
+.
+Term 1
+:   Definition 1
+
+Term 2
+:   Definition 2
+.
+<dl>
+<dt>Term 1</dt>
+<dd>Definition 1</dd>
+<dt>Term 2</dt>
+<dd>Definition 2</dd>
+</dl>
+.
+
+Tight multiple defs with blank between terms
+.
+Apple
+:   Red fruit
+
+Orange
+:   Orange fruit
+.
+<dl>
+<dt>Apple</dt>
+<dd>Red fruit</dd>
+<dt>Orange</dt>
+<dd>Orange fruit</dd>
+</dl>
+.
+
+Loose multiple definitions
+.
+Term
+
+:   Definition 1
+
+:   Definition 2
+.
+<dl>
+<dt>Term</dt>
+<dd>
+<p>Definition 1</p>
+</dd>
+<dd>
+<p>Definition 2</p>
+</dd>
+</dl>
+.
+
+Code in definition
+.
+Term
+:   Definition with `code`
+.
+<dl>
+<dt>Term</dt>
+<dd>Definition with <code>code</code></dd>
+</dl>
+.
+
+Link in definition
+.
+Term
+:   [link](http://example.com)
+.
+<dl>
+<dt>Term</dt>
+<dd><a href="http://example.com">link</a></dd>
+</dl>
+.
+
+Link in term
+.
+[Term](http://example.com)
+:   Definition
+.
+<dl>
+<dt><a href="http://example.com">Term</a></dt>
+<dd>Definition</dd>
+</dl>
+.

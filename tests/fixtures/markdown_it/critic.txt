@@ -1,0 +1,177 @@
+Critic Markup — addition
+.
+{++addition++}
+.
+<p><ins>addition</ins></p>
+.
+
+Critic Markup — deletion
+.
+{--deletion--}
+.
+<p><del>deletion</del></p>
+.
+
+Critic Markup — substitution
+.
+{~~old text~>new text~~}
+.
+<p><del>old text</del><ins>new text</ins></p>
+.
+
+Critic Markup — highlight
+.
+{==highlighted text==}
+.
+<p><mark>highlighted text</mark></p>
+.
+
+Critic Markup — comment
+.
+{>>This is a comment<<}
+.
+<p><span style="display:none">This is a comment</span></p>
+.
+
+Critic Markup — all types in one paragraph
+.
+{++added++} and {--removed--} and {~~old~>new~~} and {==marked==} and {>>hidden<<}
+.
+<p><ins>added</ins> and <del>removed</del> and <del>old</del><ins>new</ins> and <mark>marked</mark> and <span style="display:none">hidden</span></p>
+.
+
+Critic Markup — empty content is not valid
+.
+{++++}
+
+{----}
+
+{~~~~}
+
+{====}
+
+{>><<}
+.
+<p>{++++}</p>
+<p>{----}</p>
+<p>{~~~~}</p>
+<p>{====}</p>
+<p>{&gt;&gt;&lt;&lt;}</p>
+.
+
+Critic Markup — multi-line content
+.
+{++line one
+line two++}
+.
+<p><ins>line one
+line two</ins></p>
+.
+
+Critic Markup — no closing marker
+.
+{++unclosed
+
+{--also unclosed
+.
+<p>{++unclosed</p>
+<p>{--also unclosed</p>
+.
+
+Critic Markup — with special characters
+.
+{++<strong>bold</strong>++}
+.
+<p><ins>&lt;strong&gt;bold&lt;/strong&gt;</ins></p>
+.
+
+Critic Markup — HTML entities in content
+.
+{++a &amp; b++}
+.
+<p><ins>a &amp;amp; b</ins></p>
+.
+
+Critic Markup — substitution with empty old text
+.
+{~~>new~~}
+.
+<p>{<s>&gt;new</s>}</p>
+.
+
+Critic Markup — substitution with empty new text
+.
+{~~old~>~~}
+.
+<p><del>old</del><ins></ins></p>
+.
+
+Critic Markup — adjacent critic markups
+.
+{++a++}{--b--}
+.
+<p><ins>a</ins><del>b</del></p>
+.
+
+Critic Markup — nested curly braces in content
+.
+{++text with {braces}++}
+.
+<p><ins>text with {braces}</ins></p>
+.
+
+Critic Markup — critic in emphasis
+.
+*{++added++}*
+.
+<p><em><ins>added</ins></em></p>
+.
+
+Critic Markup — critic in strong
+.
+**{--removed--}**
+.
+<p><strong><del>removed</del></strong></p>
+.
+
+Critic Markup — not triggered without enable
+.
+{++addition++}
+.
+<p>{++addition++}</p>
+.
+
+Critic Markup — mixed with regular text
+.
+Before {++inserted++} middle {--deleted--} after.
+.
+<p>Before <ins>inserted</ins> middle <del>deleted</del> after.</p>
+.
+
+Critic Markup — substitution with special chars
+.
+{~~foo & bar~>baz < qux~~}
+.
+<p><del>foo &amp; bar</del><ins>baz &lt; qux</ins></p>
+.
+
+Critic Markup — multi-line substitution
+.
+{~~old line 1
+old line 2~>new line 1
+new line 2~~}
+.
+<p><del>old line 1
+old line 2</del><ins>new line 1
+new line 2</ins></p>
+.
+
+Critic Markup — incomplete opening
+.
+{+not critic+}
+
+{-not critic-}
+.
+<p>{+not critic+}</p>
+<p>{-not critic-}</p>
+.

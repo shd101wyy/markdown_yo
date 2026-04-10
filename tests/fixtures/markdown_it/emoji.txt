@@ -1,0 +1,134 @@
+basic emoji
+.
+:smile:
+.
+<p>😄</p>
+.
+multiple emoji
+.
+:100: :heart: :fire:
+.
+<p>💯 ❤️ 🔥</p>
+.
+unknown emoji passes through
+.
+:unknown_xyz:
+.
+<p>:unknown_xyz:</p>
+.
+emoji in text
+.
+text :smile: text
+.
+<p>text 😄 text</p>
+.
+emoji in code span
+.
+`:smile:`
+.
+<p><code>:smile:</code></p>
+.
+adjacent emoji
+.
+:smile::heart:
+.
+<p>😄❤️</p>
+.
+emoji with plus
+.
+:+1:
+.
+<p>👍</p>
+.
+emoji with dash
+.
+:e-mail:
+.
+<p>📧</p>
+.
+escaped colon before
+.
+\:smile:
+.
+<p>:smile:</p>
+.
+escaped colon after
+.
+:smile\:
+.
+<p>:smile:</p>
+.
+multiple emoji in line
+.
+a :smile: b :heart: c
+.
+<p>a 😄 b ❤️ c</p>
+.
+emoji in emphasis
+.
+*:smile:*
+.
+<p><em>😄</em></p>
+.
+emoji in strong
+.
+**:smile:**
+.
+<p><strong>😄</strong></p>
+.
+emoji in link text
+.
+[:smile:](url)
+.
+<p><a href="url">😄</a></p>
+.
+colon without closing
+.
+:incomplete
+.
+<p>:incomplete</p>
+.
+empty colons
+.
+::
+.
+<p>::</p>
+.
+colon in url no match
+.
+http://example.com
+.
+<p>http://example.com</p>
+.
+emoji at line start
+.
+:fire: start
+.
+<p>🔥 start</p>
+.
+emoji at line end
+.
+end :fire:
+.
+<p>end 🔥</p>
+.
+emoji in heading
+.
+# :star: Title
+.
+<h1>⭐ Title</h1>
+.
+emoji in list
+.
+- :smile: item
+.
+<ul>
+<li>😄 item</li>
+</ul>
+.
+single char emoji
+.
+a :x: b
+.
+<p>a ❌ b</p>
+.

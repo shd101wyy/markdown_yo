@@ -1,0 +1,36 @@
+Abbreviation with typographer: basic
+.
+*[HTML]: Hyper Text Markup Language
+
+The HTML spec is "great" -- really (c).
+.
+<p>The <abbr title="Hyper Text Markup Language">HTML</abbr> spec is “great” – really ©.</p>
+.
+
+Abbreviation with typographer: multiple abbrs
+.
+*[HTML]: Hyper Text Markup Language
+*[CSS]: Cascading Style Sheets
+
+HTML and CSS are "awesome" (tm).
+.
+<p><abbr title="Hyper Text Markup Language">HTML</abbr> and <abbr title="Cascading Style Sheets">CSS</abbr> are “awesome” ™.</p>
+.
+
+Abbreviation with typographer: no abbr matches still does typographer
+.
+*[HTML]: Hyper Text Markup Language
+
+Just "quotes" -- dashes (c) only.
+.
+<p>Just “quotes” – dashes © only.</p>
+.
+
+Abbreviation with typographer: em-dash
+.
+*[JS]: JavaScript
+
+JS is --- great.
+.
+<p><abbr title="JavaScript">JS</abbr> is — great.</p>
+.

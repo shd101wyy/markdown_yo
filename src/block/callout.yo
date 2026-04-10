@@ -1,0 +1,141 @@
+// markdown_yo — Callout detection for blockquotes
+//
+// Syntax: > [!type]+/- optional title
+// where type is a known callout type (note, tip, warning, etc.)
+// + means foldable open, - means foldable closed, absent means not foldable
+//
+// Output (non-foldable):
+//   <div class="callout" data-callout="TYPE">
+//   <div class="callout-title">TITLE</div>
+//   ...content...
+//   </div>
+//
+// Output (foldable):
+//   <details class="callout" data-callout="TYPE" [open]>
+//   <summary class="callout-title">TITLE</summary>
+//   ...content...
+//   </details>
+
+{ BlockState } :: import "./state.yo";
+
+// Check if line content matches callout pattern: [!type]+/- optional title
+// Returns true if valid callout, with out-params:
+//   type_start, type_end: byte range of the type word
+//   title_start, title_end: byte range of optional title (may be equal = no title)
+//   foldable: 0 = not foldable, 1 = foldable open (+), -1 = foldable closed (-)
+check_callout_marker :: (fn(state: *(BlockState), line: i32,
+                            type_start_out: *(i32), type_end_out: *(i32),
+                            title_start_out: *(i32), title_end_out: *(i32),
+                            foldable_out: *(i32)) -> bool)({
+  (start : i32) = (state.bm(line) + state.ts(line));
+  (max : i32) = state.em(line);
+
+  // Need at least "[!x]"
+  if(((start + i32(4)) > max), { return false; });
+
+  // Check for '[!'
+  if(((state.*.src_ptr &+ usize(start)).* != u8(0x5B)), { return false; });
+  if(((state.*.src_ptr &+ usize((start + i32(1)))).* != u8(0x21)), { return false; });
+
+  // Parse type word (alphanumeric, hyphen, underscore)
+  (pos : i32) = (start + i32(2));
+  (ts : i32) = pos;
+  while ((pos < max) && (
+    (((state.*.src_ptr &+ usize(pos)).* >= u8(0x61)) && ((state.*.src_ptr &+ usize(pos)).* <= u8(0x7A))) ||
+    (((state.*.src_ptr &+ usize(pos)).* >= u8(0x41)) && ((state.*.src_ptr &+ usize(pos)).* <= u8(0x5A))) ||
+    (((state.*.src_ptr &+ usize(pos)).* >= u8(0x30)) && ((state.*.src_ptr &+ usize(pos)).* <= u8(0x39))) ||
+    ((state.*.src_ptr &+ usize(pos)).* == u8(0x2D)) ||
+    ((state.*.src_ptr &+ usize(pos)).* == u8(0x5F))
+  )), {
+    pos = (pos + i32(1));
+  };
+  (te : i32) = pos;
+  if((te == ts), { return false; });
+
+  // Must be followed by ']'
+  if((pos >= max), { return false; });
+  if(((state.*.src_ptr &+ usize(pos)).* != u8(0x5D)), { return false; });
+  pos = (pos + i32(1));
+
+  // Optional foldable marker: + or -
+  (fold : i32) = i32(0);
+  if((pos < max), {
+    (ch : u8) = (state.*.src_ptr &+ usize(pos)).*;
+    if((ch == u8(0x2B)), {
+      fold = i32(1);
+      pos = (pos + i32(1));
+    }, {
+      if((ch == u8(0x2D)), {
+        fold = i32(-1);
+        pos = (pos + i32(1));
+      });
+    });
+  });
+
+  // Optional title after spaces/tabs
+  while ((pos < max) && (((state.*.src_ptr &+ usize(pos)).* == u8(0x20)) || ((state.*.src_ptr &+ usize(pos)).* == u8(0x09)))), {
+    pos = (pos + i32(1));
+  };
+
+  type_start_out.* = ts;
+  type_end_out.* = te;
+  title_start_out.* = pos;
+  // Trim trailing spaces from title
+  (title_end : i32) = max;
+  while (((title_end > pos) && ((state.*.src_ptr &+ usize((title_end - i32(1)))).* == u8(0x20)))), {
+    title_end = (title_end - i32(1));
+  };
+  title_end_out.* = title_end;
+  foldable_out.* = fold;
+  true
+});
+
+// Helper: check if src bytes [start, end) case-insensitively match a literal string.
+_callout_eq_ci :: (fn(src: *(u8), start: i32, end: i32, lit: *(u8), lit_len: i32) -> bool)({
+  if(((end - start) != lit_len), { return false; });
+  (i : i32) = i32(0);
+  while (i < lit_len), {
+    (a : u8) = (src &+ usize((start + i))).*;
+    (b : u8) = (lit &+ usize(i)).*;
+    (al : u8) = cond(((a >= u8(0x41)) && (a <= u8(0x5A))) => (a + u8(0x20)), true => a);
+    (bl : u8) = cond(((b >= u8(0x41)) && (b <= u8(0x5A))) => (b + u8(0x20)), true => b);
+    if((al != bl), { return false; });
+    i = (i + i32(1));
+  };
+  true
+});
+
+// Check if source bytes [start, end) form a known callout type (case-insensitive).
+is_known_callout_type :: (fn(src: *(u8), start: i32, end: i32) -> bool)(
+  (_callout_eq_ci(src, start, end, *(u8)("note"), i32(4))
+   || (_callout_eq_ci(src, start, end, *(u8)("summary"), i32(7))
+   || (_callout_eq_ci(src, start, end, *(u8)("abstract"), i32(8))
+   || (_callout_eq_ci(src, start, end, *(u8)("tldr"), i32(4))
+   || (_callout_eq_ci(src, start, end, *(u8)("info"), i32(4))
+   || (_callout_eq_ci(src, start, end, *(u8)("todo"), i32(4))
+   || (_callout_eq_ci(src, start, end, *(u8)("tip"), i32(3))
+   || (_callout_eq_ci(src, start, end, *(u8)("hint"), i32(4))
+   || (_callout_eq_ci(src, start, end, *(u8)("important"), i32(9))
+   || (_callout_eq_ci(src, start, end, *(u8)("success"), i32(7))
+   || (_callout_eq_ci(src, start, end, *(u8)("check"), i32(5))
+   || (_callout_eq_ci(src, start, end, *(u8)("done"), i32(4))
+   || (_callout_eq_ci(src, start, end, *(u8)("help"), i32(4))
+   || (_callout_eq_ci(src, start, end, *(u8)("question"), i32(8))
+   || (_callout_eq_ci(src, start, end, *(u8)("faq"), i32(3))
+   || (_callout_eq_ci(src, start, end, *(u8)("attention"), i32(9))
+   || (_callout_eq_ci(src, start, end, *(u8)("caution"), i32(7))
+   || (_callout_eq_ci(src, start, end, *(u8)("warning"), i32(7))
+   || (_callout_eq_ci(src, start, end, *(u8)("fail"), i32(4))
+   || (_callout_eq_ci(src, start, end, *(u8)("failure"), i32(7))
+   || (_callout_eq_ci(src, start, end, *(u8)("missing"), i32(7))
+   || (_callout_eq_ci(src, start, end, *(u8)("danger"), i32(6))
+   || (_callout_eq_ci(src, start, end, *(u8)("error"), i32(5))
+   || (_callout_eq_ci(src, start, end, *(u8)("bug"), i32(3))
+   || (_callout_eq_ci(src, start, end, *(u8)("example"), i32(7))
+   || (_callout_eq_ci(src, start, end, *(u8)("cite"), i32(4))
+   || (_callout_eq_ci(src, start, end, *(u8)("quote"), i32(5))
+  )))))))))))))))))))))))))))
+);
+
+export check_callout_marker;
+export is_known_callout_type;

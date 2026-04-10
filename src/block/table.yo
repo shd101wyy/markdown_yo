@@ -317,6 +317,7 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   (cell_buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(128));
 
   // Emit table
+  state.*.renderer.*.set_source_line(start_line);
   state.*.renderer.*.open_table();
 
   // Header row

@@ -674,12 +674,12 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
   );
 
   // Store reference only if not already defined (first definition wins)
-  (existing : Option(Reference)) = state.*.env.*.references.get(label_str);
+  (existing : Option(Reference)) = state.*.env.references.get(label_str);
   match(existing,
     .Some(_) => (),
     .None => {
       (ref : Reference) = Reference(href: dest_str, title: title_str);
-      state.*.env.*.references.set(label_str, ref);
+      state.*.env.references.set(label_str, ref);
     }
   );
 

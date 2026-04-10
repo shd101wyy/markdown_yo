@@ -92,6 +92,93 @@ const suites = [
     opts: "commonmark",
     yoFlags: ["--commonmark"],
   },
+  // Phase 1 extension fixtures
+  {
+    name: "subscript",
+    file: "markdown_it/subscript.txt",
+    opts: {},
+    plugins: ["markdown-it-sub"],
+    yoFlags: ["--subscript"],
+  },
+  {
+    name: "superscript",
+    file: "markdown_it/superscript.txt",
+    opts: {},
+    plugins: ["markdown-it-sup"],
+    yoFlags: ["--superscript"],
+  },
+  {
+    name: "mark",
+    file: "markdown_it/mark.txt",
+    opts: {},
+    plugins: ["markdown-it-mark"],
+    yoFlags: ["--mark"],
+  },
+  {
+    name: "emoji",
+    file: "markdown_it/emoji.txt",
+    opts: {},
+    plugins: [{ module: "markdown-it-emoji", export: "full" }],
+    yoFlags: ["--emoji"],
+  },
+  {
+    name: "wikilink",
+    file: "markdown_it/wikilink.txt",
+    yoOnly: true,
+    yoFlags: ["--wikilink"],
+  },
+  {
+    name: "critic",
+    file: "markdown_it/critic.txt",
+    yoOnly: true,
+    yoFlags: ["--critic"],
+    // Last test "not triggered without enable" uses no flags
+    perTestFlags: {
+      "Critic Markup — not triggered without enable": [],
+    },
+  },
+  {
+    name: "abbr",
+    file: "markdown_it/abbr.txt",
+    yoOnly: true,
+    yoFlags: ["--abbr"],
+  },
+  {
+    name: "abbr_typographer",
+    file: "markdown_it/abbr_typographer.txt",
+    yoOnly: true,
+    yoFlags: ["--abbr", "--typographer"],
+  },
+  {
+    name: "deflist",
+    file: "markdown_it/deflist.txt",
+    yoOnly: true,
+    yoFlags: ["--deflist"],
+  },
+  {
+    name: "admonition",
+    file: "markdown_it/admonition.txt",
+    yoOnly: true,
+    yoFlags: ["--admonition"],
+  },
+  {
+    name: "callout",
+    file: "markdown_it/callout.txt",
+    yoOnly: true,
+    yoFlags: ["--callout"],
+  },
+  {
+    name: "footnote",
+    file: "markdown_it/footnote.txt",
+    yoOnly: true,
+    yoFlags: ["--footnote"],
+  },
+  {
+    name: "source_map",
+    file: "markdown_it/source_map.txt",
+    yoOnly: true,
+    yoFlags: ["--source-map"],
+  },
 ];
 
 function parseFixtures(content) {
@@ -172,6 +259,16 @@ for (const suite of suites) {
   const fixtures = parseFixtures(content);
   const mdInstance =
     typeof suite.opts === "string" ? md(suite.opts) : md(suite.opts);
+  if (suite.plugins) {
+    for (const pluginSpec of suite.plugins) {
+      if (typeof pluginSpec === "string") {
+        mdInstance.use(require(pluginSpec));
+      } else {
+        const mod = require(pluginSpec.module);
+        mdInstance.use(mod[pluginSpec.export]);
+      }
+    }
+  }
 
   let suitePassed = 0,
     suiteFailed = 0,
@@ -179,6 +276,42 @@ for (const suite of suites) {
 
   for (const fix of fixtures) {
     totalTests++;
+
+    // For yoOnly suites, compare Yo output directly against fixture expected
+    if (suite.yoOnly) {
+      const flags =
+        suite.perTestFlags && fix.title in suite.perTestFlags
+          ? suite.perTestFlags[fix.title]
+          : suite.yoFlags;
+      const yoOutput = runYo(fix.input, flags);
+      if (yoOutput === fix.expected) {
+        suitePassed++;
+        totalPassed++;
+        if (verbose) {
+          console.log(`  ✓ ${fix.title}`);
+        }
+      } else {
+        suiteFailed++;
+        totalFailed++;
+        failedTests.push({
+          suite: suite.name,
+          title: fix.title,
+          expected: fix.expected,
+          got: yoOutput,
+        });
+        if (verbose) {
+          console.log(`  ✗ ${fix.title}`);
+          console.log(
+            `    Expected: ${fix.expected.trim().split("\n").slice(0, 3).join("\n    ")}`,
+          );
+          console.log(
+            `    Got:      ${yoOutput.trim().split("\n").slice(0, 3).join("\n    ")}`,
+          );
+        }
+      }
+      continue;
+    }
+
     const jsOutput = mdInstance.render(fix.input);
     const jsMatch = jsOutput === fix.expected;
 

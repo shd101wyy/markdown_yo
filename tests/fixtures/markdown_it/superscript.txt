@@ -1,0 +1,85 @@
+Superscript
+.
+^test^
+.
+<p><sup>test</sup></p>
+.
+
+Superscript should not work without content
+.
+^^
+.
+<p>^^</p>
+.
+
+Superscript should not allow nested markup
+.
+^foo ^bar^ baz^
+.
+<p>^foo <sup>bar</sup> baz^</p>
+.
+
+Superscript should handle escape sequences
+.
+^foo\_bar^
+.
+<p><sup>foo_bar</sup></p>
+.
+
+Superscript should not allow whitespace
+.
+^foo bar^
+.
+<p>^foo bar^</p>
+.
+
+Superscript allows escaped whitespace
+.
+^foo\ bar\ baz^
+.
+<p><sup>foo bar baz</sup></p>
+.
+
+Superscript: leading/trailing escaped whitespace
+.
+^\ foo\ ^
+.
+<p><sup> foo </sup></p>
+.
+
+Superscript: 7 backslashes + space (odd escapes space)
+.
+^\\\\\\\ ^
+.
+<p><sup>\\\ </sup></p>
+.
+
+Superscript: 6 backslashes + space (even leaves space unescaped)
+.
+^\\\\\\ ^
+.
+<p>^\\\ ^</p>
+.
+
+Superscript should not allow line breaks
+.
+^test
+^
+.
+<p>^test
+^</p>
+.
+
+Superscript should be able to be wrapped in emphasis
+.
+*^test^*
+.
+<p><em><sup>test</sup></em></p>
+.
+
+Superscript can contain escaped closing marker
+.
+^foo\^bar^
+.
+<p><sup>foo^bar</sup></p>
+.
