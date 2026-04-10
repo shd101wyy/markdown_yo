@@ -2,35 +2,35 @@ wikilink — basic
 .
 [[page]]
 .
-<p><a href="page">page</a></p>
+<p><a href="page" class="wikilink">page</a></p>
 .
 
 wikilink — with display text
 .
 [[page|custom text]]
 .
-<p><a href="page">custom text</a></p>
+<p><a href="page" class="wikilink">custom text</a></p>
 .
 
 wikilink — in surrounding text
 .
 see [[page]] for details
 .
-<p>see <a href="page">page</a> for details</p>
+<p>see <a href="page" class="wikilink">page</a> for details</p>
 .
 
 wikilink — with spaces in target
 .
 [[my page]]
 .
-<p><a href="my page">my page</a></p>
+<p><a href="my page" class="wikilink">my page</a></p>
 .
 
 wikilink — with spaces and display text
 .
 [[my page|click here]]
 .
-<p><a href="my page">click here</a></p>
+<p><a href="my page" class="wikilink">click here</a></p>
 .
 
 wikilink — empty not a wikilink
@@ -44,56 +44,56 @@ wikilink — with path
 .
 [[folder/page]]
 .
-<p><a href="folder/page">folder/page</a></p>
+<p><a href="folder/page" class="wikilink">folder/page</a></p>
 .
 
 wikilink — with anchor
 .
 [[page#section]]
 .
-<p><a href="page#section">page#section</a></p>
+<p><a href="page#section" class="wikilink">page#section</a></p>
 .
 
 wikilink — with path and anchor
 .
 [[folder/page#section]]
 .
-<p><a href="folder/page#section">folder/page#section</a></p>
+<p><a href="folder/page#section" class="wikilink">folder/page#section</a></p>
 .
 
 wikilink — in emphasis
 .
 *[[page]]*
 .
-<p><em><a href="page">page</a></em></p>
+<p><em><a href="page" class="wikilink">page</a></em></p>
 .
 
 wikilink — in strong
 .
 **[[page]]**
 .
-<p><strong><a href="page">page</a></strong></p>
+<p><strong><a href="page" class="wikilink">page</a></strong></p>
 .
 
 wikilink — HTML escaping in href
 .
 [[a&b|c<d]]
 .
-<p><a href="a&amp;b">c&lt;d</a></p>
+<p><a href="a&amp;b" class="wikilink">c&lt;d</a></p>
 .
 
 wikilink — multiple on same line
 .
 [[page]] and [[other|link text]]
 .
-<p><a href="page">page</a> and <a href="other">link text</a></p>
+<p><a href="page" class="wikilink">page</a> and <a href="other" class="wikilink">link text</a></p>
 .
 
 wikilink — in heading
 .
 # Heading with [[link]]
 .
-<h1>Heading with <a href="link">link</a></h1>
+<h1>Heading with <a href="link" class="wikilink">link</a></h1>
 .
 
 wikilink — in list item
@@ -101,7 +101,7 @@ wikilink — in list item
 - item [[link]]
 .
 <ul>
-<li>item <a href="link">link</a></li>
+<li>item <a href="link" class="wikilink">link</a></li>
 </ul>
 .
 
@@ -139,12 +139,12 @@ wikilink — pipe with empty display
 .
 [[target|]]
 .
-<p><a href="target"></a></p>
+<p><a href="target" class="wikilink"></a></p>
 .
 
 wikilink — pipe with empty href
 .
 [[|display]]
 .
-<p><a href="">display</a></p>
+<p><a href="" class="wikilink">display</a></p>
 .

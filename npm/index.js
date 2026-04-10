@@ -34,6 +34,8 @@ const createMarkdownYo =
  * @property {boolean} [callout=false] - Enable callout blocks (> [!type] title)
  * @property {boolean} [footnote=false] - Enable footnotes ([^id] refs and ^[inline])
  * @property {boolean} [sourceMap=false] - Emit data-source-line attributes on block elements
+ * @property {boolean} [breaks=false] - Convert newlines in paragraphs to <br>
+ * @property {boolean} [xhtmlOut=false] - Self-close tags as <br /> instead of <br>
  * @property {boolean} [fullFeatures=false] - Enable all optional features
  */
 
@@ -68,6 +70,8 @@ function buildFlags(options) {
   if (options.callout || options.fullFeatures) flags |= 8192;
   if (options.footnote || options.fullFeatures) flags |= 16384;
   if (options.sourceMap) flags |= 32768;
+  if (options.breaks) flags |= 65536;
+  if (options.xhtmlOut) flags |= 131072;
   return flags;
 }
 

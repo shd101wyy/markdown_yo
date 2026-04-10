@@ -22,6 +22,8 @@
 //   bit 13 (8192) = callout
 //   bit 14 (16384) = footnote
 //   bit 15 (32768) = source_map
+//   bit 16 (65536) = breaks (convert \n to <br>)
+//   bit 17 (131072) = xhtml_out (self-close tags: <br /> vs <br>)
 //
 // Usage from JS:
 //   const ptr = Module._wasm_render(inputPtr, inputLen, flags);
@@ -72,6 +74,8 @@ wasm_render :: (fn(input_ptr: *(u8), input_len: i32, flags: i32) -> *(u8))({
   if(((flags & i32(8192)) != i32(0)), { opts.enable_callout = true; });
   if(((flags & i32(16384)) != i32(0)), { opts.enable_footnote = true; });
   if(((flags & i32(32768)) != i32(0)), { opts.enable_source_map = true; });
+  if(((flags & i32(65536)) != i32(0)), { opts.breaks = true; });
+  if(((flags & i32(131072)) != i32(0)), { opts.xhtml_out = true; });
 
   // Render
   result := markdown_to_html(input, (&opts));

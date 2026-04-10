@@ -1598,7 +1598,7 @@ impl(HtmlRenderer,
   wikilink : (fn(self: *(Self), href_start: i32, href_end: i32, display_start: i32, display_end: i32) -> unit)({
     self.*.lit("<a href=\"");
     escape_html_buf((&self.*.buf), self.*.src_ptr, href_start, href_end);
-    self.*.lit("\">");
+    self.*.lit("\" class=\"wikilink\">");
     escape_html_buf((&self.*.buf), self.*.src_ptr, display_start, display_end);
     self.*.lit("</a>");
   }),

@@ -34,6 +34,10 @@ export interface RenderOptions {
   footnote?: boolean;
   /** Emit data-source-line attributes on block elements (default: false) */
   sourceMap?: boolean;
+  /** Convert newlines in paragraphs to <br> (default: false) */
+  breaks?: boolean;
+  /** Self-close tags as <br /> instead of <br> (default: false) */
+  xhtmlOut?: boolean;
   /** Enable all optional features (default: false) */
   fullFeatures?: boolean;
 }
