@@ -27,7 +27,7 @@ demo_exe :: build.executable({
   allocator: build.Allocator.Libc
 });
 demo_exe.add_import_list(imports);
-demo_exe.add_c_flags("-O3 -flto -mbulk-memory -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=16777216 -sWASM_BIGINT -sENVIRONMENT=web -sMODULARIZE=1 -sEXPORT_NAME=createMarkdownYo -sEXPORTED_FUNCTIONS=_main,_wasm_render,_wasm_result_len,_wasm_free,_malloc,_free -sEXPORTED_RUNTIME_METHODS=HEAPU8");
+demo_exe.add_c_flags("-O3 -flto -mbulk-memory -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=16777216 -sWASM_BIGINT -sENVIRONMENT=web,node -sMODULARIZE=1 -sEXPORT_NAME=createMarkdownYo -sEXPORTED_FUNCTIONS=_main,_wasm_render,_wasm_result_len,_wasm_free,_malloc,_free -sEXPORTED_RUNTIME_METHODS=HEAPU8");
 
 lib :: build.static_library({ name: "markdown_yo-lib", root: "./src/lib.yo" });
 

@@ -131,27 +131,13 @@ _build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(
 
   while (pos < len), {
     (ch : u8) = (src_p &+ usize(pos)).*;
-    cond(
-      (ch == u8(0x0A)) => {
-        _ := b_marks.push(line_start);
-        _ := e_marks.push(pos);
-        if(!(indent_found), {
-          _ := t_shift.push((pos - line_start));
-          _ := s_count.push(i32(0));
-        }, {
-          _ := t_shift.push(offset);
-          _ := s_count.push(indent);
-        });
-        _ := bs_count.push(i32(0));
-        _ := pipe_flags.push(cond(line_has_pipe => u8(1), true => u8(0)));
-        line_start = (pos + i32(1));
-        indent = i32(0);
-        offset = i32(0);
-        indent_found = false;
-        line_has_pipe = false;
+
+    // Match markdown-it: push line entry on newline OR at end of input
+    (is_line_end : bool) = ((ch == u8(0x0A)) || (pos == (len - i32(1))));
+    if(is_line_end, {
+      // When last char is not newline, include it in the line by advancing pos
+      if((ch != u8(0x0A)), {
         pos = (pos + i32(1));
-      },
-      true => {
         if(!(indent_found), {
           cond(
             (ch == u8(0x20)) => {
@@ -166,9 +152,43 @@ _build_block_state_from_normalized :: (fn(src: String, env: *(Env), renderer: *(
           );
         });
         if((ch == u8(0x7C)), { line_has_pipe = true; });
-        pos = (pos + i32(1));
-      }
-    );
+      });
+
+      _ := b_marks.push(line_start);
+      _ := e_marks.push(pos);
+      if(!(indent_found), {
+        _ := t_shift.push((pos - line_start));
+        _ := s_count.push(i32(0));
+      }, {
+        _ := t_shift.push(offset);
+        _ := s_count.push(indent);
+      });
+      _ := bs_count.push(i32(0));
+      _ := pipe_flags.push(cond(line_has_pipe => u8(1), true => u8(0)));
+      line_start = (pos + i32(1));
+      indent = i32(0);
+      offset = i32(0);
+      indent_found = false;
+      line_has_pipe = false;
+      pos = (pos + i32(1));
+    },
+    {
+      if(!(indent_found), {
+        cond(
+          (ch == u8(0x20)) => {
+            indent = (indent + i32(1));
+            offset = (offset + i32(1));
+          },
+          (ch == u8(0x09)) => {
+            indent = (indent + (i32(4) - (indent % i32(4))));
+            offset = (offset + i32(1));
+          },
+          true => { indent_found = true; }
+        );
+      });
+      if((ch == u8(0x7C)), { line_has_pipe = true; });
+      pos = (pos + i32(1));
+    });
   };
 
   _ := b_marks.push(line_start);
@@ -257,7 +277,28 @@ impl(BlockState,
     while (pos < len), {
       (ch : u8) = (src_p &+ usize(pos)).*;
 
-      if((ch == u8(0x0A)), {
+      // Match markdown-it: push line entry on newline OR at end of input
+      if(((ch == u8(0x0A)) || (pos == (len - i32(1)))), {
+        // When last char is not newline, include it in the line by advancing pos
+        if((ch != u8(0x0A)), {
+          pos = (pos + i32(1));
+          // Also handle indent for the last char if not yet found
+          if(!(indent_found), {
+            cond(
+              (ch == u8(0x20)) => {
+                indent = (indent + i32(1));
+                offset = (offset + i32(1));
+              },
+              (ch == u8(0x09)) => {
+                indent = (indent + (i32(4) - (indent % i32(4))));
+                offset = (offset + i32(1));
+              },
+              true => { indent_found = true; }
+            );
+          });
+          if((ch == u8(0x7C)), { line_has_pipe = true; });
+        });
+
         _ := b_marks.push(line_start);
         _ := e_marks.push(pos);
         if(!(indent_found), {

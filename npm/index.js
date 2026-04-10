@@ -108,7 +108,7 @@ async function createRenderer(wasmOptions, defaultOptions) {
     loader = mod.default || mod.createMarkdownYo || mod;
   }
 
-  const Module = await loader(wasmOptions || {});
+  let wasmModule = await loader(wasmOptions || {});
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
@@ -124,24 +124,24 @@ async function createRenderer(wasmOptions, defaultOptions) {
         ? { ...defaultOptions, ...options }
         : options;
       const inputBytes = encoder.encode(markdown);
-      const inputPtr = Module._malloc(inputBytes.length);
+      const inputPtr = wasmModule._malloc(inputBytes.length);
       try {
-        Module.HEAPU8.set(inputBytes, inputPtr);
+        wasmModule.HEAPU8.set(inputBytes, inputPtr);
         const flags = buildFlags(merged);
-        const resultPtr = Module._wasm_render(
+        const resultPtr = wasmModule._wasm_render(
           inputPtr,
           inputBytes.length,
           flags,
         );
-        const resultLen = Module._wasm_result_len();
-        const resultBytes = Module.HEAPU8.slice(
+        const resultLen = wasmModule._wasm_result_len();
+        const resultBytes = wasmModule.HEAPU8.slice(
           resultPtr,
           resultPtr + resultLen,
         );
-        Module._wasm_free(resultPtr);
+        wasmModule._wasm_free(resultPtr);
         return decoder.decode(resultBytes);
       } finally {
-        Module._free(inputPtr);
+        wasmModule._free(inputPtr);
       }
     },
 
@@ -151,7 +151,7 @@ async function createRenderer(wasmOptions, defaultOptions) {
      */
     destroy() {
       // Emscripten modules don't have a standard destroy, but we clear the ref
-      Module = null;
+      wasmModule = null;
     },
   };
 }
