@@ -483,6 +483,7 @@ impl(HtmlRenderer,
     (n_abbrs : usize) = abbr_list.*.len();
     (pos : i32) = start;
     (text_start : i32) = start;
+    (use_typo : bool) = self.*.options.*.typographer;
 
     while (pos < end), {
       (found : bool) = false;
@@ -526,9 +527,13 @@ impl(HtmlRenderer,
               );
 
               if(boundary_after, {
-                // Emit text before match
+                // Emit text before match (with typographer if enabled)
                 if((pos > text_start), {
-                  escape_html_buf((&self.*.buf), src, text_start, pos);
+                  if(use_typo, {
+                    _typographer_text((&self.*.buf), src, text_start, pos);
+                  }, {
+                    escape_html_buf((&self.*.buf), src, text_start, pos);
+                  });
                 });
                 // Emit <abbr title="expansion">pattern</abbr>
                 self.*.lit("<abbr title=\"");
@@ -552,9 +557,13 @@ impl(HtmlRenderer,
       });
     };
 
-    // Emit remaining text
+    // Emit remaining text (with typographer if enabled)
     if((text_start < end), {
-      escape_html_buf((&self.*.buf), src, text_start, end);
+      if(use_typo, {
+        _typographer_text((&self.*.buf), src, text_start, end);
+      }, {
+        escape_html_buf((&self.*.buf), src, text_start, end);
+      });
     });
   }),
 
@@ -1217,11 +1226,11 @@ impl(HtmlRenderer,
   // -------------------------------------------------------------------
 
   text : (fn(self: *(Self), start: i32, end: i32) -> unit)(
-    if(self.*.options.*.typographer, {
-      _typographer_text((&self.*.buf), self.*.src_ptr, start, end);
+    if((self.*.abbrs.len() > usize(0)), {
+      self.*.escaped_abbr(start, end);
     }, {
-      if((self.*.abbrs.len() > usize(0)), {
-        self.*.escaped_abbr(start, end);
+      if(self.*.options.*.typographer, {
+        _typographer_text((&self.*.buf), self.*.src_ptr, start, end);
       }, {
         self.*.escaped(start, end);
       });

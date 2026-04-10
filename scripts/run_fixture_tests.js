@@ -144,6 +144,12 @@ const suites = [
     yoFlags: ["--abbr"],
   },
   {
+    name: "abbr_typographer",
+    file: "markdown_it/abbr_typographer.txt",
+    yoOnly: true,
+    yoFlags: ["--abbr", "--typographer"],
+  },
+  {
     name: "deflist",
     file: "markdown_it/deflist.txt",
     yoOnly: true,

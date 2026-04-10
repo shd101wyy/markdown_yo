@@ -199,3 +199,22 @@ Second CSS.
 <p>First paragraph.</p>
 <p>Second <abbr title="Cascading">CSS</abbr>.</p>
 .
+
+Abbreviation with typographer enabled
+.
+*[HTML]: Hyper Text Markup Language
+
+The HTML spec is "great" -- really (c).
+.
+<p>The <abbr title="Hyper Text Markup Language">HTML</abbr> spec is &quot;great&quot; -- really (c).</p>
+.
+
+Abbreviation with multiple entries and no matches
+.
+*[CSS]: Cascading Style Sheets
+*[HTML]: Hyper Text Markup Language
+
+No abbreviations here.
+.
+<p>No abbreviations here.</p>
+.
