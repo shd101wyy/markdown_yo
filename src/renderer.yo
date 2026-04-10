@@ -458,10 +458,11 @@ impl(HtmlRenderer,
 
   // Emit data-source-line attribute if source map is enabled and a line was set.
   // Resets _source_line to -1 after emitting. Call between tag name and '>'.
+  // Lines are stored 0-indexed internally but emitted as 1-indexed for crossnote compatibility.
   _source_attr : (fn(self: *(Self)) -> unit)(
     if((self.*.options.*.enable_source_map && (self.*._source_line >= i32(0))), {
       self.*.lit(" data-source-line=\"");
-      _write_i32((&self.*.buf), self.*._source_line);
+      _write_i32((&self.*.buf), (self.*._source_line + i32(1)));
       _ := self.*.buf.push(u8(0x22)); // "
       self.*._source_line = i32(-1);
     })
