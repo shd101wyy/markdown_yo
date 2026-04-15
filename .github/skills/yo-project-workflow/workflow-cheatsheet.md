@@ -7,6 +7,9 @@ These commands and patterns are aimed at normal Yo projects that use the public 
 | Goal                      | Command                                                   |
 | ------------------------- | --------------------------------------------------------- |
 | Scaffold a project        | `yo init my-project`                                      |
+| Pin Yo version            | `yo version pin`                                          |
+| Pin specific version      | `yo version pin 0.1.12`                                   |
+| Show current/pinned ver   | `yo version`                                              |
 | Build default step        | `yo build`                                                |
 | Build and run             | `yo build run`                                            |
 | Run project test step     | `yo build test`                                           |
@@ -15,6 +18,9 @@ These commands and patterns are aimed at normal Yo projects that use the public 
 | Inspect generated C       | `yo compile main.yo --emit-c --skip-c-compiler`           |
 | Run tests in one file     | `yo test ./tests/main.test.yo --parallel 1`               |
 | Filter tests by name      | `yo test ./tests/main.test.yo --test-name-pattern "Name"` |
+| Generate docs for project | `yo doc ./src`                                            |
+| Generate docs (custom)    | `yo doc ./src -o docs --title "My Project"`               |
+| Install AI agent skills   | `yo skills install`                                       |
 | Install dependency        | `yo install user/repo`                                    |
 | Install pinned dependency | `yo install user/repo@v1.2.3`                             |
 | Fetch dependency graph    | `yo fetch`                                                |
@@ -34,7 +40,7 @@ my-project/
     └── main.test.yo
 ```
 
-- `build.yo` defines artifacts and named steps
+- `build.yo` defines artifacts, named steps, and doc generation
 - `deps.yo` tracks installed dependencies
 - `src/main.yo` is the executable entry point
 - `src/lib.yo` is the library module root
@@ -66,6 +72,10 @@ run_step.depend_on(run_exe);
 
 test_step :: build.step("test", "Run the tests");
 test_step.depend_on(tests);
+
+docs :: build.doc({ name: "my-project", root: "./src" });
+doc_step :: build.step("doc", "Generate documentation");
+doc_step.depend_on(docs);
 ```
 
 - `build.yo` is ordinary Yo code evaluated at compile time
@@ -105,14 +115,14 @@ test "Compile-time check", {
   comptime_expect_error({ x :: (1 / 0); });
 };
 
-test "Async test", using(io : IO), {
+test "Async test", {
   { yield } :: import "std/async";
   io.await(yield());
 };
 ```
 
-- `test "name", { body }` defines a runtime test
-- `test "name", using(io : IO), { body }` for async tests
+- `test "name", { body }` defines a test — `io : IO` is automatically available
+- All tests can use `io.async(...)`, `io.await(...)`, etc. without a `using` clause
 - `assert(condition, "message")` — always include a message string
 - `comptime_assert(expr)` — verified at compile time
 - `comptime_expect_error(expr)` — verify code produces a compile error
@@ -131,6 +141,104 @@ yo test ./tests/main.test.yo --target wasm-wasi
 - `--cc emcc` targets Emscripten-based WebAssembly
 - `--target wasm-wasi` targets standalone WASI
 - Prefer the host target for routine development unless the task is explicitly cross-platform
+
+### WASM library targets in build.yo
+
+For projects that compile to WASM npm packages, use `target: build.CompilationTarget.Wasm32_Emscripten` and `add_c_flags(...)` for Emscripten settings:
+
+```rust
+build :: import "std/build";
+
+wasm_api :: build.executable({
+  name: "my_lib_wasm_api",
+  root: "./src/wasm_api.yo",
+  target: build.CompilationTarget.Wasm32_Emscripten,
+  optimize: build.Optimize.ReleaseSmall,
+  allocator: build.Allocator.Libc
+});
+wasm_api.add_c_flags("-O3 -flto -mbulk-memory -sALLOW_MEMORY_GROWTH -sENVIRONMENT=web,node -sMODULARIZE=1 -sEXPORT_NAME=createModule -sEXPORTED_FUNCTIONS=_my_func,_wasm_alloc,_wasm_free -sEXPORTED_RUNTIME_METHODS=HEAPU8");
+
+wasm_step :: build.step("wasm_api", "Build WASM module");
+wasm_step.depend_on(wasm_api);
+```
+
+Key API:
+
+- `build.executable({...})` — `Executable` struct fields: `name`, `root`, `target`, `optimize`, `allocator`, `sanitize`
+- `step.add_c_flags("...")` — append compiler/linker flags (Emscripten `-s` options go here)
+- `step.add_import_list(imports)` — add module dependencies
+- `build.CompilationTarget.Wasm32_Emscripten` — Emscripten target
+- `build.CompilationTarget.Wasm32_Wasi` — WASI target
+
+See the [yo-wasm-integration](../yo-wasm-integration/SKILL.md) skill for full npm packaging patterns.
+
+## Documentation
+
+### `yo doc` — Generate API documentation
+
+```bash
+yo doc ./src                         # Document all .yo files in directory
+yo doc ./src/main.yo                 # Document single file
+yo doc -o ./docs                     # Custom output directory
+yo doc --title "My Project"          # Set doc site title
+yo doc --format markdown             # Output as Markdown (default: html)
+yo doc --format json                 # Output as JSON
+yo doc --document-private            # Include non-exported items
+```
+
+### `build.doc()` — Documentation build step
+
+In `build.yo`:
+
+```rust
+build :: import "std/build";
+
+docs :: build.doc({ name: "docs", root: "./src" });
+doc_step :: build.step("doc", "Generate documentation");
+doc_step.depend_on(docs);
+```
+
+Then run: `yo build doc`
+
+### Doc comments
+
+````rust
+/// Brief description of the function.
+///
+/// ## Examples
+/// ```rust
+/// add(i32(1), i32(2))
+/// ```
+add :: (fn(a: i32, b: i32) -> i32)((a + b));
+````
+
+Use `///` for item documentation and `//!` at the top of a file for module-level docs.
+
+## Version management
+
+```bash
+yo version                      # Show current version and pinned version
+yo version pin                  # Pin project to current Yo version
+yo version pin 0.1.12           # Pin to specific version
+yo version install 0.1.13       # Pre-download a version
+yo version list                 # List locally cached versions
+yo version list --remote        # List all available versions on npm
+yo version clean                # Remove all cached versions
+yo version clean 0.1.12         # Remove specific cached version
+```
+
+- `.yo-version` file pins a project to a specific Yo version (similar to `.nvmrc`)
+- When `.yo-version` exists with a different version, `yo` auto-dispatches to the cached version
+- The LSP also reads `.yo-version` to resolve the correct `std/` library for go-to-definition
+- Commit `.yo-version` to version control for reproducible builds across the team
+
+## Skills for AI agents
+
+```bash
+yo skills install       # Copy bundled skill files into the current project
+```
+
+`yo skills install` detects which agent config directories exist in the current project (`.github`, `.agents`, `.claude`, `.opencode`, `.openai`, `.cursor`) and copies all Yo skill files into each. Falls back to creating `.agents/skills/` if none exist.
 
 ## Dependency management
 
