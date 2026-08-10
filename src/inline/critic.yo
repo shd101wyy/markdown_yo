@@ -12,10 +12,11 @@
 // Multi-line content is allowed.
 // Empty content (e.g. {++++}) is not valid.
 
-open import "std/string";
+pragma(Pragma.AllowUnsafe);
+open(import("std/string"));
 
-{ InlineToken, InlineState } :: import "./state.yo";
-{ InlineType } :: import "../types.yo";
+{ InlineToken, InlineState } :: import("./state.yo");
+{ InlineType } :: import("../types.yo");
 
 inline_critic :: (fn(state : *(InlineState)) -> bool)({
   (src : *(u8)) = state.*.src_ptr;
@@ -23,14 +24,14 @@ inline_critic :: (fn(state : *(InlineState)) -> bool)({
   pos := state.*.pos;
 
   // Need at least {XX...XX} → minimum 7 chars for {++a++}
-  if(((pos + i32(6)) > max), return false);
+  if(((pos + i32(6)) > max), return(false));
 
   // Must start with {
-  if((i32((src &+ usize(pos)).*) != i32(0x7B)), return false);
+  if((i32((src.add(usize(pos))).*) != i32(0x7B)), return(false));
 
   // Check the second and third chars to determine type
-  (c1 : i32) = i32((src &+ usize((pos + i32(1)))).*);
-  (c2 : i32) = i32((src &+ usize((pos + i32(2)))).*);
+  (c1 : i32) = i32((src.add(usize((pos + i32(1))))).*);
+  (c2 : i32) = i32((src.add(usize((pos + i32(2))))).*);
 
   // Determine marker type: ++, --, ~~, ==, >>
   (marker : i32) = cond(
@@ -42,7 +43,7 @@ inline_critic :: (fn(state : *(InlineState)) -> bool)({
     true => i32(0)
   );
 
-  if((marker == i32(0)), return false);
+  if((marker == i32(0)), return(false));
 
   // Determine closing sequence: ++}, --}, ~~}, ==}, <<}
   // For >> (comment), the closing is <<}
@@ -53,18 +54,18 @@ inline_critic :: (fn(state : *(InlineState)) -> bool)({
 
   // Scan for closing sequence
   (scan : i32) = (pos + i32(3));
-  (sub_pos : i32) = i32(-1);  // position of ~> for substitution
+  (sub_pos : i32) = (i32(0) - i32(1));  // position of ~> for substitution
 
-  while runtime(true), {
+  while(runtime(true), {
     if(((scan + i32(2)) > max), {
-      return false;
+      return(false);
     });
-    (ch : i32) = i32((src &+ usize(scan)).*);
+    (ch : i32) = i32((src.add(usize(scan))).*);
 
     // For substitution, track ~> position
-    if((((marker == i32(0x7E)) && (ch == i32(0x7E))) && (sub_pos == i32(-1))), {
+    if((((marker == i32(0x7E)) && (ch == i32(0x7E))) && (sub_pos == (i32(0) - i32(1)))), {
       if(((scan + i32(1)) < max), {
-        (next : i32) = i32((src &+ usize((scan + i32(1)))).*);
+        (next : i32) = i32((src.add(usize((scan + i32(1))))).*);
         if((next == i32(0x3E)), {
           sub_pos = scan;
           scan = (scan + i32(2));
@@ -76,8 +77,8 @@ inline_critic :: (fn(state : *(InlineState)) -> bool)({
     // Check for closing: close1 close1 }
     if((ch == close1), {
       if(((scan + i32(2)) <= max), {
-        (n1 : i32) = i32((src &+ usize((scan + i32(1)))).*);
-        (n2 : i32) = i32((src &+ usize((scan + i32(2)))).*);
+        (n1 : i32) = i32((src.add(usize((scan + i32(1))))).*);
+        (n2 : i32) = i32((src.add(usize((scan + i32(2))))).*);
         if(((n1 == close1) && (n2 == i32(0x7D))), {
           break;
         });
@@ -85,19 +86,19 @@ inline_critic :: (fn(state : *(InlineState)) -> bool)({
     });
 
     scan = (scan + i32(1));
-  };
+  });
 
   // scan points at first char of closing marker
   content_start := (pos + i32(3));
   content_end := scan;
 
   // Empty content is not valid
-  if((content_start >= content_end), return false);
+  if((content_start >= content_end), return(false));
 
   // For substitution, require ~> separator with non-empty old text
   if((marker == i32(0x7E)), {
-    if((sub_pos == i32(-1)), return false);
-    if((sub_pos <= content_start), return false);
+    if((sub_pos == (i32(0) - i32(1))), return(false));
+    if((sub_pos <= content_start), return(false));
   });
 
   // Build the token
@@ -129,16 +130,16 @@ inline_critic :: (fn(state : *(InlineState)) -> bool)({
     markup_len: u8(2),
     block: false,
     hidden: false,
-    content_idx: i32(-1),
-    href_idx: i32(-1),
-    title_idx: i32(-1)
+    content_idx: (i32(0) - i32(1)),
+    href_idx: (i32(0) - i32(1)),
+    title_idx: (i32(0) - i32(1))
   );
 
   _ := state.*.tokens.push(tok);
   state.*.pos = (scan + i32(3));
   state.*.pending_start = state.*.pos;
   state.*.pending_end = state.*.pos;
-  return true;
+  return(true);
 });
 
-export inline_critic;
+export(inline_critic);

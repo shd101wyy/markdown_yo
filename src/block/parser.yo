@@ -5,33 +5,34 @@
 // SAX-style: rules call renderer directly for block open/close events.
 // List and blockquote handle recursive block_tokenize calls inline here.
 
-open import "std/string";
-{ ArrayList } :: import "std/collections/array_list";
-{ memmove } :: import "std/libc/string";
-{ Options, ParentType, FootnoteDef } :: import "../types.yo";
-{ HtmlRenderer, _write_i32 } :: import "../renderer.yo";
-{ BlockState } :: import "./state.yo";
-{ is_space, append_lit } :: import "../common/utils.yo";
+pragma(Pragma.AllowUnsafe);
+open(import("std/string"));
+{ ArrayList } :: import("std/collections/array_list");
+{ memmove } :: import("std/libc/string");
+{ Options, ParentType, FootnoteDef } :: import("../types.yo");
+{ HtmlRenderer, _write_i32 } :: import("../renderer.yo");
+{ BlockState } :: import("./state.yo");
+{ is_space, append_lit } :: import("../common/utils.yo");
 
 // Forward declarations of block rules
-{ block_heading } :: import "./heading.yo";
-{ block_lheading } :: import "./lheading.yo";
-{ block_code } :: import "./code.yo";
-{ block_fence } :: import "./fence.yo";
-{ block_hr } :: import "./hr.yo";
-{ block_blockquote, blockquote_find_end } :: import "./blockquote.yo";
-{ check_callout_marker, is_known_callout_type } :: import "./callout.yo";
-{ block_list, skip_bullet_list_marker, skip_ordered_list_marker, parse_list_number } :: import "./list.yo";
-{ block_html } :: import "./html_block.yo";
-{ block_table } :: import "./table.yo";
-{ block_reference } :: import "./reference.yo";
-{ block_abbr, prescan_abbr } :: import "./abbr.yo";
-{ skip_deflist_marker } :: import "./deflist.yo";
-{ check_admonition_marker } :: import "./admonition.yo";
-{ check_footnote_def } :: import "./footnote.yo";
-{ inline_parse_range } :: import "../inline/parser.yo";
-{ block_paragraph } :: import "./paragraph.yo";
-{ _try_list_terminate, _try_block_terminate } :: import "./terminators.yo";
+{ block_heading } :: import("./heading.yo");
+{ block_lheading } :: import("./lheading.yo");
+{ block_code } :: import("./code.yo");
+{ block_fence } :: import("./fence.yo");
+{ block_hr } :: import("./hr.yo");
+{ block_blockquote, blockquote_find_end } :: import("./blockquote.yo");
+{ check_callout_marker, is_known_callout_type } :: import("./callout.yo");
+{ block_list, skip_bullet_list_marker, skip_ordered_list_marker, parse_list_number } :: import("./list.yo");
+{ block_html } :: import("./html_block.yo");
+{ block_table } :: import("./table.yo");
+{ block_reference } :: import("./reference.yo");
+{ block_abbr, prescan_abbr } :: import("./abbr.yo");
+{ skip_deflist_marker } :: import("./deflist.yo");
+{ check_admonition_marker } :: import("./admonition.yo");
+{ check_footnote_def } :: import("./footnote.yo");
+{ inline_parse_range } :: import("../inline/parser.yo");
+{ block_paragraph } :: import("./paragraph.yo");
+{ _try_list_terminate, _try_block_terminate } :: import("./terminators.yo");
 
 // Main block tokenize function.
 // Parses lines [start_line, end_line) and calls renderer directly.
@@ -47,11 +48,11 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
   (bq_save_bs : *(ArrayList(i32))) = &(state.*._bq_save_bs);
 
   (tokenize_done : bool) = false;
-  while (!(tokenize_done)), {
+  while(!(tokenize_done), {
     // Skip empty lines
-    while ((line < end_line) && state.*.is_empty(line)), {
+    while((line < end_line) && state.*.is_empty(line), {
       line = (line + i32(1));
-    };
+    });
     state.*.line = line;
 
     if((line >= end_line), { tokenize_done = true; });
@@ -98,8 +99,8 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               (adm_title_start : i32) = i32(0);
               (adm_title_end : i32) = i32(0);
               if(check_admonition_marker(state, line,
-                  (&adm_type_start), (&adm_type_end),
-                  (&adm_title_start), (&adm_title_end)), {
+                  (&(adm_type_start)), (&(adm_type_end)),
+                  (&(adm_title_start)), (&(adm_title_end))), {
                 // ── Begin inline admonition handling ──
                 (adm_old_parent : ParentType) = state.*.parent_type;
                 (adm_old_line_max : i32) = state.*.line_max;
@@ -110,7 +111,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                 // Find end: first non-empty line with sCount < blkIndent
                 (adm_next : i32) = (line + i32(1));
                 (adm_found_end : bool) = false;
-                while (((adm_next < end_line) && !(adm_found_end))), {
+                while(((adm_next < end_line) && !(adm_found_end)), {
                   if(state.*.is_empty(adm_next), {
                     adm_next = (adm_next + i32(1));
                   }, {
@@ -120,7 +121,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                       adm_next = (adm_next + i32(1));
                     });
                   });
-                };
+                });
 
                 state.*.parent_type = .Admonition;
                 state.*.line_max = adm_next;
@@ -161,10 +162,10 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               bq_save_ts.*.clear();
               bq_save_sc.*.clear();
               bq_save_bs.*.clear();
-              bq_save_bm.*.extend_from_ptr((state.*._bm &+ usize(line)), bq_range);
-              bq_save_ts.*.extend_from_ptr((state.*._ts &+ usize(line)), bq_range);
-              bq_save_sc.*.extend_from_ptr((state.*._sc &+ usize(line)), bq_range);
-              bq_save_bs.*.extend_from_ptr((state.*._bs &+ usize(line)), bq_range);
+              bq_save_bm.*.extend_from_ptr((state.*._bm.add(usize(line))), bq_range);
+              bq_save_ts.*.extend_from_ptr((state.*._ts.add(usize(line))), bq_range);
+              bq_save_sc.*.extend_from_ptr((state.*._sc.add(usize(line))), bq_range);
+              bq_save_bs.*.extend_from_ptr((state.*._bs.add(usize(line))), bq_range);
 
               // Now call non-silent — modifies state arrays, returns bq_end
               (bq_end : i32) = block_blockquote(state, line, end_line, false);
@@ -183,9 +184,9 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               (co_content_start : i32) = line;
               if((state.*.options.*.enable_callout && (line < bq_end)), {
                 if(check_callout_marker(state, line,
-                    (&co_type_start), (&co_type_end),
-                    (&co_title_start), (&co_title_end),
-                    (&co_foldable)), {
+                    (&(co_type_start)), (&(co_type_end)),
+                    (&(co_title_start)), (&(co_title_end)),
+                    (&(co_foldable))), {
                   // Validate type against known callout types
                   if(is_known_callout_type(state.*.src_ptr, co_type_start, co_type_end), {
                     is_callout = true;
@@ -233,25 +234,25 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               (bq_restore_bytes : usize) = (bq_range * sizeof(i32));
               match(bq_save_bm.*.ptr(),
                 .Some(src) => {
-                  _ := memmove(*(void)((state.*._bm &+ usize(line))), *(void)(src), bq_restore_bytes);
+                  _ := unsafe(memmove(*(void)((state.*._bm.add(usize(line)))), *(void)(src), bq_restore_bytes));
                 },
                 .None => ()
               );
               match(bq_save_ts.*.ptr(),
                 .Some(src) => {
-                  _ := memmove(*(void)((state.*._ts &+ usize(line))), *(void)(src), bq_restore_bytes);
+                  _ := unsafe(memmove(*(void)((state.*._ts.add(usize(line)))), *(void)(src), bq_restore_bytes));
                 },
                 .None => ()
               );
               match(bq_save_sc.*.ptr(),
                 .Some(src) => {
-                  _ := memmove(*(void)((state.*._sc &+ usize(line))), *(void)(src), bq_restore_bytes);
+                  _ := unsafe(memmove(*(void)((state.*._sc.add(usize(line)))), *(void)(src), bq_restore_bytes));
                 },
                 .None => ()
               );
               match(bq_save_bs.*.ptr(),
                 .Some(src) => {
-                  _ := memmove(*(void)((state.*._bs &+ usize(line))), *(void)(src), bq_restore_bytes);
+                  _ := unsafe(memmove(*(void)((state.*._bs.add(usize(line)))), *(void)(src), bq_restore_bytes));
                 },
                 .None => ()
               );
@@ -285,7 +286,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               });
 
               // Remember marker char for style change detection
-              (list_marker_char : i32) = i32((state.*.src_ptr &+ usize((list_pam - i32(1)))).*);
+              (list_marker_char : i32) = i32((state.*.src_ptr.add(usize((list_pam - i32(1))))).*);
 
               // Open list tag
               state.*.renderer.*.set_source_line(line);
@@ -306,7 +307,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
               state.*.parent_type = .List;
 
               (list_done : bool) = false;
-              while ((list_next < end_line) && !(list_done)), {
+              while((list_next < end_line) && !(list_done), {
                 (item_pos : i32) = list_pam;
                 (item_max : i32) = state.em(list_next);
 
@@ -315,8 +316,8 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
 
                 // Calculate indent after marker (skip spaces/tabs)
                 (item_indent_scanning : bool) = true;
-                while ((item_pos < item_max) && item_indent_scanning), {
-                  (ch : i32) = i32((state.*.src_ptr &+ usize(item_pos)).*);
+                while((item_pos < item_max) && item_indent_scanning, {
+                  (ch : i32) = i32((state.*.src_ptr.add(usize(item_pos))).*);
                   if((ch == i32(0x09)), {
                     item_offset = (item_offset + (i32(4) - ((item_offset + state.bs(list_next)) % i32(4))));
                     item_pos = (item_pos + i32(1));
@@ -328,7 +329,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                       item_indent_scanning = false;
                     });
                   });
-                };
+                });
 
                 (item_content_start : i32) = item_pos;
                 (item_indent_after_marker : i32) = cond(
@@ -425,11 +426,11 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
 
                 // Check marker style change
                 if(!(list_done), {
-                  if((list_marker_char != i32((state.*.src_ptr &+ usize((list_pam - i32(1)))).*)), {
+                  if((list_marker_char != i32((state.*.src_ptr.add(usize((list_pam - i32(1))))).*)), {
                     list_done = true;
                   });
                 });
-              };
+              });
 
               // Close list tag
               if(list_is_ordered, {
@@ -461,12 +462,12 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
             (fn_ls : i32) = i32(0);
             (fn_le : i32) = i32(0);
             (fn_cs : i32) = i32(0);
-            if(check_footnote_def(state, line, (&fn_ls), (&fn_le), (&fn_cs)), {
+            if(check_footnote_def(state, line, (&(fn_ls)), (&(fn_le)), (&(fn_cs))), {
               // Find the matching def to get its line_end
               (fn_def_idx : i32) = state.*.renderer.*.fn_find_def(fn_ls, fn_le, state.*.src_ptr);
               if((fn_def_idx >= i32(0)), {
-                (fn_defs_ptr : *(FootnoteDef)) = state.*.renderer.*._fn_defs.ptr().unwrap();
-                (fn_def : *(FootnoteDef)) = (fn_defs_ptr &+ usize(fn_def_idx));
+                (fn_defs_ptr : *(FootnoteDef)) = state.*.renderer.*.fn_defs.ptr().unwrap();
+                (fn_def : *(FootnoteDef)) = (fn_defs_ptr.add(usize(fn_def_idx)));
                 state.*.line = fn_def.*.line_end;
                 matched = true;
               });
@@ -519,7 +520,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                     state.*.parent_type = .DefList;
 
                     (dl_done : bool) = false;
-                    while !(dl_done), {
+                    while(!(dl_done), {
                       (dl_prev_empty_end : bool) = false;
 
                       // Emit <dt> with inline content of the term line
@@ -531,15 +532,15 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                       (dt_content_start : i32) = (dt_bm + dt_ts);
                       (dt_content_end : i32) = dt_em;
                       // Trim trailing spaces
-                      while (((dt_content_end > dt_content_start) && ((state.*.src_ptr &+ usize((dt_content_end - i32(1)))).* == u8(0x20)))), {
+                      while(((dt_content_end > dt_content_start) && ((state.*.src_ptr.add(usize((dt_content_end - i32(1))))).* == u8(0x20))), {
                         dt_content_end = (dt_content_end - i32(1));
-                      };
-                      inline_parse_range((&state.*._inline_state), state.*.src_ptr, dt_content_start, dt_content_end);
+                      });
+                      inline_parse_range((&(state.*._inline_state)), state.*.src_ptr, dt_content_start, dt_content_end);
                       state.*.renderer.*.dt_close();
 
                       // Inner loop: consume all <dd> definitions for this term
                       (dd_done : bool) = false;
-                      while !(dd_done), {
+                      while(!(dd_done), {
                         state.*.renderer.*.set_source_line(dl_dd_line);
                         state.*.renderer.*.dd_open();
 
@@ -550,8 +551,8 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                           ((state.sc(dl_dd_line) + dl_content_start) - (state.bm(dl_dd_line) + state.ts(dl_dd_line)));
 
                         (dd_scanning : bool) = true;
-                        while ((dd_pos < dd_max) && dd_scanning), {
-                          (dd_ch : i32) = i32((state.*.src_ptr &+ usize(dd_pos)).*);
+                        while((dd_pos < dd_max) && dd_scanning, {
+                          (dd_ch : i32) = i32((state.*.src_ptr.add(usize(dd_pos))).*);
                           if((dd_ch == i32(0x09)), {
                             dd_offset = (dd_offset + (i32(4) - (dd_offset % i32(4))));
                             dd_pos = (dd_pos + i32(1));
@@ -563,7 +564,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                               dd_scanning = false;
                             });
                           });
-                        };
+                        });
                         dl_content_start = dd_pos;
 
                         // Save state
@@ -616,7 +617,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                             dl_dd_line = dl_next_line;
                           });
                         });
-                      };
+                      });
 
                       // Check for another DT term
                       if(!(dl_done), {
@@ -647,7 +648,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
                         dl_content_start = skip_deflist_marker(state, dl_dd_line);
                         if((dl_content_start < i32(0)), { dl_done = true; });
                       });
-                    };
+                    });
 
                     // Close </dl>
                     state.*.renderer.*.dl_close();
@@ -688,7 +689,7 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
             state.*.line = line;
           });
     });
-  };
+  });
 });
 
 // Pre-scan all lines for reference definitions before the main parse.
@@ -698,7 +699,7 @@ _prescan_references :: (fn(state: *(BlockState)) -> unit)({
   (max : i32) = state.*.line_max;
   // Track paragraph state: references cannot appear inside paragraph continuations
   (in_paragraph : bool) = false;
-  while (line < max), {
+  while(line < max, {
     if(state.*.is_empty(line), {
       in_paragraph = false;
       line = (line + i32(1));
@@ -712,54 +713,54 @@ _prescan_references :: (fn(state: *(BlockState)) -> unit)({
       if((sc < i32(4)), {
         (line_start : i32) = (bm + ts);
         if((line_start < em), {
-          (fc : u8) = (state.*.src_ptr &+ usize(line_start)).*;
+          (fc : u8) = (state.*.src_ptr.add(usize(line_start))).*;
           if(((fc == u8(0x60)) || (fc == u8(0x7E))), {
             // Count consecutive fence chars
             (fence_char : u8) = fc;
             (fence_count : i32) = i32(0);
             (fp : i32) = line_start;
-            while ((fp < em) && ((state.*.src_ptr &+ usize(fp)).* == fence_char)), {
+            while((fp < em) && ((state.*.src_ptr.add(usize(fp))).* == fence_char), {
               fence_count = (fence_count + i32(1));
               fp = (fp + i32(1));
-            };
+            });
             if((fence_count >= i32(3)), {
               // Check no backticks in info string for backtick fences
               (has_backtick_in_info : bool) = false;
               if((fence_char == u8(0x60)), {
                 (ip : i32) = fp;
-                while (ip < em), {
-                  if(((state.*.src_ptr &+ usize(ip)).* == u8(0x60)), {
+                while(ip < em, {
+                  if(((state.*.src_ptr.add(usize(ip))).* == u8(0x60)), {
                     has_backtick_in_info = true;
                   });
                   ip = (ip + i32(1));
-                };
+                });
               });
               if(!(has_backtick_in_info), {
                 fence_detected = true;
                 in_paragraph = false;
                 // Skip to closing fence or end
                 line = (line + i32(1));
-                while (line < max), {
+                while(line < max, {
                   (fbm : i32) = state.bm(line);
                   (fts : i32) = state.ts(line);
                   (fem : i32) = state.em(line);
                   (fsc : i32) = state.sc(line);
                   (fpos : i32) = (fbm + fts);
-                  if((((fsc < i32(4)) && (fpos < fem)) && ((state.*.src_ptr &+ usize(fpos)).* == fence_char)), {
+                  if((((fsc < i32(4)) && (fpos < fem)) && ((state.*.src_ptr.add(usize(fpos))).* == fence_char)), {
                     // Count closing fence chars
                     (cc : i32) = i32(0);
-                    while ((fpos < fem) && ((state.*.src_ptr &+ usize(fpos)).* == fence_char)), {
+                    while((fpos < fem) && ((state.*.src_ptr.add(usize(fpos))).* == fence_char), {
                       cc = (cc + i32(1));
                       fpos = (fpos + i32(1));
-                    };
+                    });
                     if((cc >= fence_count), {
                       // Closing fence — skip past it
                       line = (line + i32(1));
-                      while true, { break; };
+                      while(true, { break; });
                     });
                   });
                   line = (line + i32(1));
-                };
+                });
               });
             });
           });
@@ -799,7 +800,7 @@ _prescan_references :: (fn(state: *(BlockState)) -> unit)({
         });
       });
     });
-  };
+  });
   // Reset line for the main parse
   state.*.line = i32(0);
 });
@@ -809,7 +810,7 @@ _prescan_references :: (fn(state: *(BlockState)) -> unit)({
 _prescan_footnotes :: (fn(state: *(BlockState)) -> unit)({
   (line : i32) = i32(0);
   (max : i32) = state.*.line_max;
-  while (line < max), {
+  while(line < max, {
     if(state.*.is_empty(line), {
       line = (line + i32(1));
     }, {
@@ -821,7 +822,7 @@ _prescan_footnotes :: (fn(state: *(BlockState)) -> unit)({
         (label_start : i32) = i32(0);
         (label_end : i32) = i32(0);
         (content_start : i32) = i32(0);
-        if(check_footnote_def(state, line, (&label_start), (&label_end), (&content_start)), {
+        if(check_footnote_def(state, line, (&(label_start)), (&(label_end)), (&(content_start))), {
           // Found a footnote definition — compute adjusted state for first line
           (start : i32) = (state.bm(line) + state.ts(line));
           (pos_after_colon : i32) = content_start;
@@ -831,14 +832,14 @@ _prescan_footnotes :: (fn(state: *(BlockState)) -> unit)({
           (offset : i32) = initial;
           (pos : i32) = pos_after_colon;
           (em : i32) = state.em(line);
-          while ((pos < em) && (((state.*.src_ptr &+ usize(pos)).* == u8(0x20)) || ((state.*.src_ptr &+ usize(pos)).* == u8(0x09)))), {
-            if(((state.*.src_ptr &+ usize(pos)).* == u8(0x09)), {
+          while((pos < em) && (((state.*.src_ptr.add(usize(pos))).* == u8(0x20)) || ((state.*.src_ptr.add(usize(pos))).* == u8(0x09))), {
+            if(((state.*.src_ptr.add(usize(pos))).* == u8(0x09)), {
               offset = (offset + (i32(4) - (offset % i32(4))));
             }, {
               offset = (offset + i32(1));
             });
             pos = (pos + i32(1));
-          };
+          });
 
           // Adjusted first-line values (skip [^label]: prefix)
           (adj_ts : i32) = (pos - pos_after_colon);
@@ -847,7 +848,7 @@ _prescan_footnotes :: (fn(state: *(BlockState)) -> unit)({
           // Find end of footnote block: continuation lines indented by 4+ or empty
           (fn_end : i32) = (line + i32(1));
           (fn_scan_done : bool) = false;
-          while ((fn_end < max) && !(fn_scan_done)), {
+          while((fn_end < max) && !(fn_scan_done), {
             if(state.*.is_empty(fn_end), {
               fn_end = (fn_end + i32(1));
             }, {
@@ -857,12 +858,12 @@ _prescan_footnotes :: (fn(state: *(BlockState)) -> unit)({
                 fn_scan_done = true;
               });
             });
-          };
+          });
 
           // Trim trailing empty lines
-          while (((fn_end - i32(1)) > line) && state.*.is_empty((fn_end - i32(1)))), {
+          while(((fn_end - i32(1)) > line) && state.*.is_empty((fn_end - i32(1))), {
             fn_end = (fn_end - i32(1));
-          };
+          });
 
           (def : FootnoteDef) = FootnoteDef(
             label_start: label_start,
@@ -881,7 +882,7 @@ _prescan_footnotes :: (fn(state: *(BlockState)) -> unit)({
         });
       });
     });
-  };
+  });
   // Reset line for the main parse
   state.*.line = i32(0);
 });
@@ -894,17 +895,17 @@ _render_footnote_section :: (fn(state: *(BlockState)) -> unit)({
   // Emit footnote section header
   r.*.lit("<hr class=\"footnotes-sep\">\n<section class=\"footnotes\">\n<ol class=\"footnotes-list\">\n");
 
-  r.*._fn_in_section = true;
+  r.*.fn_in_section = true;
 
   (fn_idx : usize) = usize(0);
-  (fn_total : usize) = r.*._fn_ref_order.len();
-  while (fn_idx < fn_total), {
+  (fn_total : usize) = r.*.fn_ref_order.len();
+  while(fn_idx < fn_total, {
     (fn_num : i32) = (i32(fn_idx) + i32(1)); // 1-based
-    (order_val : i32) = r.*._fn_ref_order.get(fn_idx).unwrap();
+    (order_val : i32) = r.*.fn_ref_order.get(fn_idx).unwrap();
 
     // Emit <li id="fnN" class="footnote-item">
     r.*.lit("<li id=\"fn");
-    _write_i32((&r.*.buf), fn_num);
+    _write_i32((&(r.*.buf)), fn_num);
     r.*.lit("\" class=\"footnote-item\">");
 
     // Record buffer position before content
@@ -913,8 +914,8 @@ _render_footnote_section :: (fn(state: *(BlockState)) -> unit)({
     if((order_val >= i32(0)), {
       // Regular footnote definition
       (def_idx : usize) = usize(order_val);
-      (defs_ptr : *(FootnoteDef)) = r.*._fn_defs.ptr().unwrap();
-      (def : *(FootnoteDef)) = (defs_ptr &+ def_idx);
+      (defs_ptr : *(FootnoteDef)) = r.*.fn_defs.ptr().unwrap();
+      (def : *(FootnoteDef)) = (defs_ptr.add(def_idx));
       (fn_line_start : i32) = def.*.line_start;
       (fn_line_end : i32) = def.*.line_end;
 
@@ -927,13 +928,13 @@ _render_footnote_section :: (fn(state: *(BlockState)) -> unit)({
       (old_line_max : i32) = state.*.line_max;
 
       // Adjust first line: skip [^label]: prefix
-      (state.*._bm &+ usize(fn_line_start)).* = def.*.adj_bmark;
-      (state.*._ts &+ usize(fn_line_start)).* = def.*.adj_tshift;
-      (state.*._sc &+ usize(fn_line_start)).* = def.*.adj_scount;
+      (state.*._bm.add(usize(fn_line_start))).* = def.*.adj_bmark;
+      (state.*._ts.add(usize(fn_line_start))).* = def.*.adj_tshift;
+      (state.*._sc.add(usize(fn_line_start))).* = def.*.adj_scount;
 
       // If sCount < blkIndent, fix it
-      if(((state.*._sc &+ usize(fn_line_start)).* < i32(4)), {
-        (state.*._sc &+ usize(fn_line_start)).* = ((state.*._sc &+ usize(fn_line_start)).* + i32(4));
+      if(((state.*._sc.add(usize(fn_line_start))).* < i32(4)), {
+        (state.*._sc.add(usize(fn_line_start))).* = ((state.*._sc.add(usize(fn_line_start))).* + i32(4));
       });
 
       state.*.blk_indent = i32(4);
@@ -944,19 +945,19 @@ _render_footnote_section :: (fn(state: *(BlockState)) -> unit)({
       block_tokenize(state, fn_line_start, fn_line_end);
 
       // Restore state
-      (state.*._bm &+ usize(fn_line_start)).* = old_bm;
-      (state.*._ts &+ usize(fn_line_start)).* = old_ts;
-      (state.*._sc &+ usize(fn_line_start)).* = old_sc;
+      (state.*._bm.add(usize(fn_line_start))).* = old_bm;
+      (state.*._ts.add(usize(fn_line_start))).* = old_ts;
+      (state.*._sc.add(usize(fn_line_start))).* = old_sc;
       state.*.blk_indent = old_blk_indent;
       state.*.parent_type = old_parent;
       state.*.line_max = old_line_max;
     }, {
       // Inline footnote: ^[content]
       (inline_idx : i32) = ((i32(0) - order_val) - i32(1));
-      (cs : i32) = r.*._fn_inline_starts.get(usize(inline_idx)).unwrap();
-      (ce : i32) = r.*._fn_inline_ends.get(usize(inline_idx)).unwrap();
+      (cs : i32) = r.*.fn_inline_starts.get(usize(inline_idx)).unwrap();
+      (ce : i32) = r.*.fn_inline_ends.get(usize(inline_idx)).unwrap();
       r.*.lit("<p>");
-      inline_parse_range((&state.*._inline_state), state.*.src_ptr, cs, ce);
+      inline_parse_range((&(state.*._inline_state)), state.*.src_ptr, cs, ce);
       r.*.lit("</p>\n");
     });
 
@@ -965,29 +966,29 @@ _render_footnote_section :: (fn(state: *(BlockState)) -> unit)({
     // Build backref HTML: " <a href="#fnrefN[:subId]" class="footnote-backref">↩︎</a>"
     // For multiple references, emit multiple backrefs
     (ref_count : i32) = cond(
-      (order_val >= i32(0)) => r.*._fn_ref_counts.get(usize(order_val)).unwrap(),
+      (order_val >= i32(0)) => r.*.fn_ref_counts.get(usize(order_val)).unwrap(),
       true => i32(1) // inline footnotes have exactly 1 reference
     );
     (backref_buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(64));
     (sub : i32) = i32(0);
-    while (sub < ref_count), {
-      append_lit((&backref_buf), " <a href=\"#fnref");
-      _write_i32((&backref_buf), fn_num);
+    while(sub < ref_count, {
+      append_lit((&(backref_buf)), " <a href=\"#fnref");
+      _write_i32((&(backref_buf)), fn_num);
       if((sub > i32(0)), {
         _ := backref_buf.push(u8(0x3A)); // :
-        _write_i32((&backref_buf), sub);
+        _write_i32((&(backref_buf)), sub);
       });
       // ↩︎ = U+21A9 U+FE0E = UTF-8: E2 86 A9 EF B8 8E
-      append_lit((&backref_buf), "\" class=\"footnote-backref\">");
+      append_lit((&(backref_buf)), "\" class=\"footnote-backref\">");
       _ := backref_buf.push(u8(0xE2));
       _ := backref_buf.push(u8(0x86));
       _ := backref_buf.push(u8(0xA9));
       _ := backref_buf.push(u8(0xEF));
       _ := backref_buf.push(u8(0xB8));
       _ := backref_buf.push(u8(0x8E));
-      append_lit((&backref_buf), "</a>");
+      append_lit((&(backref_buf)), "</a>");
       sub = (sub + i32(1));
-    };
+    });
 
     // Find last "</p>\n" in [content_buf_start, content_buf_end)
     (backref_len : usize) = backref_buf.len();
@@ -996,18 +997,18 @@ _render_footnote_section :: (fn(state: *(BlockState)) -> unit)({
       (scan : usize) = content_buf_end;
       (found_p_close : bool) = false;
       (insert_pos : usize) = usize(0);
-      while (((scan > content_buf_start) && !(found_p_close))), {
+      while(((scan > content_buf_start) && !(found_p_close)), {
         scan = (scan - usize(1));
         // Check if buf[scan..scan+5] == "</p>\n"
         if(((scan + usize(4)) <= content_buf_end), {
           (bp : *(u8)) = match(r.*.buf.ptr(), .Some(p) => p, .None => *(u8)(""));
-          if(((((bp &+ scan).* == u8(0x3C)) && ((bp &+ (scan + usize(1))).* == u8(0x2F)))
-              && (((bp &+ (scan + usize(2))).* == u8(0x70)) && ((bp &+ (scan + usize(3))).* == u8(0x3E)))), {
+          if(((((bp.add(scan)).* == u8(0x3C)) && ((bp.add((scan + usize(1)))).* == u8(0x2F)))
+              && (((bp.add((scan + usize(2)))).* == u8(0x70)) && ((bp.add((scan + usize(3)))).* == u8(0x3E)))), {
             insert_pos = scan;
             found_p_close = true;
           });
         });
-      };
+      });
 
       if(found_p_close, {
         // Insert backref_buf at insert_pos (before "</p>\n")
@@ -1015,19 +1016,19 @@ _render_footnote_section :: (fn(state: *(BlockState)) -> unit)({
         (tail_len : usize) = (content_buf_end - insert_pos);
         // Reserve space
         (ri : usize) = usize(0);
-        while (ri < backref_len), {
+        while(ri < backref_len, {
           _ := r.*.buf.push(u8(0));
           ri = (ri + usize(1));
-        };
+        });
         // Move tail forward by backref_len
         (bp : *(u8)) = match(r.*.buf.ptr(), .Some(p) => p, .None => *(u8)(""));
-        _ := memmove(*(void)((bp &+ (insert_pos + backref_len))),
-                     *(void)((bp &+ insert_pos)),
-                     tail_len);
+        _ := unsafe(memmove(*(void)((bp.add((insert_pos + backref_len)))),
+                     *(void)((bp.add(insert_pos))),
+                     tail_len));
         // Copy backref content to insert position
         match(backref_buf.ptr(),
           .Some(src) => {
-            _ := memmove(*(void)((bp &+ insert_pos)), *(void)(src), backref_len);
+            _ := unsafe(memmove(*(void)((bp.add(insert_pos))), *(void)(src), backref_len));
           },
           .None => ()
         );
@@ -1036,9 +1037,9 @@ _render_footnote_section :: (fn(state: *(BlockState)) -> unit)({
 
     r.*.lit("</li>\n");
     fn_idx = (fn_idx + usize(1));
-  };
+  });
 
-  r.*._fn_in_section = false;
+  r.*.fn_in_section = false;
   r.*.lit("</ol>\n</section>\n");
 });
 
@@ -1060,4 +1061,4 @@ block_parse :: (fn(state: *(BlockState)) -> unit)({
   });
 });
 
-export block_parse, block_tokenize;
+export(block_parse, block_tokenize);

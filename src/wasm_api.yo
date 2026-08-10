@@ -31,12 +31,13 @@
 //   const html = UTF8ArrayToString(HEAPU8, ptr, len);
 //   Module._wasm_free(ptr);
 
-open import "std/string";
-{ ArrayList } :: import "std/collections/array_list";
-{ malloc, free } :: import "std/libc/stdlib";
-{ memcpy } :: import "std/libc/string";
-{ markdown_to_html } :: import "./parser.yo";
-{ Options, default_options, commonmark_options } :: import "./types.yo";
+pragma(Pragma.AllowUnsafe);
+open(import("std/string"));
+{ ArrayList } :: import("std/collections/array_list");
+{ malloc, free } :: import("std/libc/stdlib");
+{ memcpy } :: import("std/libc/string");
+{ markdown_to_html } :: import("./parser.yo");
+{ Options, default_options, commonmark_options } :: import("./types.yo");
 
 // Thread-local state for last result length
 (g_last_result_len : i32) = i32(0);
@@ -78,7 +79,7 @@ wasm_render :: (fn(input_ptr: *(u8), input_len: i32, flags: i32) -> *(u8))({
   if(((flags & i32(131072)) != i32(0)), { opts.xhtml_out = true; });
 
   // Render
-  result := markdown_to_html(input, (&opts));
+  result := markdown_to_html(input, (&(opts)));
 
   // Get result bytes and copy to malloc'd buffer
   result_bytes := result.as_bytes();
@@ -86,12 +87,12 @@ wasm_render :: (fn(input_ptr: *(u8), input_len: i32, flags: i32) -> *(u8))({
   g_last_result_len = i32(rlen);
 
   // Allocate output and copy
-  (out_ptr : ?*(void)) = malloc(rlen);
+  (out_ptr : ?*(void)) = unsafe(malloc(rlen));
   match(out_ptr,
     .Some(p) => {
       match(result_bytes.ptr(),
         .Some(src) => {
-          _ := memcpy(p, *(void)(src), rlen);
+          _ := unsafe(memcpy(p, *(void)(src), rlen));
         },
         .None => ()
       );
@@ -107,7 +108,7 @@ wasm_result_len :: (fn() -> i32)(g_last_result_len);
 // Free a pointer returned by wasm_render.
 wasm_free :: (fn(ptr: *(u8)) -> unit)({
   (p : ?*(void)) = .Some(*(void)(ptr));
-  free(p);
+  unsafe(free(p));
 });
 
-export main, wasm_render, wasm_result_len, wasm_free;
+export(main, wasm_render, wasm_result_len, wasm_free);

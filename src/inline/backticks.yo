@@ -3,22 +3,23 @@
 // Matches: `code` or ``code with ` inside``
 // The number of opening and closing backticks must match.
 
-{ InlineState, InlineToken } :: import "./state.yo";
+pragma(Pragma.AllowUnsafe);
+{ InlineState, InlineToken } :: import("./state.yo");
 
 inline_backticks :: (fn(state: *(InlineState)) -> bool)({
   (pos : i32) = state.*.pos;
-  if((pos >= state.*.pos_max), { return false; });
+  if((pos >= state.*.pos_max), { return(false); });
 
-  (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
-  if((ch != i32(0x60)), { return false; });
+  (ch : i32) = i32((state.*.src_ptr.add(usize(pos))).*);
+  if((ch != i32(0x60)), { return(false); });
 
   // Count opening backticks
   (open_count : i32) = i32(0);
   (p : i32) = pos;
-  while ((p < state.*.pos_max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x60))), {
+  while((p < state.*.pos_max) && (i32((state.*.src_ptr.add(usize(p))).*) == i32(0x60)), {
     open_count = (open_count + i32(1));
     p = (p + i32(1));
-  };
+  });
 
   // Search for matching close
   (search : i32) = p;
@@ -26,15 +27,15 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
   (close_start : i32) = i32(0);
   (close_end : i32) = i32(0);
 
-  while ((search < state.*.pos_max) && !(found)), {
-    if((i32((state.*.src_ptr &+ usize(search)).*) == i32(0x60)), {
+  while((search < state.*.pos_max) && !(found), {
+    if((i32((state.*.src_ptr.add(usize(search))).*) == i32(0x60)), {
       // Count close backticks
       (cnt : i32) = i32(0);
       (cs : i32) = search;
-      while ((cs < state.*.pos_max) && (i32((state.*.src_ptr &+ usize(cs)).*) == i32(0x60))), {
+      while((cs < state.*.pos_max) && (i32((state.*.src_ptr.add(usize(cs))).*) == i32(0x60)), {
         cnt = (cnt + i32(1));
         cs = (cs + i32(1));
-      };
+      });
 
       if((cnt == open_count), {
         close_start = search;
@@ -46,13 +47,13 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
     }, {
       search = (search + i32(1));
     });
-  };
+  });
 
   if(!(found), {
     // No matching close — treat opening backticks as literal text
     state.*.pending_end = p;
     state.*.pos = p;
-    return true;
+    return(true);
   });
 
   // Found matching close: content is between open end (p) and close start
@@ -67,21 +68,21 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
   (content_start : i32) = p;
   (content_end : i32) = close_start;
   if(((content_end - content_start) >= i32(2)), {
-    (first : i32) = i32((state.*.src_ptr &+ usize(content_start)).*);
-    (last : i32) = i32((state.*.src_ptr &+ usize((content_end - i32(1)))).*);
+    (first : i32) = i32((state.*.src_ptr.add(usize(content_start))).*);
+    (last : i32) = i32((state.*.src_ptr.add(usize((content_end - i32(1))))).*);
     (first_is_space : bool) = ((first == i32(0x20)) || (first == i32(0x0A)));
     (last_is_space : bool) = ((last == i32(0x20)) || (last == i32(0x0A)));
     if((first_is_space && last_is_space), {
       // Check content is not all whitespace — count non-whitespace chars
       (non_space_count : i32) = i32(0);
       (sp : i32) = content_start;
-      while (sp < content_end), {
-        (c : i32) = i32((state.*.src_ptr &+ usize(sp)).*);
+      while(sp < content_end, {
+        (c : i32) = i32((state.*.src_ptr.add(usize(sp))).*);
         if(((c != i32(0x20)) && (c != i32(0x0A))), {
           non_space_count = (non_space_count + i32(1));
         });
         sp = (sp + i32(1));
-      };
+      });
       if((non_space_count > i32(0)), {
         content_start = (content_start + i32(1));
         content_end = (content_end - i32(1));
@@ -99,7 +100,7 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
     info_start: i32(0), info_end: i32(0),
     title_start: i32(0), title_end: i32(0),
     markup_char: u8(0x60), markup_len: u8(open_count),
-    content_idx: i32(-1), href_idx: i32(-1), title_idx: i32(-1),
+    content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1)),
     block: false, hidden: false
   );
 
@@ -109,4 +110,4 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
   true
 });
 
-export inline_backticks;
+export(inline_backticks);

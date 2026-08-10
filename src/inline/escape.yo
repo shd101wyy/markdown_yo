@@ -3,7 +3,8 @@
 // Matches: \X where X is an ASCII punctuation character
 // Produces a text token for the escaped character.
 
-{ InlineState, InlineToken } :: import "./state.yo";
+pragma(Pragma.AllowUnsafe);
+{ InlineState, InlineToken } :: import("./state.yo");
 
 // ASCII punctuation that can be escaped
 _is_escapable :: (fn(ch: i32) -> bool)(
@@ -20,9 +21,9 @@ _is_escapable :: (fn(ch: i32) -> bool)(
 
 inline_escape :: (fn(state: *(InlineState)) -> bool)({
   (pos : i32) = state.*.pos;
-  if(((pos + i32(1)) >= state.*.pos_max), { return false; });
+  if(((pos + i32(1)) >= state.*.pos_max), { return(false); });
 
-  (ch : i32) = i32((state.*.src_ptr &+ usize((pos + i32(1)))).*);
+  (ch : i32) = i32((state.*.src_ptr.add(usize((pos + i32(1))))).*);
 
   // Hard break: \<newline>
   if((ch == i32(0x0A)), {
@@ -30,12 +31,12 @@ inline_escape :: (fn(state: *(InlineState)) -> bool)({
     _ := state.*.tokens.push(InlineToken.simple(.Hardbreak, i32(0), state.*.level));
     state.*.pos = (pos + i32(2));
     // Skip spaces after newline
-    while ((state.*.pos < state.*.pos_max) && (i32((state.*.src_ptr &+ usize(state.*.pos)).*) == i32(0x20))), {
+    while((state.*.pos < state.*.pos_max) && (i32((state.*.src_ptr.add(usize(state.*.pos))).*) == i32(0x20)), {
       state.*.pos = (state.*.pos + i32(1));
-    };
+    });
     state.*.pending_start = state.*.pos;
     state.*.pending_end = state.*.pos;
-    return true;
+    return(true);
   });
 
   if(_is_escapable(ch), {
@@ -45,10 +46,10 @@ inline_escape :: (fn(state: *(InlineState)) -> bool)({
     state.*.pos = (pos + i32(2));
     state.*.pending_start = state.*.pos;
     state.*.pending_end = state.*.pos;
-    return true;
+    return(true);
   });
 
   false
 });
 
-export inline_escape;
+export(inline_escape);

@@ -3,10 +3,11 @@
 // Handles * and _ markers. Pushes a text token for the markers AND a Delimiter
 // entry for later resolution by emphasis_post.
 
-{ ArrayList } :: import "std/collections/array_list";
-{ InlineState, InlineToken } :: import "./state.yo";
-{ Delimiter } :: import "../types.yo";
-{ is_space, is_white_space, is_punct_char } :: import "../common/utils.yo";
+pragma(Pragma.AllowUnsafe);
+{ ArrayList } :: import("std/collections/array_list");
+{ InlineState, InlineToken } :: import("./state.yo");
+{ Delimiter } :: import("../types.yo");
+{ is_space, is_white_space, is_punct_char } :: import("../common/utils.yo");
 
 // Scan delimiter run for open/close properties (CommonMark §6.2)
 _scan_delims :: (fn(state: *(InlineState), start: i32, marker: u8) -> i32)({
@@ -14,20 +15,20 @@ _scan_delims :: (fn(state: *(InlineState), start: i32, marker: u8) -> i32)({
   (max : i32) = state.*.pos_max;
 
   // Count consecutive markers
-  while ((pos < max) && ((state.*.src_ptr &+ usize(pos)).* == marker)), {
+  while((pos < max) && ((state.*.src_ptr.add(usize(pos))).* == marker), {
     pos = (pos + i32(1));
-  };
+  });
   (count : i32) = (pos - start);
 
   // Character before the run (or start-of-string = newline equivalent)
   (char_before : i32) = cond(
-    (start > i32(0)) => i32((state.*.src_ptr &+ usize((start - i32(1)))).*),
+    (start > i32(0)) => i32((state.*.src_ptr.add(usize((start - i32(1))))).*),
     true => i32(0x0A)
   );
 
   // Character after the run (or end-of-string = newline equivalent)
   (char_after : i32) = cond(
-    (pos < max) => i32((state.*.src_ptr &+ usize(pos)).*),
+    (pos < max) => i32((state.*.src_ptr.add(usize(pos))).*),
     true => i32(0x0A)
   );
 
@@ -66,10 +67,10 @@ _scan_delims :: (fn(state: *(InlineState), start: i32, marker: u8) -> i32)({
 
 inline_emphasis :: (fn(state: *(InlineState)) -> bool)({
   (pos : i32) = state.*.pos;
-  (marker : u8) = (state.*.src_ptr &+ usize(pos)).*;
+  (marker : u8) = (state.*.src_ptr.add(usize(pos))).*;
 
   // Only * and _ handled here
-  if(((i32(marker) != i32(0x2A)) && (i32(marker) != i32(0x5F))), { return false; });
+  if(((i32(marker) != i32(0x2A)) && (i32(marker) != i32(0x5F))), { return(false); });
 
   (scan_result : i32) = _scan_delims(state, pos, marker);
   (count : i32) = (scan_result & i32(0xFFFF));
@@ -81,7 +82,7 @@ inline_emphasis :: (fn(state: *(InlineState)) -> bool)({
     // individual characters from being re-scanned with different context.
     state.*.pending_end = (pos + count);
     state.*.pos = (pos + count);
-    return true;
+    return(true);
   });
 
   // Push pending text
@@ -96,7 +97,7 @@ inline_emphasis :: (fn(state: *(InlineState)) -> bool)({
     marker: marker,
     length: count,
     token_idx: tok_idx,
-    end: i32(-1),
+    end: (i32(0) - i32(1)),
     jump: i32(0),
     open: can_open,
     close: can_close
@@ -108,4 +109,4 @@ inline_emphasis :: (fn(state: *(InlineState)) -> bool)({
   true
 });
 
-export inline_emphasis;
+export(inline_emphasis);

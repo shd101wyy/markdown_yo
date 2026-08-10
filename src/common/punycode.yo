@@ -1,8 +1,9 @@
 // Punycode encoder/decoder (RFC 3492)
 // Used for Internationalized Domain Names (IDN)
 
-open import "std/string";
-{ ArrayList } :: import "std/collections/array_list";
+pragma(Pragma.AllowUnsafe);
+open(import("std/string"));
+{ ArrayList } :: import("std/collections/array_list");
 
 // Constants from RFC 3492
 _PC_BASE :: i32(36);
@@ -21,10 +22,10 @@ _adapt :: (fn(delta_in: i32, num_points: i32, first_time: bool) -> i32)({
   );
   delta = (delta + (delta / num_points));
   (k : i32) = i32(0);
-  while (delta > (((_PC_BASE - _PC_TMIN) * _PC_TMAX) / i32(2))), {
+  while(delta > (((_PC_BASE - _PC_TMIN) * _PC_TMAX) / i32(2)), {
     delta = (delta / (_PC_BASE - _PC_TMIN));
     k = (k + _PC_BASE);
-  };
+  });
   (k + ((((_PC_BASE - _PC_TMIN) + i32(1)) * delta) / (delta + _PC_SKEW)))
 });
 
@@ -54,14 +55,14 @@ punycode_decode :: (fn(input: str) -> Option(String))({
   (len : i32) = i32(input.len());
 
   // Find last '-' separator (basic chars are before it)
-  (basic_end : i32) = i32(-1);
+  (basic_end : i32) = (i32(0) - i32(1));
   (j : i32) = i32(0);
-  while (j < len), {
-    if((i32((src &+ usize(j)).*) == i32(0x2D)), {
+  while(j < len, {
+    if((i32((src.add(usize(j))).*) == i32(0x2D)), {
       basic_end = j;
     });
     j = (j + i32(1));
-  };
+  });
 
   // Collect output codepoints in an array
   (output : ArrayList(i32)) = ArrayList(i32).new();
@@ -69,14 +70,14 @@ punycode_decode :: (fn(input: str) -> Option(String))({
   // Copy basic codepoints
   if((basic_end > i32(0)), {
     (b : i32) = i32(0);
-    while (b < basic_end), {
-      (cp : i32) = i32((src &+ usize(b)).*);
+    while(b < basic_end, {
+      (cp : i32) = i32((src.add(usize(b))).*);
       if((cp >= i32(0x80)), {
-        return .None;
+        return(.None);
       });
       _ := output.push(cp);
       b = (b + i32(1));
-    };
+    });
   });
 
   // Decode the extended codepoints
@@ -88,20 +89,20 @@ punycode_decode :: (fn(input: str) -> Option(String))({
     true => i32(0)
   );
 
-  while (pos < len), {
+  while(pos < len, {
     (old_i : i32) = i_val;
     (w : i32) = i32(1);
     (k : i32) = _PC_BASE;
 
     (decode_done : bool) = false;
-    while (!(decode_done)), {
+    while(!(decode_done), {
       if((pos >= len), {
-        return .None;
+        return(.None);
       });
-      (digit : i32) = _decode_digit(i32((src &+ usize(pos)).*));
+      (digit : i32) = _decode_digit(i32((src.add(usize(pos))).*));
       pos = (pos + i32(1));
       if((digit >= _PC_BASE), {
-        return .None;
+        return(.None);
       });
       i_val = (i_val + (digit * w));
       (t : i32) = cond(
@@ -115,7 +116,7 @@ punycode_decode :: (fn(input: str) -> Option(String))({
         w = (w * (_PC_BASE - t));
         k = (k + _PC_BASE);
       });
-    };
+    });
 
     (out_len : i32) = (i32(output.len()) + i32(1));
     bias = _adapt((i_val - old_i), out_len, (old_i == i32(0)));
@@ -126,18 +127,18 @@ punycode_decode :: (fn(input: str) -> Option(String))({
     // Shift elements right
     _ := output.push(i32(0));
     (shift : i32) = (i32(output.len()) - i32(1));
-    while (shift > i_val), {
+    while(shift > i_val, {
       &(output(usize(shift))).* = output(usize((shift - i32(1))));
       shift = (shift - i32(1));
-    };
+    });
     &(output(usize(i_val))).* = n;
     i_val = (i_val + i32(1));
-  };
+  });
 
   // Convert codepoints to UTF-8
   (result : ArrayList(u8)) = ArrayList(u8).new();
   (r : i32) = i32(0);
-  while (r < i32(output.len())), {
+  while(r < i32(output.len()), {
     (cp : i32) = output(usize(r));
     if((cp < i32(0x80)), {
       _ := result.push(u8(cp));
@@ -155,7 +156,7 @@ punycode_decode :: (fn(input: str) -> Option(String))({
       _ := result.push(u8((i32(0x80) + (cp % i32(64)))));
     })));
     r = (r + i32(1));
-  };
+  });
 
   .Some(String.from_bytes(result))
 });
@@ -169,38 +170,38 @@ punycode_encode :: (fn(input: str) -> String)({
   // First, decode UTF-8 to codepoints
   (codepoints : ArrayList(i32)) = ArrayList(i32).new();
   (p : i32) = i32(0);
-  while (p < len), {
-    (b : i32) = i32((src &+ usize(p)).*);
+  while(p < len, {
+    (b : i32) = i32((src.add(usize(p))).*);
     (cp : i32) = i32(0);
     if((b < i32(0x80)), {
       cp = b;
       p = (p + i32(1));
     }, if(((b >= i32(0xC0)) && (b < i32(0xE0))), {
-      cp = (((b - i32(0xC0)) * i32(64)) + (i32((src &+ usize((p + i32(1)))).*) - i32(0x80)));
+      cp = (((b - i32(0xC0)) * i32(64)) + (i32((src.add(usize((p + i32(1))))).*) - i32(0x80)));
       p = (p + i32(2));
     }, if(((b >= i32(0xE0)) && (b < i32(0xF0))), {
-      cp = ((((b - i32(0xE0)) * i32(4096)) + ((i32((src &+ usize((p + i32(1)))).*) - i32(0x80)) * i32(64))) + (i32((src &+ usize((p + i32(2)))).*) - i32(0x80)));
+      cp = ((((b - i32(0xE0)) * i32(4096)) + ((i32((src.add(usize((p + i32(1))))).*) - i32(0x80)) * i32(64))) + (i32((src.add(usize((p + i32(2))))).*) - i32(0x80)));
       p = (p + i32(3));
     }, {
-      cp = (((((b - i32(0xF0)) * i32(262144)) + ((i32((src &+ usize((p + i32(1)))).*) - i32(0x80)) * i32(4096))) + ((i32((src &+ usize((p + i32(2)))).*) - i32(0x80)) * i32(64))) + (i32((src &+ usize((p + i32(3)))).*) - i32(0x80)));
+      cp = (((((b - i32(0xF0)) * i32(262144)) + ((i32((src.add(usize((p + i32(1))))).*) - i32(0x80)) * i32(4096))) + ((i32((src.add(usize((p + i32(2))))).*) - i32(0x80)) * i32(64))) + (i32((src.add(usize((p + i32(3))))).*) - i32(0x80)));
       p = (p + i32(4));
     })));
     _ := codepoints.push(cp);
-  };
+  });
 
   (result : ArrayList(u8)) = ArrayList(u8).new();
 
   // Copy basic codepoints
   (basic_count : i32) = i32(0);
   (c : i32) = i32(0);
-  while (c < i32(codepoints.len())), {
+  while(c < i32(codepoints.len()), {
     (cp : i32) = codepoints(usize(c));
     if((cp < i32(0x80)), {
       _ := result.push(u8(cp));
       basic_count = (basic_count + i32(1));
     });
     c = (c + i32(1));
-  };
+  });
 
   // Add separator if there were basic chars
   if((basic_count > i32(0)), {
@@ -213,23 +214,23 @@ punycode_encode :: (fn(input: str) -> String)({
   (handled : i32) = basic_count;
   (total : i32) = i32(codepoints.len());
 
-  while (handled < total), {
+  while(handled < total, {
     // Find minimum codepoint >= n
     (m : i32) = i32(0x10FFFF);
     (s : i32) = i32(0);
-    while (s < total), {
+    while(s < total, {
       (cp : i32) = codepoints(usize(s));
       if(((cp >= n) && (cp < m)), {
         m = cp;
       });
       s = (s + i32(1));
-    };
+    });
 
     delta = (delta + ((m - n) * (handled + i32(1))));
     n = m;
 
     (s2 : i32) = i32(0);
-    while (s2 < total), {
+    while(s2 < total, {
       (cp : i32) = codepoints(usize(s2));
       if((cp < n), {
         delta = (delta + i32(1));
@@ -238,7 +239,7 @@ punycode_encode :: (fn(input: str) -> String)({
         (q : i32) = delta;
         (k : i32) = _PC_BASE;
         (encode_done : bool) = false;
-        while (!(encode_done)), {
+        while(!(encode_done), {
           (t : i32) = cond(
             (k <= bias) => _PC_TMIN,
             (k >= (bias + _PC_TMAX)) => _PC_TMAX,
@@ -252,17 +253,17 @@ punycode_encode :: (fn(input: str) -> String)({
             q = ((q - t) / (_PC_BASE - t));
             k = (k + _PC_BASE);
           });
-        };
+        });
         bias = _adapt(delta, (handled + i32(1)), (handled == basic_count));
         delta = i32(0);
         handled = (handled + i32(1));
       });
       s2 = (s2 + i32(1));
-    };
+    });
 
     delta = (delta + i32(1));
     n = (n + i32(1));
-  };
+  });
 
   String.from_bytes(result)
 });
@@ -271,29 +272,29 @@ punycode_encode :: (fn(input: str) -> String)({
 _has_non_ascii :: (fn(src: *(u8), start: i32, end: i32) -> bool)({
   (p : i32) = start;
   (found : bool) = false;
-  while ((p < end) && !(found)), {
-    if((i32((src &+ usize(p)).*) >= i32(0x80)), {
+  while((p < end) && !(found), {
+    if((i32((src.add(usize(p))).*) >= i32(0x80)), {
       found = true;
     });
     p = (p + i32(1));
-  };
+  });
   found
 });
 
 // Encode domain name (Unicode → punycode for each label with non-ASCII)
 // Input: domain like "☃.net", output: "xn--n3h.net"
-encode_domain :: (fn(domain: str) -> String)({
-  (src : *(u8)) = domain.ptr();
-  (len : i32) = i32(domain.len());
+encode_domain :: (fn(domain_ptr: *(u8), domain_len: i32) -> String)({
+  (src : *(u8)) = domain_ptr;
+  (len : i32) = domain_len;
   (result : ArrayList(u8)) = ArrayList(u8).new();
 
   (start : i32) = i32(0);
-  while (start < len), {
+  while(start < len, {
     // Find end of this label (next '.' or end)
     (end : i32) = start;
-    while ((end < len) && (i32((src &+ usize(end)).*) != i32(0x2E))), {
+    while((end < len) && (i32((src.add(usize(end))).*) != i32(0x2E)), {
       end = (end + i32(1));
-    };
+    });
 
     if(_has_non_ascii(src, start, end), {
       // Encode this label as punycode
@@ -301,22 +302,22 @@ encode_domain :: (fn(domain: str) -> String)({
       _ := result.push(u8(0x6E));  // n
       _ := result.push(u8(0x2D));  // -
       _ := result.push(u8(0x2D));  // -
-      (label : str) = str.from_raw_parts((src &+ usize(start)), usize((end - start)));
+      (label : str) = str.from_raw_parts((src.add(usize(start))), usize((end - start)));
       (encoded : String) = punycode_encode(label);
-      (enc_ptr : *(u8)) = encoded.as_str().ptr();
-      (enc_len : i32) = i32(encoded.as_str().len());
+      (enc_ptr : *(u8)) = match(encoded.as_bytes().ptr(), .Some(p_) => p_, .None => *(u8)(""));
+      (enc_len : i32) = i32(encoded.as_bytes().len());
       (e : i32) = i32(0);
-      while (e < enc_len), {
-        _ := result.push((enc_ptr &+ usize(e)).*);
+      while(e < enc_len, {
+        _ := result.push((enc_ptr.add(usize(e))).*);
         e = (e + i32(1));
-      };
+      });
     }, {
       // Copy ASCII label as-is
       (c : i32) = start;
-      while (c < end), {
-        _ := result.push((src &+ usize(c)).*);
+      while(c < end, {
+        _ := result.push((src.add(usize(c))).*);
         c = (c + i32(1));
-      };
+      });
     });
 
     // Add the dot
@@ -326,65 +327,65 @@ encode_domain :: (fn(domain: str) -> String)({
     }, {
       start = end;
     });
-  };
+  });
 
   String.from_bytes(result)
 });
 
 // Decode domain name (punycode → Unicode for each xn-- label)
 // Input: domain like "xn--n3h.net", output: "☃.net"
-decode_domain :: (fn(domain: str) -> String)({
-  (src : *(u8)) = domain.ptr();
-  (len : i32) = i32(domain.len());
+decode_domain :: (fn(domain_ptr: *(u8), domain_len: i32) -> String)({
+  (src : *(u8)) = domain_ptr;
+  (len : i32) = domain_len;
   (result : ArrayList(u8)) = ArrayList(u8).new();
 
   (start : i32) = i32(0);
-  while (start < len), {
+  while(start < len, {
     // Find end of this label (next '.' or end)
     (end : i32) = start;
-    while ((end < len) && (i32((src &+ usize(end)).*) != i32(0x2E))), {
+    while((end < len) && (i32((src.add(usize(end))).*) != i32(0x2E)), {
       end = (end + i32(1));
-    };
+    });
 
     (label_len : i32) = (end - start);
     // Check for "xn--" prefix (case-insensitive)
     if(((label_len > i32(4))
-      && (((i32((src &+ usize(start)).*) == i32(0x78)) || (i32((src &+ usize(start)).*) == i32(0x58)))
-      && (((i32((src &+ usize((start + i32(1)))).*) == i32(0x6E)) || (i32((src &+ usize((start + i32(1)))).*) == i32(0x4E)))
-      && ((i32((src &+ usize((start + i32(2)))).*) == i32(0x2D))
-      && (i32((src &+ usize((start + i32(3)))).*) == i32(0x2D)))))), {
+      && (((i32((src.add(usize(start))).*) == i32(0x78)) || (i32((src.add(usize(start))).*) == i32(0x58)))
+      && (((i32((src.add(usize((start + i32(1))))).*) == i32(0x6E)) || (i32((src.add(usize((start + i32(1))))).*) == i32(0x4E)))
+      && ((i32((src.add(usize((start + i32(2))))).*) == i32(0x2D))
+      && (i32((src.add(usize((start + i32(3))))).*) == i32(0x2D)))))), {
       // Decode punycode label
-      (pc_str : str) = str.from_raw_parts((src &+ usize((start + i32(4)))), usize(((end - start) - i32(4))));
+      (pc_str : str) = str.from_raw_parts((src.add(usize((start + i32(4))))), usize(((end - start) - i32(4))));
       (decoded : Option(String)) = punycode_decode(pc_str);
       match(decoded,
         .Some(s) => {
           // Check decoded has no non-ASCII? No, it should have non-ASCII
           // Check if decoded label is valid — it should contain non-ASCII chars
           // If decode succeeds but result is all ASCII, keep xn-- form
-          (dec_ptr : *(u8)) = s.as_str().ptr();
-          (dec_len : i32) = i32(s.as_str().len());
+          (dec_ptr : *(u8)) = match(s.as_bytes().ptr(), .Some(p_) => p_, .None => *(u8)(""));
+          (dec_len : i32) = i32(s.as_bytes().len());
           (d : i32) = i32(0);
-          while (d < dec_len), {
-            _ := result.push((dec_ptr &+ usize(d)).*);
+          while(d < dec_len, {
+            _ := result.push((dec_ptr.add(usize(d))).*);
             d = (d + i32(1));
-          };
+          });
         },
         .None => {
           // Decode failed — keep original label
           (c : i32) = start;
-          while (c < end), {
-            _ := result.push((src &+ usize(c)).*);
+          while(c < end, {
+            _ := result.push((src.add(usize(c))).*);
             c = (c + i32(1));
-          };
+          });
         }
       );
     }, {
       // Non-punycode label — copy as-is
       (c : i32) = start;
-      while (c < end), {
-        _ := result.push((src &+ usize(c)).*);
+      while(c < end, {
+        _ := result.push((src.add(usize(c))).*);
         c = (c + i32(1));
-      };
+      });
     });
 
     // Add the dot
@@ -394,9 +395,9 @@ decode_domain :: (fn(domain: str) -> String)({
     }, {
       start = end;
     });
-  };
+  });
 
   String.from_bytes(result)
 });
 
-export punycode_encode, punycode_decode, encode_domain, decode_domain;
+export(punycode_encode, punycode_decode, encode_domain, decode_domain);

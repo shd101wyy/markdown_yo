@@ -3,11 +3,12 @@
 // Matches: # H1 ... ###### H6
 // Closing hashes are optional and stripped.
 
-open import "std/string";
-{ ArrayList } :: import "std/collections/array_list";
-{ BlockState } :: import "./state.yo";
-{ is_space } :: import "../common/utils.yo";
-{ inline_parse_range } :: import "../inline/parser.yo";
+pragma(Pragma.AllowUnsafe);
+open(import("std/string"));
+{ ArrayList } :: import("std/collections/array_list");
+{ BlockState } :: import("./state.yo");
+{ is_space } :: import("../common/utils.yo");
+{ inline_parse_range } :: import("../inline/parser.yo");
 
 block_heading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
   (bm : i32) = state.bm(start_line);
@@ -16,52 +17,52 @@ block_heading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silen
   (pos : i32) = (bm + ts);
 
   // Must not be indented >3 spaces
-  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return false; });
+  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return(false); });
 
   // Must start with #
-  if((pos >= em), { return false; });
-  (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
-  if((ch != i32(0x23)), { return false; });
+  if((pos >= em), { return(false); });
+  (ch : i32) = i32((state.*.src_ptr.add(usize(pos))).*);
+  if((ch != i32(0x23)), { return(false); });
 
   // Count # characters (1..6)
   (level : i32) = i32(1);
   pos = (pos + i32(1));
-  while (((pos < em) && (i32((state.*.src_ptr &+ usize(pos)).*) == i32(0x23))) && (level < i32(6))), {
+  while(((pos < em) && (i32((state.*.src_ptr.add(usize(pos))).*) == i32(0x23))) && (level < i32(6)), {
     level = (level + i32(1));
     pos = (pos + i32(1));
-  };
+  });
 
   // Must be followed by space or end of line
   if((pos < em), {
-    (next : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
-    if(!(is_space(next)), { return false; });
+    (next : i32) = i32((state.*.src_ptr.add(usize(pos))).*);
+    if(!(is_space(next)), { return(false); });
   });
 
-  if(silent, { return true; });
+  if(silent, { return(true); });
 
   // Skip leading spaces after #'s
-  while ((pos < em) && is_space(i32((state.*.src_ptr &+ usize(pos)).*))) , {
+  while((pos < em) && is_space(i32((state.*.src_ptr.add(usize(pos))).*)), {
     pos = (pos + i32(1));
-  };
+  });
 
   // Strip trailing #'s and spaces
   (content_end : i32) = em;
   // Skip trailing spaces
-  while ((content_end > pos) && is_space(i32((state.*.src_ptr &+ usize((content_end - i32(1)))).*))) , {
+  while((content_end > pos) && is_space(i32((state.*.src_ptr.add(usize((content_end - i32(1))))).*)), {
     content_end = (content_end - i32(1));
-  };
+  });
   // Strip trailing #'s
   (tmp : i32) = content_end;
-  while ((tmp > pos) && (i32((state.*.src_ptr &+ usize((tmp - i32(1)))).*) == i32(0x23))), {
+  while((tmp > pos) && (i32((state.*.src_ptr.add(usize((tmp - i32(1))))).*) == i32(0x23)), {
     tmp = (tmp - i32(1));
-  };
+  });
   // Trailing #'s must be preceded by space (or be entire content after opening)
-  if(((tmp == pos) || is_space(i32((state.*.src_ptr &+ usize((tmp - i32(1)))).*))) , {
+  if(((tmp == pos) || is_space(i32((state.*.src_ptr.add(usize((tmp - i32(1))))).*))) , {
     content_end = tmp;
     // Trim trailing spaces before the #'s
-    while ((content_end > pos) && is_space(i32((state.*.src_ptr &+ usize((content_end - i32(1)))).*))) , {
+    while((content_end > pos) && is_space(i32((state.*.src_ptr.add(usize((content_end - i32(1))))).*)), {
       content_end = (content_end - i32(1));
-    };
+    });
   });
 
   // Emit heading open, inline content, heading close
@@ -69,7 +70,7 @@ block_heading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silen
   state.*.renderer.*.open_heading(level);
   // Parse inline content between pos and content_end
   if((content_end > pos), {
-    inline_parse_range((&state.*._inline_state), state.*.src_ptr, pos, content_end);
+    inline_parse_range((&(state.*._inline_state)), state.*.src_ptr, pos, content_end);
   });
   state.*.renderer.*.close_heading(level);
 
@@ -77,4 +78,4 @@ block_heading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silen
   true
 });
 
-export block_heading;
+export(block_heading);

@@ -16,7 +16,8 @@
 //   ...content...
 //   </details>
 
-{ BlockState } :: import "./state.yo";
+pragma(Pragma.AllowUnsafe);
+{ BlockState } :: import("./state.yo");
 
 // Check if line content matches callout pattern: [!type]+/- optional title
 // Returns true if valid callout, with out-params:
@@ -31,60 +32,60 @@ check_callout_marker :: (fn(state: *(BlockState), line: i32,
   (max : i32) = state.em(line);
 
   // Need at least "[!x]"
-  if(((start + i32(4)) > max), { return false; });
+  if(((start + i32(4)) > max), { return(false); });
 
   // Check for '[!'
-  if(((state.*.src_ptr &+ usize(start)).* != u8(0x5B)), { return false; });
-  if(((state.*.src_ptr &+ usize((start + i32(1)))).* != u8(0x21)), { return false; });
+  if(((state.*.src_ptr.add(usize(start))).* != u8(0x5B)), { return(false); });
+  if(((state.*.src_ptr.add(usize((start + i32(1))))).* != u8(0x21)), { return(false); });
 
   // Parse type word (alphanumeric, hyphen, underscore)
   (pos : i32) = (start + i32(2));
   (ts : i32) = pos;
-  while ((pos < max) && (
-    (((state.*.src_ptr &+ usize(pos)).* >= u8(0x61)) && ((state.*.src_ptr &+ usize(pos)).* <= u8(0x7A))) ||
-    (((state.*.src_ptr &+ usize(pos)).* >= u8(0x41)) && ((state.*.src_ptr &+ usize(pos)).* <= u8(0x5A))) ||
-    (((state.*.src_ptr &+ usize(pos)).* >= u8(0x30)) && ((state.*.src_ptr &+ usize(pos)).* <= u8(0x39))) ||
-    ((state.*.src_ptr &+ usize(pos)).* == u8(0x2D)) ||
-    ((state.*.src_ptr &+ usize(pos)).* == u8(0x5F))
-  )), {
+  while((pos < max) && (
+    (((state.*.src_ptr.add(usize(pos))).* >= u8(0x61)) && ((state.*.src_ptr.add(usize(pos))).* <= u8(0x7A))) ||
+    (((state.*.src_ptr.add(usize(pos))).* >= u8(0x41)) && ((state.*.src_ptr.add(usize(pos))).* <= u8(0x5A))) ||
+    (((state.*.src_ptr.add(usize(pos))).* >= u8(0x30)) && ((state.*.src_ptr.add(usize(pos))).* <= u8(0x39))) ||
+    ((state.*.src_ptr.add(usize(pos))).* == u8(0x2D)) ||
+    ((state.*.src_ptr.add(usize(pos))).* == u8(0x5F))
+  ), {
     pos = (pos + i32(1));
-  };
+  });
   (te : i32) = pos;
-  if((te == ts), { return false; });
+  if((te == ts), { return(false); });
 
   // Must be followed by ']'
-  if((pos >= max), { return false; });
-  if(((state.*.src_ptr &+ usize(pos)).* != u8(0x5D)), { return false; });
+  if((pos >= max), { return(false); });
+  if(((state.*.src_ptr.add(usize(pos))).* != u8(0x5D)), { return(false); });
   pos = (pos + i32(1));
 
   // Optional foldable marker: + or -
   (fold : i32) = i32(0);
   if((pos < max), {
-    (ch : u8) = (state.*.src_ptr &+ usize(pos)).*;
+    (ch : u8) = (state.*.src_ptr.add(usize(pos))).*;
     if((ch == u8(0x2B)), {
       fold = i32(1);
       pos = (pos + i32(1));
     }, {
       if((ch == u8(0x2D)), {
-        fold = i32(-1);
+        fold = (i32(0) - i32(1));
         pos = (pos + i32(1));
       });
     });
   });
 
   // Optional title after spaces/tabs
-  while ((pos < max) && (((state.*.src_ptr &+ usize(pos)).* == u8(0x20)) || ((state.*.src_ptr &+ usize(pos)).* == u8(0x09)))), {
+  while((pos < max) && (((state.*.src_ptr.add(usize(pos))).* == u8(0x20)) || ((state.*.src_ptr.add(usize(pos))).* == u8(0x09))), {
     pos = (pos + i32(1));
-  };
+  });
 
   type_start_out.* = ts;
   type_end_out.* = te;
   title_start_out.* = pos;
   // Trim trailing spaces from title
   (title_end : i32) = max;
-  while (((title_end > pos) && ((state.*.src_ptr &+ usize((title_end - i32(1)))).* == u8(0x20)))), {
+  while(((title_end > pos) && ((state.*.src_ptr.add(usize((title_end - i32(1))))).* == u8(0x20))), {
     title_end = (title_end - i32(1));
-  };
+  });
   title_end_out.* = title_end;
   foldable_out.* = fold;
   true
@@ -92,16 +93,16 @@ check_callout_marker :: (fn(state: *(BlockState), line: i32,
 
 // Helper: check if src bytes [start, end) case-insensitively match a literal string.
 _callout_eq_ci :: (fn(src: *(u8), start: i32, end: i32, lit: *(u8), lit_len: i32) -> bool)({
-  if(((end - start) != lit_len), { return false; });
+  if(((end - start) != lit_len), { return(false); });
   (i : i32) = i32(0);
-  while (i < lit_len), {
-    (a : u8) = (src &+ usize((start + i))).*;
-    (b : u8) = (lit &+ usize(i)).*;
+  while(i < lit_len, {
+    (a : u8) = (src.add(usize((start + i)))).*;
+    (b : u8) = (lit.add(usize(i))).*;
     (al : u8) = cond(((a >= u8(0x41)) && (a <= u8(0x5A))) => (a + u8(0x20)), true => a);
     (bl : u8) = cond(((b >= u8(0x41)) && (b <= u8(0x5A))) => (b + u8(0x20)), true => b);
-    if((al != bl), { return false; });
+    if((al != bl), { return(false); });
     i = (i + i32(1));
-  };
+  });
   true
 });
 
@@ -137,5 +138,5 @@ is_known_callout_type :: (fn(src: *(u8), start: i32, end: i32) -> bool)(
   )))))))))))))))))))))))))))
 );
 
-export check_callout_marker;
-export is_known_callout_type;
+export(check_callout_marker);
+export(is_known_callout_type);

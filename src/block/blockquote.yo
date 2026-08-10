@@ -6,14 +6,15 @@
 // When silent=false, modifies state arrays (bMarks, tShift, sCount, bsCount)
 // for the blockquote content lines. The caller MUST save and restore these.
 
-{ BlockState } :: import "./state.yo";
-{ is_space } :: import "../common/utils.yo";
-{ ParentType } :: import "../types.yo";
-{ block_heading } :: import "./heading.yo";
-{ block_fence } :: import "./fence.yo";
-{ block_hr } :: import "./hr.yo";
-{ block_list } :: import "./list.yo";
-{ block_html } :: import "./html_block.yo";
+pragma(Pragma.AllowUnsafe);
+{ BlockState } :: import("./state.yo");
+{ is_space } :: import("../common/utils.yo");
+{ ParentType } :: import("../types.yo");
+{ block_heading } :: import("./heading.yo");
+{ block_fence } :: import("./fence.yo");
+{ block_hr } :: import("./hr.yo");
+{ block_list } :: import("./list.yo");
+{ block_html } :: import("./html_block.yo");
 
 // Scan blockquote lines and adjust state arrays.
 // Returns bq_end (the line AFTER the blockquote), or -1 if no match.
@@ -25,20 +26,20 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
   (pos : i32) = (bm + ts);
 
   // Must not be indented >3 spaces
-  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return i32(-1); });
+  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return((i32(0) - i32(1))); });
 
   // Check >
-  if((pos >= em), { return i32(-1); });
-  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x3E)), { return i32(-1); });
+  if((pos >= em), { return((i32(0) - i32(1))); });
+  if((i32((state.*.src_ptr.add(usize(pos))).*) != i32(0x3E)), { return((i32(0) - i32(1))); });
 
-  if(silent, { return i32(1); });
+  if(silent, { return(i32(1)); });
 
   // Find all lines belonging to this blockquote
   (next_line : i32) = start_line;
   (last_line_empty : bool) = false;
 
   (scanning : bool) = true;
-  while ((next_line < end_line) && scanning), {
+  while((next_line < end_line) && scanning, {
     (nbm : i32) = state.bm(next_line);
     (nts : i32) = state.ts(next_line);
     (nem : i32) = state.em(next_line);
@@ -50,7 +51,7 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
     // Empty line breaks blockquote
     if((npos >= nem), { scanning = false; }, {
 
-    if(((i32((state.*.src_ptr &+ usize(npos)).*) == i32(0x3E)) && !(is_outdented)), {
+    if(((i32((state.*.src_ptr.add(usize(npos))).*) == i32(0x3E)) && !(is_outdented)), {
       // This line is inside the blockquote
       last_line_empty = false;
 
@@ -62,7 +63,7 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
 
       // skip one optional space after '>'
       if((npos < nem), {
-        (ch : i32) = i32((state.*.src_ptr &+ usize(npos)).*);
+        (ch : i32) = i32((state.*.src_ptr.add(usize(npos))).*);
         if((ch == i32(0x20)), {
           npos = (npos + i32(1));
           initial = (initial + i32(1));
@@ -87,8 +88,8 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
 
       // Scan remaining whitespace to calculate sCount
       (ws_scanning : bool) = true;
-      while ((npos < nem) && ws_scanning), {
-        (wch : i32) = i32((state.*.src_ptr &+ usize(npos)).*);
+      while((npos < nem) && ws_scanning, {
+        (wch : i32) = i32((state.*.src_ptr.add(usize(npos))).*);
         if(is_space(wch), {
           if((wch == i32(0x09)), {
             offset = (offset + (i32(4) - (((offset + state.bs(next_line)) + cond(adjust_tab => i32(1), true => i32(0))) % i32(4))));
@@ -99,7 +100,7 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
         }, {
           ws_scanning = false;
         });
-      };
+      });
 
       last_line_empty = (npos >= nem);
 
@@ -123,7 +124,7 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
         if(!(terminated), { if(block_fence(state, next_line, end_line, true), { terminated = true; }); });
         if(!(terminated), {
           // Self-terminator: check if a new blockquote could start here
-          if(((npos < nem) && ((i32((state.*.src_ptr &+ usize(npos)).*) == i32(0x3E)) && ((nsc - state.*.blk_indent) < i32(4)))), {
+          if(((npos < nem) && ((i32((state.*.src_ptr.add(usize(npos))).*) == i32(0x3E)) && ((nsc - state.*.blk_indent) < i32(4)))), {
             terminated = true;
           });
         });
@@ -144,13 +145,13 @@ block_blockquote :: (fn(state: *(BlockState), start_line: i32, end_line: i32, si
           scanning = false;
         }, {
           // Lazy continuation — set sCount to -1 (paragraph continuation marker)
-          state.set_sc(next_line, i32(-1));
+          state.set_sc(next_line, (i32(0) - i32(1)));
           next_line = (next_line + i32(1));
         });
       });
     });
     });
-  };
+  });
 
   next_line
 });
@@ -165,15 +166,15 @@ blockquote_find_end :: (fn(state: *(BlockState), start_line: i32, end_line: i32)
   (em : i32) = state.em(start_line);
   (pos : i32) = (bm + ts);
 
-  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return i32(-1); });
-  if((pos >= em), { return i32(-1); });
-  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x3E)), { return i32(-1); });
+  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return((i32(0) - i32(1))); });
+  if((pos >= em), { return((i32(0) - i32(1))); });
+  if((i32((state.*.src_ptr.add(usize(pos))).*) != i32(0x3E)), { return((i32(0) - i32(1))); });
 
   (next_line : i32) = start_line;
   (last_line_empty : bool) = false;
 
   (scanning : bool) = true;
-  while ((next_line < end_line) && scanning), {
+  while((next_line < end_line) && scanning, {
     (nbm : i32) = state.bm(next_line);
     (nts : i32) = state.ts(next_line);
     (nem : i32) = state.em(next_line);
@@ -184,7 +185,7 @@ blockquote_find_end :: (fn(state: *(BlockState), start_line: i32, end_line: i32)
 
     if((npos >= nem), { scanning = false; }, {
 
-    if(((i32((state.*.src_ptr &+ usize(npos)).*) == i32(0x3E)) && !(is_outdented)), {
+    if(((i32((state.*.src_ptr.add(usize(npos))).*) == i32(0x3E)) && !(is_outdented)), {
       last_line_empty = false;
       next_line = (next_line + i32(1));
     }, {
@@ -194,7 +195,7 @@ blockquote_find_end :: (fn(state: *(BlockState), start_line: i32, end_line: i32)
         (terminated : bool) = false;
         if(!(terminated), { if(block_fence(state, next_line, end_line, true), { terminated = true; }); });
         if(!(terminated), {
-          if(((npos < nem) && ((i32((state.*.src_ptr &+ usize(npos)).*) == i32(0x3E)) && ((nsc - state.*.blk_indent) < i32(4)))), {
+          if(((npos < nem) && ((i32((state.*.src_ptr.add(usize(npos))).*) == i32(0x3E)) && ((nsc - state.*.blk_indent) < i32(4)))), {
             terminated = true;
           });
         });
@@ -211,9 +212,9 @@ blockquote_find_end :: (fn(state: *(BlockState), start_line: i32, end_line: i32)
       });
     });
     });
-  };
+  });
 
   next_line
 });
 
-export block_blockquote, blockquote_find_end;
+export(block_blockquote, blockquote_find_end);

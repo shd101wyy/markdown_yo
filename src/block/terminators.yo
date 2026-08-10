@@ -3,43 +3,45 @@
 // Used by paragraph and lheading to determine if a line starts a new block.
 // Calls other block rules in silent mode.
 
-{ BlockState } :: import "./state.yo";
-{ block_heading } :: import "./heading.yo";
-{ block_fence } :: import "./fence.yo";
-{ block_hr } :: import "./hr.yo";
-{ block_blockquote } :: import "./blockquote.yo";
-{ block_list } :: import "./list.yo";
-{ block_html } :: import "./html_block.yo";
-{ block_table } :: import "./table.yo";
-{ skip_deflist_marker } :: import "./deflist.yo";
-{ GlobalAllocator } :: import "std/allocator";
+pragma(Pragma.AllowUnsafe);
+{ assert } :: import("std/assert");
+{ BlockState } :: import("./state.yo");
+{ block_heading } :: import("./heading.yo");
+{ block_fence } :: import("./fence.yo");
+{ block_hr } :: import("./hr.yo");
+{ block_blockquote } :: import("./blockquote.yo");
+{ block_list } :: import("./list.yo");
+{ block_html } :: import("./html_block.yo");
+{ block_table } :: import("./table.yo");
+{ skip_deflist_marker } :: import("./deflist.yo");
+{ GlobalAllocator } :: import("std/allocator");
 { calloc } :: GlobalAllocator;
 
 // 128-byte lookup table: 1 if char can start a block rule, 0 otherwise
 // Block starters: # * + - < > ` ~ _ | 0-9
 (_block_start_table_ptr : Option(*(u8))) = .None;
 _init_block_start_table :: (fn() -> *(u8))({
-  (ptr : *(u8)) = match(calloc(usize(128), usize(1)),
+  (ptr : *(u8)) = match(unsafe(calloc(usize(128), usize(1))),
     .Some(p) => *(u8)(p),
     .None => { assert(false, "calloc failed"); *(u8)("") }
   );
-  (ptr &+ usize(0x23)).* = u8(1);  // # heading
-  (ptr &+ usize(0x2A)).* = u8(1);  // * hr/list
-  (ptr &+ usize(0x2B)).* = u8(1);  // + list
-  (ptr &+ usize(0x2D)).* = u8(1);  // - hr/list
-  (ptr &+ usize(0x3C)).* = u8(1);  // < html
-  (ptr &+ usize(0x3E)).* = u8(1);  // > blockquote
-  (ptr &+ usize(0x3A)).* = u8(1);  // : deflist
-  (ptr &+ usize(0x60)).* = u8(1);  // ` fence
-  (ptr &+ usize(0x7E)).* = u8(1);  // ~ fence
-  (ptr &+ usize(0x5F)).* = u8(1);  // _ hr
-  (ptr &+ usize(0x7C)).* = u8(1);  // | table
+  (ptr.add(usize(0x23))).* = u8(1);  // # heading
+  (ptr.add(usize(0x2A))).* = u8(1);  // * hr/list
+  (ptr.add(usize(0x2B))).* = u8(1);  // + list
+  (ptr.add(usize(0x2D))).* = u8(1);  // - hr/list
+  (ptr.add(usize(0x3C))).* = u8(1);  // < html
+  (ptr.add(usize(0x3E))).* = u8(1);  // > blockquote
+  (ptr.add(usize(0x3A))).* = u8(1);  // : deflist
+  (ptr.add(usize(0x60))).* = u8(1);  // ` fence
+  (ptr.add(usize(0x7E))).* = u8(1);  // ~ fence
+  (ptr.add(usize(0x5F))).* = u8(1);  // _ hr
+  (ptr.add(usize(0x7C))).* = u8(1);  // | table
   // 0-9 ordered list
   (d : i32) = i32(0x30);
-  while (d <= i32(0x39)), {
-    (ptr &+ usize(d)).* = u8(1);
+  while(d <= i32(0x39), {
+    (ptr.add(usize(d))).* = u8(1);
     d = (d + i32(1));
-  };
+  });
   ptr
 });
 _get_block_start_table :: (fn() -> *(u8))(
@@ -57,7 +59,7 @@ _get_block_start_table :: (fn() -> *(u8))(
 _could_start_block :: (fn(ch: i32) -> bool)(
   cond(
     (ch >= i32(128)) => false,
-    true => (((_get_block_start_table() &+ usize(ch)).* != u8(0)))
+    true => (((_get_block_start_table().add(usize(ch))).* != u8(0)))
   )
 );
 
@@ -65,7 +67,7 @@ _could_start_block :: (fn(ch: i32) -> bool)(
 _try_block_terminate :: (fn(state: *(BlockState), line: i32, end_line: i32) -> bool)({
   // Table — must check first because header line can start with any character
   if((state.*.options.*.enable_table && block_table(state, line, end_line, true)), {
-    return true;
+    return(true);
   });
 
   // Fast reject: check if first non-space char could start any non-table block rule
@@ -73,31 +75,31 @@ _try_block_terminate :: (fn(state: *(BlockState), line: i32, end_line: i32) -> b
   (ts : i32) = state.ts(line);
   (em : i32) = state.em(line);
   (first_pos : i32) = (bm + ts);
-  if((first_pos >= em), { return false; });
-  (first_ch : i32) = i32((state.*.src_ptr &+ usize(first_pos)).*);
-  if(!(_could_start_block(first_ch)), { return false; });
+  if((first_pos >= em), { return(false); });
+  (first_ch : i32) = i32((state.*.src_ptr.add(usize(first_pos))).*);
+  if(!(_could_start_block(first_ch)), { return(false); });
 
   // Fence
-  if(block_fence(state, line, end_line, true), { return true; });
+  if(block_fence(state, line, end_line, true), { return(true); });
 
   // Blockquote (returns i32: >0 means match, -1 means no match)
-  if((block_blockquote(state, line, end_line, true) > i32(0)), { return true; });
+  if((block_blockquote(state, line, end_line, true) > i32(0)), { return(true); });
 
   // Horizontal rule
-  if(block_hr(state, line, end_line, true), { return true; });
+  if(block_hr(state, line, end_line, true), { return(true); });
 
   // List
-  if(block_list(state, line, end_line, true), { return true; });
+  if(block_list(state, line, end_line, true), { return(true); });
 
   // HTML block
-  if((state.*.options.*.html && block_html(state, line, end_line, true)), { return true; });
+  if((state.*.options.*.html && block_html(state, line, end_line, true)), { return(true); });
 
   // ATX heading
-  if(block_heading(state, line, end_line, true), { return true; });
+  if(block_heading(state, line, end_line, true), { return(true); });
 
   // Definition list marker — only terminates paragraph when inside a deflist (dd_indent >= 0)
   if(((state.*.options.*.enable_deflist && (state.*.dd_indent >= i32(0))) && (skip_deflist_marker(state, line) >= i32(0))), {
-    return true;
+    return(true);
   });
 
   false
@@ -112,16 +114,16 @@ _try_list_terminate :: (fn(state: *(BlockState), line: i32, end_line: i32) -> bo
   (ts : i32) = state.ts(line);
   (em : i32) = state.em(line);
   (first_pos : i32) = (bm + ts);
-  if((first_pos >= em), { return false; });
-  (first_ch : i32) = i32((state.*.src_ptr &+ usize(first_pos)).*);
-  if(!(_could_start_block(first_ch)), { return false; });
+  if((first_pos >= em), { return(false); });
+  (first_ch : i32) = i32((state.*.src_ptr.add(usize(first_pos))).*);
+  if(!(_could_start_block(first_ch)), { return(false); });
 
-  if(block_fence(state, line, end_line, true), { return true; });
-  if((block_blockquote(state, line, end_line, true) > i32(0)), { return true; });
-  if(block_hr(state, line, end_line, true), { return true; });
-  if((state.*.options.*.html && block_html(state, line, end_line, true)), { return true; });
-  if(block_heading(state, line, end_line, true), { return true; });
+  if(block_fence(state, line, end_line, true), { return(true); });
+  if((block_blockquote(state, line, end_line, true) > i32(0)), { return(true); });
+  if(block_hr(state, line, end_line, true), { return(true); });
+  if((state.*.options.*.html && block_html(state, line, end_line, true)), { return(true); });
+  if(block_heading(state, line, end_line, true), { return(true); });
   false
 });
 
-export _try_block_terminate, _try_list_terminate;
+export(_try_block_terminate, _try_list_terminate);

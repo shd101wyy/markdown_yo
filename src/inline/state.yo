@@ -2,15 +2,17 @@
 //
 // Tracks position, delimiters, and inline tokens during inline parsing.
 
-open import "std/string";
-{ ArrayList } :: import "std/collections/array_list";
-{ HashMap } :: import "std/collections/hash_map";
-{ GlobalAllocator } :: import "std/allocator";
+pragma(Pragma.AllowUnsafe);
+{ assert } :: import("std/assert");
+open(import("std/string"));
+{ ArrayList } :: import("std/collections/array_list");
+{ HashMap } :: import("std/collections/hash_map");
+{ GlobalAllocator } :: import("std/allocator");
 { calloc, free } :: GlobalAllocator;
-{ memset } :: import "std/libc/string.yo";
-{ Options, Env, Delimiter, InlineType, LinkMarker, EmphasisPair } :: import "../types.yo";
-{ HtmlRenderer } :: import "../renderer.yo";
-{ is_space } :: import "../common/utils.yo";
+{ memset } :: import("std/libc/string.yo");
+{ Options, Env, Delimiter, InlineType, LinkMarker, EmphasisPair } :: import("../types.yo");
+{ HtmlRenderer } :: import("../renderer.yo");
+{ is_space } :: import("../common/utils.yo");
 
 // Lightweight inline token — pure value type, no RC fields
 // String content (entities, resolved URLs) stored separately in InlineState._str_buf
@@ -40,26 +42,26 @@ impl(InlineToken,
     Self(type_name: .Text, start: start, end: end, nesting: i32(0), level: level,
          info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
          markup_char: u8(0), markup_len: u8(0), block: false, hidden: false,
-         content_idx: i32(-1), href_idx: i32(-1), title_idx: i32(-1))
+         content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1)))
   ),
   text_special : (fn(start: i32, end: i32, level: i32) -> Self)(
     Self(type_name: .TextSpecial, start: start, end: end, nesting: i32(0), level: level,
          info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
          markup_char: u8(0), markup_len: u8(0), block: false, hidden: false,
-         content_idx: i32(-1), href_idx: i32(-1), title_idx: i32(-1))
+         content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1)))
   ),
   simple : (fn(type_name: InlineType, nesting: i32, level: i32) -> Self)(
     Self(type_name: type_name, start: i32(0), end: i32(0), nesting: nesting, level: level,
          info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
          markup_char: u8(0), markup_len: u8(0), block: false, hidden: false,
-         content_idx: i32(-1), href_idx: i32(-1), title_idx: i32(-1))
+         content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1)))
   )
 );
 
 // Initialize a 256-byte lookup table for inline special characters.
 // Returns a *(u8) where table[ch] != 0 means ch is special.
 _init_special_table :: (fn() -> *(u8))({
-  (ptr : *(u8)) = match(calloc(usize(256), usize(1)),
+  (ptr : *(u8)) = match(unsafe(calloc(usize(256), usize(1))),
     .Some(p) => *(u8)(p),
     .None => { assert(false, "calloc failed"); *(u8)("") }
   );
@@ -67,26 +69,26 @@ _init_special_table :: (fn() -> *(u8))({
   // 0x0A = newline, 0x21 = !, 0x24 = $, 0x26 = &, 0x2A = *
   // 0x3C = <, 0x3D = =, 0x5B = [, 0x5C = \, 0x5D = ]
   // 0x5E = ^, 0x5F = _, 0x60 = `, 0x7B = {, 0x7E = ~
-  (ptr &+ usize(0x0A)).* = u8(1);
-  (ptr &+ usize(0x21)).* = u8(1);
-  (ptr &+ usize(0x24)).* = u8(1);
-  (ptr &+ usize(0x26)).* = u8(1);
-  (ptr &+ usize(0x2A)).* = u8(1);
-  (ptr &+ usize(0x3A)).* = u8(1);
-  (ptr &+ usize(0x3C)).* = u8(1);
-  (ptr &+ usize(0x3D)).* = u8(1);
-  (ptr &+ usize(0x5B)).* = u8(1);
-  (ptr &+ usize(0x5C)).* = u8(1);
-  (ptr &+ usize(0x5D)).* = u8(1);
-  (ptr &+ usize(0x5E)).* = u8(1);
-  (ptr &+ usize(0x5F)).* = u8(1);
-  (ptr &+ usize(0x60)).* = u8(1);
-  (ptr &+ usize(0x7B)).* = u8(1);
-  (ptr &+ usize(0x7E)).* = u8(1);
+  (ptr.add(usize(0x0A))).* = u8(1);
+  (ptr.add(usize(0x21))).* = u8(1);
+  (ptr.add(usize(0x24))).* = u8(1);
+  (ptr.add(usize(0x26))).* = u8(1);
+  (ptr.add(usize(0x2A))).* = u8(1);
+  (ptr.add(usize(0x3A))).* = u8(1);
+  (ptr.add(usize(0x3C))).* = u8(1);
+  (ptr.add(usize(0x3D))).* = u8(1);
+  (ptr.add(usize(0x5B))).* = u8(1);
+  (ptr.add(usize(0x5C))).* = u8(1);
+  (ptr.add(usize(0x5D))).* = u8(1);
+  (ptr.add(usize(0x5E))).* = u8(1);
+  (ptr.add(usize(0x5F))).* = u8(1);
+  (ptr.add(usize(0x60))).* = u8(1);
+  (ptr.add(usize(0x7B))).* = u8(1);
+  (ptr.add(usize(0x7E))).* = u8(1);
   // 2 = HTML-escape-only character (needs escaping but not inline dispatch)
   // " (0x22) and > (0x3E) — & and < are already marked as inline special (1)
-  (ptr &+ usize(0x22)).* = u8(2);
-  (ptr &+ usize(0x3E)).* = u8(2);
+  (ptr.add(usize(0x22))).* = u8(2);
+  (ptr.add(usize(0x3E))).* = u8(2);
   ptr
 });
 
@@ -119,7 +121,7 @@ InlineState :: struct(
   _link_buf1 : ArrayList(u8),  // unescaped content
   _link_buf2 : ArrayList(u8),  // normalized link
   _validate_buf : ArrayList(u8),  // URL validation decoding
-  _entity_buf : ArrayList(u8),  // entity name decoding
+  entity_buf : ArrayList(u8),  // entity name decoding
 
   // Flat byte buffer for token strings (content/href/title)
   // Tokens reference these by index (content_idx/href_idx/title_idx)
@@ -160,7 +162,7 @@ impl(InlineState,
       _link_buf1: ArrayList(u8).with_capacity(usize(256)),
       _link_buf2: ArrayList(u8).with_capacity(usize(256)),
       _validate_buf: ArrayList(u8).with_capacity(usize(32)),
-      _entity_buf: ArrayList(u8).with_capacity(usize(8)),
+      entity_buf: ArrayList(u8).with_capacity(usize(8)),
       _str_buf: ArrayList(u8).with_capacity(usize(512)),
       _str_offsets: ArrayList(i32).with_capacity(usize(16)),
       env: env,
@@ -175,8 +177,11 @@ impl(InlineState,
     (idx : i32) = i32(self.*._str_offsets.len());
     (start : i32) = i32(self.*._str_buf.len());
     _ := self.*._str_offsets.push(start);
-    (sstr : str) = s.as_str();
-    self.*._str_buf.extend_from_ptr(sstr.ptr(), sstr.len());
+    (sbytes : ArrayList(u8)) = s.as_bytes();
+    match(sbytes.ptr(),
+      .Some(sp) => self.*._str_buf.extend_from_ptr(sp, sbytes.len()),
+      .None => ()
+    );
     idx
   }),
 
@@ -184,7 +189,7 @@ impl(InlineState,
   stored_ptr : (fn(self: *(Self), idx: i32) -> *(u8))({
     (offset : i32) = self.*._str_offsets(usize(idx));
     match(self.*._str_buf.ptr(),
-      .Some(p) => (p &+ usize(offset)),
+      .Some(p) => (p.add(usize(offset))),
       .None => *(u8)("")
     )
   }),
@@ -261,10 +266,10 @@ impl(InlineState,
   // Get byte at current position (or -1 if at end)
   char_at : (fn(self: *(Self), pos: i32) -> i32)(
     cond(
-      ((pos < i32(0)) || (pos >= self.*.pos_max)) => i32(-1),
-      true => i32((self.*.src_ptr &+ usize(pos)).*)
+      ((pos < i32(0)) || (pos >= self.*.pos_max)) => (i32(0) - i32(1)),
+      true => i32((self.*.src_ptr.add(usize(pos))).*)
     )
   )
 );
 
-export InlineToken, InlineState;
+export(InlineToken, InlineState);

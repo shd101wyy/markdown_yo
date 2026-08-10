@@ -3,35 +3,36 @@
 // Handles ~~ markers. Pushes a text token and Delimiter for later resolution.
 // Follows the same flanking rules as emphasis.
 
-{ ArrayList } :: import "std/collections/array_list";
-{ InlineState, InlineToken } :: import "./state.yo";
-{ Delimiter } :: import "../types.yo";
-{ is_white_space, is_punct_char } :: import "../common/utils.yo";
+pragma(Pragma.AllowUnsafe);
+{ ArrayList } :: import("std/collections/array_list");
+{ InlineState, InlineToken } :: import("./state.yo");
+{ Delimiter } :: import("../types.yo");
+{ is_white_space, is_punct_char } :: import("../common/utils.yo");
 
 inline_strikethrough :: (fn(state: *(InlineState)) -> bool)({
   (pos : i32) = state.*.pos;
-  if((pos >= state.*.pos_max), { return false; });
+  if((pos >= state.*.pos_max), { return(false); });
 
-  (ch : u8) = (state.*.src_ptr &+ usize(pos)).*;
-  if((i32(ch) != i32(0x7E)), { return false; });
+  (ch : u8) = (state.*.src_ptr.add(usize(pos))).*;
+  if((i32(ch) != i32(0x7E)), { return(false); });
 
   // Count consecutive tildes
   (count : i32) = i32(0);
   (p : i32) = pos;
-  while ((p < state.*.pos_max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x7E))), {
+  while((p < state.*.pos_max) && (i32((state.*.src_ptr.add(usize(p))).*) == i32(0x7E)), {
     count = (count + i32(1));
     p = (p + i32(1));
-  };
+  });
 
-  if((count < i32(2)), { return false; });
+  if((count < i32(2)), { return(false); });
 
   // Flanking rules (same as emphasis, using Unicode whitespace + punctuation)
   (char_before : i32) = cond(
-    (pos > i32(0)) => i32((state.*.src_ptr &+ usize((pos - i32(1)))).*),
+    (pos > i32(0)) => i32((state.*.src_ptr.add(usize((pos - i32(1))))).*),
     true => i32(0x20)
   );
   (char_after : i32) = cond(
-    (p < state.*.pos_max) => i32((state.*.src_ptr &+ usize(p)).*),
+    (p < state.*.pos_max) => i32((state.*.src_ptr.add(usize(p))).*),
     true => i32(0x20)
   );
 
@@ -56,7 +57,7 @@ inline_strikethrough :: (fn(state: *(InlineState)) -> bool)({
     });
   });
 
-  if((!(can_open) && !(can_close)), { return false; });
+  if((!(can_open) && !(can_close)), { return(false); });
 
   state.*.push_pending();
 
@@ -69,7 +70,7 @@ inline_strikethrough :: (fn(state: *(InlineState)) -> bool)({
 
   // Emit pairs of tildes, each as a delimiter
   (di : i32) = i32(0);
-  while (di < usable), {
+  while(di < usable, {
     (dpos : i32) = ((pos + (count - usable)) + di);
     _ := state.*.tokens.push(InlineToken.text(dpos, (dpos + i32(2)), state.*.level));
     (tok_idx : i32) = (i32(state.*.tokens.len()) - i32(1));
@@ -78,14 +79,14 @@ inline_strikethrough :: (fn(state: *(InlineState)) -> bool)({
       marker: u8(0x7E),
       length: i32(2),
       token_idx: tok_idx,
-      end: i32(-1),
+      end: (i32(0) - i32(1)),
       jump: (di / i32(2)),
       open: can_open,
       close: can_close
     ));
 
     di = (di + i32(2));
-  };
+  });
 
   state.*.pos = p;
   state.*.pending_start = state.*.pos;
@@ -93,4 +94,4 @@ inline_strikethrough :: (fn(state: *(InlineState)) -> bool)({
   true
 });
 
-export inline_strikethrough;
+export(inline_strikethrough);
