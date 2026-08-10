@@ -22,7 +22,7 @@ _is_scheme_char :: (fn(ch: i32) -> bool)(
   (((ch >= i32(0x41)) && (ch <= i32(0x5A))) ||
   (((ch >= i32(0x61)) && (ch <= i32(0x7A))) ||
   (((ch >= i32(0x30)) && (ch <= i32(0x39))) ||
-  ((ch == i32(0x2E)) || ((ch == i32(0x2B)) || (ch == i32(0x2D)))))))
+  ((ch == i32(0x2E)) || ((ch == i32(0x2B)) || (ch == i32(0x2D))))))))
 );
 
 // Check if character is valid in email local part: [a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]

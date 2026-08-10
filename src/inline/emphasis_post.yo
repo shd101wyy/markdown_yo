@@ -28,7 +28,7 @@ emphasis_post :: (fn(state: *(InlineState)) -> unit)({
           // unless both are multiples of 3
           (skip : bool) = false;
           if(((closer.open || opener.close) && (((opener.length + closer.length) % i32(3)) == i32(0))), {
-            if((((opener.length % i32(3)) != i32(0)) || ((closer.length % i32(3)) != i32(0)))), {
+            if((((opener.length % i32(3)) != i32(0)) || ((closer.length % i32(3)) != i32(0))), {
               skip = true;
             });
           });

@@ -1971,7 +1971,7 @@ impl(HtmlRenderer,
         (s &+ wi).* = ch;
         ri = (ri + usize(1));
         wi = (wi + usize(1));
-      }));
+      })))))));
     };
 
     // Truncate buffer to compacted size
