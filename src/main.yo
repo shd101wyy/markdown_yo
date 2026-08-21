@@ -18,7 +18,7 @@ open(import("std/string"));
 // Read entire file into a String
 _read_file :: (fn(path: String) -> Option(String))({
   cstr := path.to_cstr();
-  (fp : ?*(FILE)) = match(cstr.ptr(),
+  (fp : ?(*(FILE))) = match(cstr.ptr(),
     .Some(p) => fopen(*(char)(p), *(char)(*(u8)("r"))),
     .None => .None
   );

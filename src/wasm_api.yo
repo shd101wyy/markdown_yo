@@ -87,7 +87,7 @@ wasm_render :: (fn(input_ptr: *(u8), input_len: i32, flags: i32) -> *(u8))({
   g_last_result_len = i32(rlen);
 
   // Allocate output and copy
-  (out_ptr : ?*(void)) = unsafe(malloc(rlen));
+  (out_ptr : ?(*(void))) = unsafe(malloc(rlen));
   match(out_ptr,
     .Some(p) => {
       match(result_bytes.ptr(),
@@ -107,7 +107,7 @@ wasm_result_len :: (fn() -> i32)(g_last_result_len);
 
 // Free a pointer returned by wasm_render.
 wasm_free :: (fn(ptr: *(u8)) -> unit)({
-  (p : ?*(void)) = .Some(*(void)(ptr));
+  (p : ?(*(void))) = .Some(*(void)(ptr));
   unsafe(free(p));
 });
 
