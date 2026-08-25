@@ -676,7 +676,7 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
     .Some(_) => (),
     .None => {
       (ref : Reference) = Reference(href: dest_str, title: title_str);
-      state.*.env.references.set(label_str, ref);
+      state.*.env.references.insert(label_str, ref);
     }
   );
 
