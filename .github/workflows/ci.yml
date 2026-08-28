@@ -23,7 +23,9 @@ jobs:
           sudo apt-get install -y liburing-dev
 
       - name: Install Yo compiler
-        run: npm install -g @shd101wyy/yo
+        run: |
+          curl -sSL https://raw.githubusercontent.com/shd101wyy/Yo/develop/scripts/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install JS test dependencies
         run: npm install

@@ -31,7 +31,7 @@ Use this skill when you need to:
 ## High-signal rules
 
 - In `build.yo`, use `target: build.CompilationTarget.Wasm32_Emscripten` for Emscripten WASM builds. Use `step.add_c_flags(...)` for Emscripten `-s` options.
-- For single-file compilation, use `yo compile --cc emcc` or `yo compile --target wasm-wasi`.
+- For single-file compilation, use `yo compile --cc emcc` or `yo compile --target wasm32-wasip1`.
 - WASM functions communicate through linear memory — pass pointers and lengths, not Yo types.
 - JavaScript wrappers handle the string encoding/decoding boundary (`TextEncoder`/`TextDecoder`).
 - Use bitmask flags (powers of 2) to pass option sets through a single `i32` parameter.

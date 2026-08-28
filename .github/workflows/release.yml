@@ -22,16 +22,16 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            target: aarch64-macos
+            target: aarch64-apple-darwin
             artifact: markdown_yo-macos-arm64
           - os: macos-26-intel
-            target: x86_64-macos
+            target: x86_64-apple-darwin
             artifact: markdown_yo-macos-x86_64
           - os: ubuntu-latest
-            target: x86_64-linux-gnu
+            target: x86_64-unknown-linux-gnu
             artifact: markdown_yo-linux-x86_64
           - os: windows-latest
-            target: x86_64-windows-msvc
+            target: x86_64-pc-windows-msvc
             artifact: markdown_yo-windows-x86_64
     runs-on: ${{ matrix.os }}
     steps:
@@ -53,8 +53,18 @@ jobs:
           choco install llvm -y
           echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Install Yo compiler
-        run: npm install -g @shd101wyy/yo
+      - name: Install Yo compiler (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          curl -sSL https://raw.githubusercontent.com/shd101wyy/Yo/develop/scripts/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Yo compiler (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          irm https://raw.githubusercontent.com/shd101wyy/Yo/develop/scripts/install.ps1 | iex
+          echo "$env:LOCALAPPDATA\Yo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Build native executable
         run: yo build
@@ -93,7 +103,9 @@ jobs:
           node-version: "20"
 
       - name: Install Yo compiler
-        run: npm install -g @shd101wyy/yo
+        run: |
+          curl -sSL https://raw.githubusercontent.com/shd101wyy/Yo/develop/scripts/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14

@@ -25,7 +25,9 @@ jobs:
           node-version: "20"
 
       - name: Install Yo compiler
-        run: npm install -g @shd101wyy/yo
+        run: |
+          curl -sSL https://raw.githubusercontent.com/shd101wyy/Yo/develop/scripts/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14

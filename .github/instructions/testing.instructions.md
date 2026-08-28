@@ -69,6 +69,6 @@ diff output_yo.html output_js.html
 
 ```bash
 # Compile with AddressSanitizer
-~/Workspace/Yo/yo-cli compile src/main.yo --release --sanitize address --allocator libc -o test_asan
+yo compile src/main.yo --optimize 2 --sanitize address --allocator libc -o test_asan
 ./test_asan input.md > /dev/null
 ```
