@@ -56,14 +56,14 @@ jobs:
       - name: Install Yo compiler (Unix)
         if: runner.os != 'Windows'
         run: |
-          curl -sSL https://raw.githubusercontent.com/shd101wyy/Yo/develop/scripts/install.sh | sh
+          curl -sSL https://shd101wyy.github.io/Yo/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install Yo compiler (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          irm https://raw.githubusercontent.com/shd101wyy/Yo/develop/scripts/install.ps1 | iex
+          irm https://shd101wyy.github.io/Yo/install.ps1 | iex
           echo "$env:LOCALAPPDATA\Yo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Build native executable
@@ -104,7 +104,7 @@ jobs:
 
       - name: Install Yo compiler
         run: |
-          curl -sSL https://raw.githubusercontent.com/shd101wyy/Yo/develop/scripts/install.sh | sh
+          curl -sSL https://shd101wyy.github.io/Yo/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Setup Emscripten

@@ -166,7 +166,7 @@ Requires the [Yo compiler](https://github.com/shd101wyy/Yo) and [Emscripten](htt
 
 ```bash
 # Install Yo compiler
-curl -sSL https://raw.githubusercontent.com/shd101wyy/Yo/develop/scripts/install.sh | sh
+curl -sSL https://shd101wyy.github.io/Yo/install.sh | sh
 
 # Build the WASM API target
 yo build wasm_api
