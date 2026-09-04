@@ -26,7 +26,7 @@ export interface RenderOptions {
   abbr?: boolean;
   /** Enable definition lists (Term + : Definition) (default: false) */
   deflist?: boolean;
-  /** Enable admonition blocks (!!! type title) (default: false) */
+  /** Enable admonition blocks (!!! type / ??? type / ???+ type) (default: false) */
   admonition?: boolean;
   /** Enable callout blocks (> [!type] title) (default: false) */
   callout?: boolean;

@@ -1,42 +1,65 @@
 // markdown_yo — Admonition block rule
 //
-// Syntax: !!! type [optional title]
+// Syntax: !!! type [optional title]          — static admonition
+//         ??? type [optional title]          — collapsible, starts closed
+//         ???+ type [optional title]         — collapsible, starts open
 // Content is indented 4 spaces.
 // Ends at unindented line or EOF.
 //
-// Output:
+// Output (static):
 //   <div class="admonition TYPE">
 //   <p class="admonition-title">TITLE</p>
 //   ...content...
 //   </div>
+//
+// Output (collapsible):
+//   <details class="admonition TYPE" [open]>
+//   <summary class="admonition-title">TITLE</summary>
+//   ...content...
+//   </details>
 //
 // The main admonition handling is inlined in parser.yo (like lists)
 // because it needs recursive block_tokenize via `recur`.
 
 { BlockState } :: import "./state.yo";
 
-// Check if a line starts with 3+ '!' characters followed by a space and a type word.
-// Returns: type_start, type_end, title_start, title_end (via out-params).
+// Check if a line starts with 3+ '!' or '?' characters followed by a space and a type word.
+// Returns: type_start, type_end, title_start, title_end, collapsible (via out-params).
+// collapsible: 0 = not collapsible (!!!), 1 = open (???+), -1 = closed (???)
 // Returns true if valid admonition opener, false otherwise.
 check_admonition_marker :: (fn(state: *(BlockState), line: i32,
                                type_start_out: *(i32), type_end_out: *(i32),
-                               title_start_out: *(i32), title_end_out: *(i32)) -> bool)({
+                               title_start_out: *(i32), title_end_out: *(i32),
+                               collapsible_out: *(i32)) -> bool)({
   (start : i32) = (state.bm(line) + state.ts(line));
   (max : i32) = state.em(line);
 
-  // Need at least "!!! t"
+  // Need at least "!!! t" or "??? t"
   if(((start + i32(4)) > max), { return false; });
 
-  // Check for 3+ '!' chars
-  if(((state.*.src_ptr &+ usize(start)).* != u8(0x21)), { return false; });
-  if(((state.*.src_ptr &+ usize((start + i32(1)))).* != u8(0x21)), { return false; });
-  if(((state.*.src_ptr &+ usize((start + i32(2)))).* != u8(0x21)), { return false; });
+  // Marker must be '!' (0x21) or '?' (0x3F); bail on first byte for ordinary lines
+  (marker : u8) = (state.*.src_ptr &+ usize(start)).*;
+  if(((marker != u8(0x21)) && (marker != u8(0x3F))), { return false; });
 
-  // Skip any additional '!' chars
+  // Require 3 identical marker bytes (homogeneous run — !?! must not match)
+  if(((state.*.src_ptr &+ usize((start + i32(1)))).* != marker), { return false; });
+  if(((state.*.src_ptr &+ usize((start + i32(2)))).* != marker), { return false; });
+
+  // Skip any additional identical marker chars
   (pos : i32) = (start + i32(3));
-  while ((pos < max) && ((state.*.src_ptr &+ usize(pos)).* == u8(0x21))), {
+  while ((pos < max) && ((state.*.src_ptr &+ usize(pos)).* == marker)), {
     pos = (pos + i32(1));
   };
+
+  // Collapsible state from marker kind; optional '+' only after '?'
+  (collapsible : i32) = i32(0);
+  if((marker == u8(0x3F)), {
+    collapsible = i32(-1);
+    if(((pos < max) && ((state.*.src_ptr &+ usize(pos)).* == u8(0x2B))), {
+      collapsible = i32(1);
+      pos = (pos + i32(1));
+    });
+  });
 
   // Must be followed by space
   if((pos >= max), { return false; });
@@ -71,6 +94,7 @@ check_admonition_marker :: (fn(state: *(BlockState), line: i32,
     title_end = (title_end - i32(1));
   };
   title_end_out.* = title_end;
+  collapsible_out.* = collapsible;
   true
 });
 

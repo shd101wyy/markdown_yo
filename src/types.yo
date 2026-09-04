@@ -28,7 +28,7 @@ Options :: struct(
   enable_critic : bool,     // CriticMarkup {++add++} {--del--} {~~old~>new~~} {==mark==} {>>comment<<}
   enable_abbr : bool,       // Abbreviations *[abbr]: expansion
   enable_deflist : bool,    // Definition lists (term + :   definition)
-  enable_admonition : bool, // Admonition blocks !!! type title
+  enable_admonition : bool, // Admonition blocks !!! type / ??? type / ???+ type
   enable_callout : bool,    // GitHub/Obsidian callouts > [!type] title
   enable_footnote : bool,   // Footnotes [^id] and [^id]: content
   enable_source_map : bool, // Emit data-source-line attributes on block elements

@@ -90,16 +90,18 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
             matched = block_fence(state, line, end_line, false);
           });
 
-          // 3b. Admonition — !!! type title, with 4-space indented body
+          // 3b. Admonition — !!! / ??? / ???+ type title, with 4-space indented body
           if((!(matched) && state.*.options.*.enable_admonition), {
             if(((state.ts(line) - state.*.blk_indent) < i32(4)), {
               (adm_type_start : i32) = i32(0);
               (adm_type_end : i32) = i32(0);
               (adm_title_start : i32) = i32(0);
               (adm_title_end : i32) = i32(0);
+              (adm_collapsible : i32) = i32(0);
               if(check_admonition_marker(state, line,
                   (&adm_type_start), (&adm_type_end),
-                  (&adm_title_start), (&adm_title_end)), {
+                  (&adm_title_start), (&adm_title_end),
+                  (&adm_collapsible)), {
                 // ── Begin inline admonition handling ──
                 (adm_old_parent : ParentType) = state.*.parent_type;
                 (adm_old_line_max : i32) = state.*.line_max;
@@ -127,13 +129,13 @@ block_tokenize :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> u
 
                 // Emit open tag with type and title
                 state.*.renderer.*.set_source_line(line);
-                state.*.renderer.*.admonition_open(adm_type_start, adm_type_end, adm_title_start, adm_title_end);
+                state.*.renderer.*.admonition_open(adm_type_start, adm_type_end, adm_title_start, adm_title_end, adm_collapsible);
 
                 // Recursive parse of admonition body
                 recur(state, (line + i32(1)), adm_next);
 
                 // Emit close tag
-                state.*.renderer.*.admonition_close();
+                state.*.renderer.*.admonition_close(adm_collapsible);
 
                 state.*.parent_type = adm_old_parent;
                 state.*.line_max = adm_old_line_max;
