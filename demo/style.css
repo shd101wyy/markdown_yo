@@ -303,6 +303,27 @@ main {
   margin-bottom: 8px;
 }
 
+.preview-content details.admonition > summary.admonition-title {
+  cursor: pointer;
+  list-style: none;
+}
+
+.preview-content details.admonition > summary.admonition-title::-webkit-details-marker {
+  display: none;
+}
+
+.preview-content details.admonition > summary.admonition-title::before {
+  content: "▶";
+  display: inline-block;
+  margin-right: 8px;
+  font-size: 0.7em;
+  transition: transform 0.15s ease;
+}
+
+.preview-content details.admonition[open] > summary.admonition-title::before {
+  transform: rotate(90deg);
+}
+
 .preview-content .admonition.warning,
 .preview-content .admonition.caution,
 .preview-content .admonition.attention {

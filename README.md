@@ -32,7 +32,7 @@ This is in contrast to [markdown_it_yo](https://github.com/shd101wyy/markdown_it
 - Compiles to native executables (macOS, Linux, Windows) and WebAssembly
 - Full support: CommonMark, tables, strikethrough, typographer, smartquotes, HTML blocks
 - **Inline extensions**: subscript (`~sub~`), superscript (`^sup^`), mark/highlight (`==mark==`), math (`$...$`, `$$...$$`), emoji (`:smile:`), wikilinks (`[[page]]`), critic markup (`{++add++}`, `{--del--}`, etc.)
-- **Block extensions**: abbreviations, definition lists, admonitions (`!!! type`), callouts (`> [!type]`), footnotes (`[^id]`)
+- **Block extensions**: abbreviations, definition lists, admonitions (`!!! type`, collapsible `???` / `???+`), callouts (`> [!type]`), footnotes (`[^id]`)
 - **Source map**: optional `data-source-line` attributes on block-level elements for editor integration
 - [**Live Demo**](#live-demo) — try it in the browser via WebAssembly
 
