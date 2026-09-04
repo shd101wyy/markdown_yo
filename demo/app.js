@@ -93,6 +93,12 @@ This page uses HTML, CSS, and WASM.
 !!! warning
     Be careful with raw HTML when the HTML option is enabled.
 
+??? note Click to expand
+    This collapsible admonition starts closed.
+
+???+ warning Starts open
+    This collapsible admonition starts expanded.
+
 ## Callout
 
 > [!tip]

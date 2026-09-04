@@ -885,35 +885,14 @@ impl(HtmlRenderer,
     self.*.lit("</dd>\n");
   }),
 
-  // Admonition: !!! type optional title
-  admonition_open : (fn(self: *(Self), type_start: i32, type_end: i32, title_start: i32, title_end: i32) -> unit)({
-    // If type is not in the known list, default to "note"
-    (known_type : bool) = _is_known_admonition_type(self.*.src_ptr, type_start, type_end);
-    self.*.lit("<div class=\"admonition ");
-    if(known_type, {
-      self.*.push_range_lower(type_start, type_end);
-    }, {
-      self.*.lit("note");
-    });
-    self.*.lit("\"");
-    self.*._source_attr();
-    self.*.lit(">\n");
-    // Title: if explicit title given, use it; else capitalize type
+  // Write admonition title text only (no wrapping tags).
+  // Caller handles empty-title "" special case and tag wrapping.
+  // When title_start >= title_end, emits the default capitalized type title.
+  _admonition_title_text : (fn(self: *(Self), type_start: i32, type_end: i32, title_start: i32, title_end: i32, known_type: bool) -> unit)({
     if((title_start < title_end), {
-      // Check for empty title '""'
-      if(((((title_end - title_start) == i32(2)) &&
-           ((self.*.src_ptr &+ usize(title_start)).* == u8(0x22))) &&
-          ((self.*.src_ptr &+ usize((title_end - i32(1)))).* == u8(0x22))), {
-        // title is "" — no title element
-        ()
-      }, {
-        self.*.lit("<p class=\"admonition-title\">");
-        self.*.escaped(title_start, title_end);
-        self.*.lit("</p>\n");
-      });
+      self.*.escaped(title_start, title_end);
     }, {
       // Default title = capitalize first letter of validated type
-      self.*.lit("<p class=\"admonition-title\">");
       if(known_type, {
         // Special cases: tldr → TL;DR, faq → FAQ
         if(_src_eq_ci(self.*.src_ptr, type_start, type_end, *(u8)("tldr"), i32(4)), {
@@ -938,12 +917,62 @@ impl(HtmlRenderer,
         // Unknown type defaults to "Note"
         self.*.lit("Note");
       });
-      self.*.lit("</p>\n");
     });
   }),
 
-  admonition_close : (fn(self: *(Self)) -> unit)(
-    self.*.lit("</div>\n")
+  // Admonition: !!! type / ??? type / ???+ type optional title
+  // collapsible: 0 = static div, 1 = details open, -1 = details closed
+  admonition_open : (fn(self: *(Self), type_start: i32, type_end: i32, title_start: i32, title_end: i32, collapsible: i32) -> unit)({
+    // If type is not in the known list, default to "note"
+    (known_type : bool) = _is_known_admonition_type(self.*.src_ptr, type_start, type_end);
+    // Empty title "" — no title content; collapsible still needs empty <summary>
+    (empty_title : bool) = ((((title_end - title_start) == i32(2)) &&
+                             ((self.*.src_ptr &+ usize(title_start)).* == u8(0x22))) &&
+                            ((self.*.src_ptr &+ usize((title_end - i32(1)))).* == u8(0x22)));
+
+    if((collapsible != i32(0)), {
+      self.*.lit("<details class=\"admonition ");
+      if(known_type, {
+        self.*.push_range_lower(type_start, type_end);
+      }, {
+        self.*.lit("note");
+      });
+      self.*.lit("\"");
+      self.*._source_attr();
+      if((collapsible == i32(1)), {
+        self.*.lit(" open");
+      });
+      self.*.lit(">\n");
+      if(empty_title, {
+        self.*.lit("<summary class=\"admonition-title\"></summary>\n");
+      }, {
+        self.*.lit("<summary class=\"admonition-title\">");
+        self.*._admonition_title_text(type_start, type_end, title_start, title_end, known_type);
+        self.*.lit("</summary>\n");
+      });
+    }, {
+      self.*.lit("<div class=\"admonition ");
+      if(known_type, {
+        self.*.push_range_lower(type_start, type_end);
+      }, {
+        self.*.lit("note");
+      });
+      self.*.lit("\"");
+      self.*._source_attr();
+      self.*.lit(">\n");
+      if(!(empty_title), {
+        self.*.lit("<p class=\"admonition-title\">");
+        self.*._admonition_title_text(type_start, type_end, title_start, title_end, known_type);
+        self.*.lit("</p>\n");
+      });
+    });
+  }),
+
+  admonition_close : (fn(self: *(Self), collapsible: i32) -> unit)(
+    cond(
+      (collapsible != i32(0)) => self.*.lit("</details>\n"),
+      true => self.*.lit("</div>\n")
+    )
   ),
 
   // Callout: > [!type] optional title — rendered from blockquote detection
