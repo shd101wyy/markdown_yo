@@ -5,7 +5,7 @@
 // Stores references in env for later use by inline parser.
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+{ String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { BlockState } :: import("./state.yo");
 { is_space } :: import("../common/utils.yo");

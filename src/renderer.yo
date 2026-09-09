@@ -4,7 +4,7 @@
 // Writes directly to an ArrayList(u8) output buffer — no intermediate Strings.
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+{ String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { memmove } :: import("std/libc/string");
 { Options, TableAlign, AbbrEntry, FootnoteDef } :: import("./types.yo");

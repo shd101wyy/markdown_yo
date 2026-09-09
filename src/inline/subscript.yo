@@ -7,7 +7,7 @@
 // So ~foo\ bar~ is valid (escaped space) but ~foo bar~ is not.
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+{ String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { InlineState, InlineToken } :: import("./state.yo");
 { InlineType } :: import("../types.yo");

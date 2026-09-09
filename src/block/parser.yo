@@ -6,7 +6,7 @@
 // List and blockquote handle recursive block_tokenize calls inline here.
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { memmove } :: import("std/libc/string");
 { Options, ParentType, FootnoteDef } :: import("../types.yo");

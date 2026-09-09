@@ -5,7 +5,7 @@
 // determined the inline content range.
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+{ String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { InlineType } :: import("../types.yo");
 { InlineState, InlineToken } :: import("./state.yo");

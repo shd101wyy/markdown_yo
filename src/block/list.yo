@@ -5,7 +5,7 @@
 // is handled in parser.yo (same pattern as blockquote).
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { BlockState } :: import("./state.yo");
 { is_space } :: import("../common/utils.yo");

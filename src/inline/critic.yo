@@ -13,7 +13,7 @@
 // Empty content (e.g. {++++}) is not valid.
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+import("std/string");
 
 { InlineToken, InlineState } :: import("./state.yo");
 { InlineType } :: import("../types.yo");

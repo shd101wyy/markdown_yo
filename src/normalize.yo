@@ -4,7 +4,7 @@
 // Returns a new String only if changes are needed; otherwise returns the input.
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+{ String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 
 // Normalize source: unify line endings, replace NULL chars.

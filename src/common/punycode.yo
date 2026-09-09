@@ -2,7 +2,7 @@
 // Used for Internationalized Domain Names (IDN)
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+{ String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 
 // Constants from RFC 3492

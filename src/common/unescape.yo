@@ -3,7 +3,7 @@
 // Shared by inline render pass and reference definition parser.
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+{ String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { decode_named_entity } :: import("./entities.yo");
 
