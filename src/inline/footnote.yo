@@ -5,7 +5,7 @@
 // 2. Inline footnote: ^[content]
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { InlineType } :: import("../types.yo");
 { InlineState, InlineToken } :: import("./state.yo");

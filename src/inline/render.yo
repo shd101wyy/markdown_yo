@@ -6,7 +6,7 @@
 // 4. Dispatches each token to the HtmlRenderer
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+{ String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { InlineState, InlineToken } :: import("./state.yo");
 { HtmlRenderer } :: import("../renderer.yo");

@@ -4,7 +4,7 @@
 // Line markers are precomputed once for O(1) line access.
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+{ String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { HashMap } :: import("std/collections/hash_map");
 { memchr } :: import("std/libc/string");

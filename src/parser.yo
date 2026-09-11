@@ -5,7 +5,7 @@
 // lightweight InlineToken buffer then flushes to renderer.
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+{ String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { Options, Env, new_env } :: import("./types.yo");
 { HtmlRenderer } :: import("./renderer.yo");

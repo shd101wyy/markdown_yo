@@ -3,7 +3,7 @@
 // Matches: pipe-delimited tables with header separator
 
 pragma(Pragma.AllowUnsafe);
-open(import("std/string"));
+import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { BlockState } :: import("./state.yo");
 { is_space, escape_html_buf } :: import("../common/utils.yo");
