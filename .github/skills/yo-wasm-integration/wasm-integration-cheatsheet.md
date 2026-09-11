@@ -6,9 +6,9 @@ Patterns for building Yo libraries as WebAssembly modules and consuming them fro
 
 | Target               | Command                                            | Output                        |
 | -------------------- | -------------------------------------------------- | ----------------------------- |
-| Emscripten (browser) | `yo compile src/api.yo --cc emcc --release -o api` | `.js` + `.wasm`               |
-| WASI (standalone)    | `yo compile src/api.yo --target wasm-wasi -o api`  | `.wasm` (runs via `wasmtime`) |
-| Native (testing)     | `yo compile src/api.yo --release -o api`           | Native binary                 |
+| Emscripten (browser) | `yo compile src/api.yo --cc emcc --optimize 2 -o api` | `.js` + `.wasm`               |
+| WASI (standalone)    | `yo compile src/api.yo --target wasm32-wasip1 -o api`  | `.wasm` (runs via `wasmtime`) |
+| Native (testing)     | `yo compile src/api.yo --optimize 2 -o api`           | Native binary                 |
 
 ## WASM API design pattern
 
@@ -104,7 +104,7 @@ install :: build.step("install", "Build WASM module");
 install.depend_on(wasm_api);
 ```
 
-Available targets: `Wasm32_Emscripten`, `Wasm32_Wasi`, `X86_64_Linux_Gnu`, `Aarch64_Macos`, etc.
+Available targets: `Wasm32_Emscripten`, `Wasm32_Wasip1`, `X86_64_Unknown_Linux_Gnu`, `Aarch64_Apple_Darwin`, etc. (the keys are the Rust target triples).
 Available optimizations: `Debug`, `ReleaseSafe`, `ReleaseFast`, `ReleaseSmall`.
 Available allocators: `Mimalloc` (default), `Libc`.
 
@@ -225,13 +225,13 @@ function readStringWithStoredLength(mod, ptr, lenPtr) {
 
 ```bash
 # Test native first (fast iteration, AddressSanitizer)
-yo compile src/wasm_api.yo --release --sanitize address -o test && ./test
+yo compile src/wasm_api.yo --optimize 2 --sanitize address -o test && ./test
 
 # Test Emscripten WASM
-yo compile src/wasm_api.yo --cc emcc --release -o npm/my_lib_wasm_api
+yo compile src/wasm_api.yo --cc emcc --optimize 2 -o npm/my_lib_wasm_api
 
 # Test WASI
-yo compile src/wasm_api.yo --target wasm-wasi -o test.wasm && wasmtime test.wasm
+yo compile src/wasm_api.yo --target wasm32-wasip1 -o test.wasm && wasmtime test.wasm
 
 # Run npm package tests
 cd npm && node -e "const m = require('.'); m.createRenderer().render('hello').then(console.log)"

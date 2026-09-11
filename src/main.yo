@@ -5,44 +5,43 @@
 //   markdown_yo              — read from stdin, render to stdout
 //   markdown_yo -            — read from stdin explicitly
 
-open import "std/string";
-{ println, print } :: import "std/fmt";
-{ ArrayList } :: import "std/collections/array_list";
-{ args } :: import "std/process";
+pragma(Pragma.AllowUnsafe);
+{ String } :: import("std/string");
+{ println, print } :: import("std/fmt");
+{ ArrayList } :: import("std/collections/array_list");
+{ args } :: import("std/env");
 { stdin, stdout, stderr, fopen, fclose, fread, fwrite, fputs,
-  fseek, ftell, SEEK_SET, SEEK_END, FILE } :: import "std/libc/stdio";
-{ markdown_to_html } :: import "./parser.yo";
-{ Options, default_options, commonmark_options } :: import "./types.yo";
+  fseek, ftell, SEEK_SET, SEEK_END, FILE } :: import("std/libc/stdio");
+{ markdown_to_html } :: import("./parser.yo");
+{ Options, default_options, commonmark_options } :: import("./types.yo");
 
 // Read entire file into a String
 _read_file :: (fn(path: String) -> Option(String))({
   cstr := path.to_cstr();
-  (fp : ?*(FILE)) = match(cstr.ptr(),
-    .Some(p) => fopen(*(char)(p), *(char)(*(u8)("r"))),
+  (fp : ?(*(FILE))) = match(cstr.ptr(),
+    .Some(p) => unsafe(fopen(*(char)(p), *(char)(*(u8)("r")))),
     .None => .None
   );
 
   match(fp,
     .None => .None,
     .Some(f) => {
-      _ := fseek(f, int(0), SEEK_END);
-      (size : int) = ftell(f);
-      _ := fseek(f, int(0), SEEK_SET);
-
+      _ := unsafe(fseek(f, int(0), SEEK_END));
+      (size : int) = unsafe(ftell(f));
+      _ := unsafe(fseek(f, int(0), SEEK_SET));
       if((size <= int(0)), {
-        _ := fclose(f);
-        return .Some(String.new());
+        _ := unsafe(fclose(f));
+        return(.Some(String.new()));
       });
 
       buf := ArrayList(u8).with_capacity(usize(size));
       buf.resize_with_byte(usize(size), int(0));
 
       (n : usize) = match(buf.ptr(),
-        .Some(p) => fread(*(void)(p), usize(1), usize(size), f),
+        .Some(p) => unsafe(fread(*(void)(p), usize(1), usize(size), f)),
         .None => usize(0)
       );
-      _ := fclose(f);
-
+      _ := unsafe(fclose(f));
       buf.set_len(n);
       .Some(String.from_bytes(buf))
     }
@@ -55,19 +54,19 @@ _read_stdin :: (fn() -> String)({
   chunk := ArrayList(u8).with_capacity(usize(4096));
   chunk.resize_with_byte(usize(4096), int(0));
 
-  while runtime(true), {
+  while(runtime(true), {
     (n : usize) = match(chunk.ptr(),
-      .Some(p) => fread(*(void)(p), usize(1), usize(4096), stdin),
+      .Some(p) => unsafe(fread(*(void)(p), usize(1), usize(4096), stdin)),
       .None => usize(0)
     );
     if((n == usize(0)), {
-      return String.from_bytes(buf);
+      return(String.from_bytes(buf));
     });
     match(chunk.ptr(),
       .Some(p) => buf.extend_from_ptr(p, n),
       .None => ()
     );
-  };
+  });
   String.from_bytes(buf)
 });
 
@@ -78,8 +77,8 @@ main :: (fn() -> unit)({
 
   // No arguments — show help
   if((argv.len() <= usize(1)), {
-    _ := fputs(*(char)(*(u8)(_HELP_TEXT)), stdout);
-    return ();
+    _ := unsafe(fputs(*(char)(*(u8)(_HELP_TEXT)), stdout));
+    return();
   });
 
   // Parse flags
@@ -106,12 +105,12 @@ main :: (fn() -> unit)({
   (repeat_count : i32) = i32(1);
 
   (ai : usize) = usize(1);
-  while (ai < argv.len()), {
+  while(ai < argv.len(), {
     (arg : String) = argv.get(ai).unwrap();
     cond(
       ((arg == `--help`) || (arg == `-h`)) => {
-        _ := fputs(*(char)(*(u8)(_HELP_TEXT)), stdout);
-        return ();
+        _ := unsafe(fputs(*(char)(*(u8)(_HELP_TEXT)), stdout));
+        return();
       },
       (arg == `-`) => { read_from_stdin = true; },
       (arg == `--html`) => { html_enabled = true; },
@@ -142,7 +141,7 @@ main :: (fn() -> unit)({
       true => { file_path = .Some(arg); }
     );
     ai = (ai + usize(1));
-  };
+  });
 
   (opts : Options) = cond(
     use_commonmark => commonmark_options(),
@@ -176,23 +175,23 @@ main :: (fn() -> unit)({
           if((repeat_count > i32(1)), {
             // Benchmark mode: run N iterations silently (for external timing)
             (ri : i32) = i32(0);
-            while (ri < repeat_count), {
-              result := markdown_to_html(content, (&opts));
+            while(ri < repeat_count, {
+              result := markdown_to_html(content, (&(opts)));
               ri = (ri + i32(1));
-            };
+            });
           }, {
-            result := markdown_to_html(content, (&opts));
+            result := markdown_to_html(content, (&(opts)));
             cstr := result.to_cstr();
             match(cstr.ptr(),
               .Some(p) => {
-                _ := fputs(*(char)(p), stdout);
+                _ := unsafe(fputs(*(char)(p), stdout));
               },
               .None => ()
             );
           });
         },
         .None => {
-          _ := fputs(*(char)(*(u8)("Error: cannot open file\n")), stderr);
+          _ := unsafe(fputs(*(char)(*(u8)("Error: cannot open file\n")), stderr));
         }
       );
     },
@@ -201,25 +200,25 @@ main :: (fn() -> unit)({
         content := _read_stdin();
         if((repeat_count > i32(1)), {
           (ri : i32) = i32(0);
-          while (ri < repeat_count), {
-            result := markdown_to_html(content, (&opts));
+          while(ri < repeat_count, {
+            result := markdown_to_html(content, (&(opts)));
             ri = (ri + i32(1));
-          };
+          });
         }, {
-          result := markdown_to_html(content, (&opts));
+          result := markdown_to_html(content, (&(opts)));
           cstr := result.to_cstr();
           match(cstr.ptr(),
             .Some(p) => {
-              _ := fputs(*(char)(p), stdout);
+              _ := unsafe(fputs(*(char)(p), stdout));
             },
             .None => ()
           );
         });
       }, {
-        _ := fputs(*(char)(*(u8)(_HELP_TEXT)), stdout);
+        _ := unsafe(fputs(*(char)(*(u8)(_HELP_TEXT)), stdout));
       });
     }
   );
 });
 
-export main;
+export(main);

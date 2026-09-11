@@ -2,19 +2,20 @@
 //
 // Handles hard break (2+ trailing spaces + \n, or \\\n) and soft break (\n).
 
-{ InlineState, InlineToken } :: import "./state.yo";
+pragma(Pragma.AllowUnsafe);
+{ InlineState, InlineToken } :: import("./state.yo");
 
 inline_newline :: (fn(state: *(InlineState)) -> bool)({
   (pos : i32) = state.*.pos;
-  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x0A)), { return false; });
+  if((i32((state.*.src_ptr.add(usize(pos))).*) != i32(0x0A)), { return(false); });
 
   // Count trailing spaces in pending text before pushing
   (back : i32) = (pos - i32(1));
   (space_count : i32) = i32(0);
-  while ((back >= state.*.pending_start) && (i32((state.*.src_ptr &+ usize(back)).*) == i32(0x20))), {
+  while((back >= state.*.pending_start) && (i32((state.*.src_ptr.add(usize(back))).*) == i32(0x20)), {
     space_count = (space_count + i32(1));
     back = (back - i32(1));
-  };
+  });
 
   // Trim trailing spaces from pending before flushing
   if((space_count > i32(0)), {
@@ -36,13 +37,13 @@ inline_newline :: (fn(state: *(InlineState)) -> bool)({
   state.*.pos = (pos + i32(1));
 
   // Skip spaces after newline
-  while ((state.*.pos < state.*.pos_max) && (i32((state.*.src_ptr &+ usize(state.*.pos)).*) == i32(0x20))), {
+  while((state.*.pos < state.*.pos_max) && (i32((state.*.src_ptr.add(usize(state.*.pos))).*) == i32(0x20)), {
     state.*.pos = (state.*.pos + i32(1));
-  };
+  });
 
   state.*.pending_start = state.*.pos;
   state.*.pending_end = state.*.pos;
   true
 });
 
-export inline_newline;
+export(inline_newline);
