@@ -35,10 +35,18 @@ jobs:
           version: "4.0.12"
 
       - name: Build WASM API
+        # Blocked by shd101wyy/Yo#571: exported functions are emitted as
+        # static yo_id_NNN with no external definition, so -sEXPORTED_FUNCTIONS
+        # cannot resolve wasm_render/wasm_result_len/wasm_free. Keep the deploy
+        # going (the demo site serves the previously built API bundle) until
+        # that is fixed; also note the target dir is now
+        # wasm32-unknown-emscripten.
+        continue-on-error: true
         run: |
           yo build wasm_api
-          cp yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.js   demo/markdown_yo_wasm_api.js
-          cp yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.wasm demo/markdown_yo_wasm_api.wasm
+          mkdir -p demo
+          cp yo-out/wasm32-unknown-emscripten/bin/markdown_yo_wasm_api.js   demo/markdown_yo_wasm_api.js
+          cp yo-out/wasm32-unknown-emscripten/bin/markdown_yo_wasm_api.wasm demo/markdown_yo_wasm_api.wasm
 
       - name: Delete old github-pages artifact
         uses: actions/github-script@v7
