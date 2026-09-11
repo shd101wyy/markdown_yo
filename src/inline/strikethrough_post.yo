@@ -2,15 +2,16 @@
 //
 // Matches ~~ delimiter pairs and marks them for rendering.
 
-{ ArrayList } :: import "std/collections/array_list";
-{ InlineState, InlineToken } :: import "./state.yo";
-{ Delimiter } :: import "../types.yo";
+pragma(Pragma.AllowUnsafe);
+{ ArrayList } :: import("std/collections/array_list");
+{ InlineState, InlineToken } :: import("./state.yo");
+{ Delimiter } :: import("../types.yo");
 
 strikethrough_post :: (fn(state: *(InlineState)) -> unit)({
   (max_delim : i32) = i32(state.*.delimiters.len());
   (closer_idx : i32) = i32(0);
 
-  while (closer_idx < max_delim), {
+  while(closer_idx < max_delim, {
     (closer : Delimiter) = state.*.delimiters.get(usize(closer_idx));
 
     if((closer.close && (i32(closer.marker) == i32(0x7E))), {
@@ -18,14 +19,14 @@ strikethrough_post :: (fn(state: *(InlineState)) -> unit)({
       (opener_idx : i32) = (closer_idx - i32(1));
       (found : bool) = false;
 
-      while ((opener_idx >= i32(0)) && !(found)), {
+      while((opener_idx >= i32(0)) && !(found), {
         (opener : Delimiter) = state.*.delimiters.get(usize(opener_idx));
         if(((i32(opener.marker) == i32(0x7E)) && opener.open), {
           found = true;
         }, {
           opener_idx = (opener_idx - i32(1));
         });
-      };
+      });
 
       if(found, {
         (opener : Delimiter) = state.*.delimiters.get(usize(opener_idx));
@@ -66,28 +67,28 @@ strikethrough_post :: (fn(state: *(InlineState)) -> unit)({
 
         // Clear delimiters between
         (mid : i32) = (opener_idx + i32(1));
-        while (mid < closer_idx), {
+        while(mid < closer_idx, {
           (d : Delimiter) = state.*.delimiters.get(usize(mid));
 &(          state.*.delimiters(usize(mid))).* = Delimiter(
             marker: d.marker, length: i32(0), token_idx: d.token_idx,
-            end: i32(-1), jump: i32(0), open: false, close: false
+            end: (i32(0) - i32(1)), jump: i32(0), open: false, close: false
           );
           mid = (mid + i32(1));
-        };
+        });
 
         // Clear closer
 &(        state.*.delimiters(usize(closer_idx))).* = Delimiter(
           marker: closer.marker, length: i32(0),
           token_idx: closer.token_idx,
-          end: i32(-1), jump: i32(0), open: false, close: false
+          end: (i32(0) - i32(1)), jump: i32(0), open: false, close: false
         );
       });
     });
 
     closer_idx = (closer_idx + i32(1));
-  };
+  });
 
   ()
 });
 
-export strikethrough_post;
+export(strikethrough_post);

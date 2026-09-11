@@ -2,9 +2,9 @@
 //
 // Enums and structs used throughout the parser, renderer, and CLI.
 
-open import "std/string";
-{ ArrayList } :: import "std/collections/array_list";
-{ HashMap } :: import "std/collections/hash_map";
+open(import("std/string"));
+{ ArrayList } :: import("std/collections/array_list");
+{ HashMap } :: import("std/collections/hash_map");
 
 // ---------------------------------------------------------------------------
 // Options
@@ -233,10 +233,10 @@ EmphasisPair :: struct(
   pair_type : i32     // 1=em, 2=strong, 3=strikethrough
 );
 
-export Options, default_options, commonmark_options,
+export(Options, default_options, commonmark_options,
        ParentType, TableAlign,
        InlineType,
        Reference, Env, new_env,
        StringPair,
        Delimiter, LinkMarker, EmphasisPair,
-       AbbrEntry, FootnoteDef;
+       AbbrEntry, FootnoteDef);

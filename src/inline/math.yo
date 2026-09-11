@@ -14,20 +14,21 @@
 //   - Content between $$...$$ delimiters
 //   - Newlines are allowed
 
-{ ArrayList } :: import "std/collections/array_list";
-{ InlineState, InlineToken } :: import "./state.yo";
-{ InlineType } :: import "../types.yo";
+pragma(Pragma.AllowUnsafe);
+{ ArrayList } :: import("std/collections/array_list");
+{ InlineState, InlineToken } :: import("./state.yo");
+{ InlineType } :: import("../types.yo");
 
 inline_math :: (fn(state: *(InlineState)) -> bool)({
   (pos : i32) = state.*.pos;
   (max : i32) = state.*.pos_max;
-  if((pos >= max), { return false; });
+  if((pos >= max), { return(false); });
 
-  (ch : u8) = (state.*.src_ptr &+ usize(pos)).*;
-  if((i32(ch) != i32(0x24)), { return false; });
+  (ch : u8) = (state.*.src_ptr.add(usize(pos))).*;
+  if((i32(ch) != i32(0x24)), { return(false); });
 
   // Check for $$ (block math in inline context)
-  (is_block : bool) = (((pos + i32(1)) < max) && (i32((state.*.src_ptr &+ usize((pos + i32(1)))).*) == i32(0x24)));
+  (is_block : bool) = (((pos + i32(1)) < max) && (i32((state.*.src_ptr.add(usize((pos + i32(1))))).*) == i32(0x24)));
 
   if(is_block, {
     // Block math: $$...$$
@@ -35,21 +36,21 @@ inline_math :: (fn(state: *(InlineState)) -> bool)({
     // Scan for closing $$
     (p : i32) = content_start;
     (found : bool) = false;
-    while (((p + i32(1)) < max) && !(found)), {
-      (c : u8) = (state.*.src_ptr &+ usize(p)).*;
+    while(((p + i32(1)) < max) && !(found), {
+      (c : u8) = (state.*.src_ptr.add(usize(p))).*;
       if((i32(c) == i32(0x5C)), {
         // Backslash escape — skip next char
         p = (p + i32(2));
-      }, if(((i32(c) == i32(0x24)) && (i32((state.*.src_ptr &+ usize((p + i32(1)))).*) == i32(0x24))), {
+      }, if(((i32(c) == i32(0x24)) && (i32((state.*.src_ptr.add(usize((p + i32(1))))).*) == i32(0x24))), {
         found = true;
       }, {
         p = (p + i32(1));
       }));
-    };
+    });
 
-    if(!(found), { return false; });
+    if(!(found), { return(false); });
     // Content must not be empty
-    if((p == content_start), { return false; });
+    if((p == content_start), { return(false); });
 
     state.*.push_pending();
 
@@ -64,7 +65,7 @@ inline_math :: (fn(state: *(InlineState)) -> bool)({
       title_start: i32(0), title_end: i32(0),
       markup_char: u8(0x24), markup_len: u8(2),
       block: true, hidden: false,
-      content_idx: i32(-1), href_idx: i32(-1), title_idx: i32(-1)
+      content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1))
     ));
 
     state.*.pos = (p + i32(2));
@@ -74,17 +75,17 @@ inline_math :: (fn(state: *(InlineState)) -> bool)({
   }, {
     // Inline math: $...$
     (content_start : i32) = (pos + i32(1));
-    if((content_start >= max), { return false; });
+    if((content_start >= max), { return(false); });
 
     // Content must not start with a space (unless content is single space)
-    (first_ch : u8) = (state.*.src_ptr &+ usize(content_start)).*;
+    (first_ch : u8) = (state.*.src_ptr.add(usize(content_start))).*;
     // Allow if first char is not space, or we handle space checking below
 
     // Scan for closing $ (not preceded by backslash, not $$)
     (p : i32) = content_start;
     (found : bool) = false;
-    while ((p < max) && !(found)), {
-      (c : u8) = (state.*.src_ptr &+ usize(p)).*;
+    while((p < max) && !(found), {
+      (c : u8) = (state.*.src_ptr.add(usize(p))).*;
       cond(
         // Backslash escape — skip next char
         (i32(c) == i32(0x5C)) => {
@@ -93,7 +94,7 @@ inline_math :: (fn(state: *(InlineState)) -> bool)({
         // Found $
         (i32(c) == i32(0x24)) => {
           // Make sure it's not $$ (which would be block math)
-          if((((p + i32(1)) < max) && (i32((state.*.src_ptr &+ usize((p + i32(1)))).*) == i32(0x24))), {
+          if((((p + i32(1)) < max) && (i32((state.*.src_ptr.add(usize((p + i32(1))))).*) == i32(0x24))), {
             // This is $$, skip it (not a valid inline closer)
             p = max;
           }, {
@@ -108,24 +109,24 @@ inline_math :: (fn(state: *(InlineState)) -> bool)({
           p = (p + i32(1));
         }
       );
-    };
+    });
 
-    if(!(found), { return false; });
+    if(!(found), { return(false); });
     // Content must not be empty
-    if((p == content_start), { return false; });
+    if((p == content_start), { return(false); });
 
     // Content must not start and end with a space (but can if it's all spaces)
-    if(((first_ch == u8(0x20)) && ((state.*.src_ptr &+ usize((p - i32(1)))).* == u8(0x20))), {
+    if(((first_ch == u8(0x20)) && ((state.*.src_ptr.add(usize((p - i32(1))))).* == u8(0x20))), {
       // Check if content is all spaces — if so, allow it; otherwise reject
       (all_spaces : bool) = true;
       (si : i32) = content_start;
-      while ((si < p) && all_spaces), {
-        if(((state.*.src_ptr &+ usize(si)).* != u8(0x20)), {
+      while((si < p) && all_spaces, {
+        if(((state.*.src_ptr.add(usize(si))).* != u8(0x20)), {
           all_spaces = false;
         });
         si = (si + i32(1));
-      };
-      if(!(all_spaces), { return false; });
+      });
+      if(!(all_spaces), { return(false); });
     });
 
     state.*.push_pending();
@@ -141,7 +142,7 @@ inline_math :: (fn(state: *(InlineState)) -> bool)({
       title_start: i32(0), title_end: i32(0),
       markup_char: u8(0x24), markup_len: u8(1),
       block: false, hidden: false,
-      content_idx: i32(-1), href_idx: i32(-1), title_idx: i32(-1)
+      content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1))
     ));
 
     state.*.pos = (p + i32(1));
@@ -151,4 +152,4 @@ inline_math :: (fn(state: *(InlineState)) -> bool)({
   })
 });
 
-export inline_math;
+export(inline_math);

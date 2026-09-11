@@ -3,9 +3,10 @@
 // Matches :shortname: patterns and replaces them with Unicode emoji.
 // Uses the same pattern as entity.yo — validates at parse time, decodes at render time.
 
-{ ArrayList } :: import "std/collections/array_list";
-{ InlineState, InlineToken } :: import "./state.yo";
-{ lookup_emoji } :: import "../data/emoji_data.yo";
+pragma(Pragma.AllowUnsafe);
+{ ArrayList } :: import("std/collections/array_list");
+{ InlineState, InlineToken } :: import("./state.yo");
+{ lookup_emoji } :: import("../data/emoji_data.yo");
 
 // Check if ch is a valid emoji shortname character [a-z0-9_+-]
 _is_emoji_char :: (fn(ch: i32) -> bool)(
@@ -19,28 +20,28 @@ inline_emoji :: (fn(state: *(InlineState)) -> bool)({
   (max : i32) = state.*.pos_max;
 
   // Must start with ':'
-  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x3A)), { return false; });
-  if(((pos + i32(2)) >= max), { return false; });
+  if((i32((state.*.src_ptr.add(usize(pos))).*) != i32(0x3A)), { return(false); });
+  if(((pos + i32(2)) >= max), { return(false); });
 
   // Next char must be a valid emoji name start
-  (ch : i32) = i32((state.*.src_ptr &+ usize((pos + i32(1)))).*);
-  if(!(_is_emoji_char(ch)), { return false; });
+  (ch : i32) = i32((state.*.src_ptr.add(usize((pos + i32(1))))).*);
+  if(!(_is_emoji_char(ch)), { return(false); });
 
   // Scan for closing ':'
   (p : i32) = (pos + i32(2));
-  while ((p < max) && _is_emoji_char(i32((state.*.src_ptr &+ usize(p)).*))) , {
+  while((p < max) && _is_emoji_char(i32((state.*.src_ptr.add(usize(p))).*)), {
     p = (p + i32(1));
-  };
+  });
 
   // Must end with ':'
-  if(((p >= max) || (i32((state.*.src_ptr &+ usize(p)).*) != i32(0x3A))), { return false; });
+  if(((p >= max) || (i32((state.*.src_ptr.add(usize(p))).*) != i32(0x3A))), { return(false); });
 
   // Validate: look up the name (between the colons)
-  (name_ptr : *(u8)) = (state.*.src_ptr &+ usize((pos + i32(1))));
+  (name_ptr : *(u8)) = (state.*.src_ptr.add(usize((pos + i32(1)))));
   (name_len : i32) = ((p - pos) - i32(1));
 
-  state.*._entity_buf.clear();
-  if(!(lookup_emoji(name_ptr, name_len, (&state.*._entity_buf))), { return false; });
+  state.*.entity_buf.clear();
+  if(!(lookup_emoji(name_ptr, name_len, (&(state.*.entity_buf)))), { return(false); });
 
   // Matched — create Emoji token
   state.*.push_pending();
@@ -51,7 +52,7 @@ inline_emoji :: (fn(state: *(InlineState)) -> bool)({
     info_start: i32(0), info_end: i32(0),
     title_start: i32(0), title_end: i32(0),
     markup_char: u8(0), markup_len: u8(0),
-    content_idx: i32(-1), href_idx: i32(-1), title_idx: i32(-1),
+    content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1)),
     block: false, hidden: false
   ));
   state.*.pos = (p + i32(1));
@@ -60,4 +61,4 @@ inline_emoji :: (fn(state: *(InlineState)) -> bool)({
   true
 });
 
-export inline_emoji;
+export(inline_emoji);

@@ -1,6 +1,6 @@
 // markdown_yo — Public library API
 
-{ markdown_to_html } :: import "./parser.yo";
-{ Options, default_options, commonmark_options } :: import "./types.yo";
+{ markdown_to_html } :: import("./parser.yo");
+{ Options, default_options, commonmark_options } :: import("./types.yo");
 
-export markdown_to_html, Options, default_options, commonmark_options;
+export(markdown_to_html, Options, default_options, commonmark_options);

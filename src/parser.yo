@@ -4,12 +4,13 @@
 // SAX-style: block parser calls renderer directly, inline parser uses
 // lightweight InlineToken buffer then flushes to renderer.
 
-open import "std/string";
-{ ArrayList } :: import "std/collections/array_list";
-{ Options, Env, new_env } :: import "./types.yo";
-{ HtmlRenderer } :: import "./renderer.yo";
-{ BlockState } :: import "./block/state.yo";
-{ block_parse } :: import "./block/parser.yo";
+pragma(Pragma.AllowUnsafe);
+open(import("std/string"));
+{ ArrayList } :: import("std/collections/array_list");
+{ Options, Env, new_env } :: import("./types.yo");
+{ HtmlRenderer } :: import("./renderer.yo");
+{ BlockState } :: import("./block/state.yo");
+{ block_parse } :: import("./block/parser.yo");
 
 // Convert markdown source to HTML.
 markdown_to_html :: (fn(src: String, options: *(Options)) -> String)({
@@ -28,11 +29,11 @@ markdown_to_html :: (fn(src: String, options: *(Options)) -> String)({
   (renderer : HtmlRenderer) = HtmlRenderer.new(options, src_ptr, src_len);
 
   // 4. Create block state (includes normalization + line scan in one pass)
-  (state : BlockState) = BlockState.new(src, env, (&renderer), options);
-  block_parse((&state));
+  (state : BlockState) = BlockState.new(src, env, (&(renderer)), options);
+  block_parse((&(state)));
 
   // 5. Return rendered HTML
   renderer.finish()
 });
 
-export markdown_to_html;
+export(markdown_to_html);

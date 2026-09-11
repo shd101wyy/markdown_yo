@@ -2,20 +2,21 @@
 //
 // Matches: lines indented by 4+ spaces (not inside a list with deeper indent)
 
-{ BlockState } :: import "./state.yo";
+pragma(Pragma.AllowUnsafe);
+{ BlockState } :: import("./state.yo");
 
 block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
   // Must be indented by 4+
   if(((state.sc(start_line) - state.*.blk_indent) < i32(4)), {
-    return false;
+    return(false);
   });
 
-  if(silent, { return true; });
+  if(silent, { return(true); });
 
   (last : i32) = start_line;
   (next_line : i32) = start_line;
 
-  while (next_line < end_line), {
+  while(next_line < end_line, {
     if(state.*.is_empty(next_line), {
       next_line = (next_line + i32(1));
     }, {
@@ -27,18 +28,18 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
         next_line = end_line;
       });
     });
-  };
+  });
 
   // Emit code block: lines from start_line to last (inclusive)
   // Use getLines logic: strip (4 + blkIndent) columns per line, tab-aware
   state.*.renderer.*.set_source_line(start_line);
   state.*.renderer.*.lit("<pre");
-  state.*.renderer.*._source_attr();
+  state.*.renderer.*.source_attr();
   state.*.renderer.*.lit("><code>");
 
   (indent : i32) = (i32(4) + state.*.blk_indent);
   (line : i32) = start_line;
-  while (line <= last), {
+  while(line <= last, {
     (bm : i32) = state.bm(line);
     (em : i32) = state.em(line);
 
@@ -47,8 +48,8 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
     (first : i32) = bm;
     (col : i32) = i32(0);
     (line_tshift : i32) = state.ts(line);
-    while ((first < em) && (col < indent)), {
-      (ch : u8) = (state.*.src_ptr &+ usize(first)).*;
+    while((first < em) && (col < indent), {
+      (ch : u8) = (state.*.src_ptr.add(usize(first))).*;
       if((ch == u8(0x09)), {
         col = (col + (i32(4) - ((col + state.bs(line)) % i32(4))));
         first = (first + i32(1));
@@ -62,16 +63,16 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
       }, {
         col = indent;
       })));
-    };
+    });
 
     // Partially consumed tab → emit extra spaces
     if((col > indent), {
       (extra : i32) = (col - indent);
       (sp : i32) = i32(0);
-      while (sp < extra), {
+      while(sp < extra, {
         state.*.renderer.*.byte(u8(0x20));
         sp = (sp + i32(1));
-      };
+      });
     });
 
     state.*.renderer.*.escaped(first, em);
@@ -80,11 +81,11 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
     });
 
     line = (line + i32(1));
-  };
+  });
 
   state.*.renderer.*.lit("</code></pre>\n");
   state.*.line = (last + i32(1));
   true
 });
 
-export block_code;
+export(block_code);

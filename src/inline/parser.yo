@@ -4,28 +4,29 @@
 // Called by block rules (paragraph, heading, list items) after they've
 // determined the inline content range.
 
-open import "std/string";
-{ ArrayList } :: import "std/collections/array_list";
-{ InlineType } :: import "../types.yo";
-{ InlineState, InlineToken } :: import "./state.yo";
-{ inline_escape } :: import "./escape.yo";
-{ inline_backticks } :: import "./backticks.yo";
-{ inline_emphasis } :: import "./emphasis.yo";
-{ inline_strikethrough } :: import "./strikethrough.yo";
-{ inline_subscript } :: import "./subscript.yo";
-{ inline_superscript } :: import "./superscript.yo";
-{ inline_mark } :: import "./mark.yo";
-{ inline_math } :: import "./math.yo";
-{ inline_link_open, inline_link_close } :: import "./link.yo";
-{ inline_newline } :: import "./newline.yo";
-{ inline_autolink } :: import "./autolink.yo";
-{ inline_html } :: import "./html_inline.yo";
-{ inline_entity } :: import "./entity.yo";
-{ inline_emoji } :: import "./emoji.yo";
-{ inline_wikilink } :: import "./wikilink.yo";
-{ inline_critic } :: import "./critic.yo";
-{ inline_footnote_ref, inline_footnote_inline } :: import "./footnote.yo";
-{ inline_render } :: import "./render.yo";
+pragma(Pragma.AllowUnsafe);
+open(import("std/string"));
+{ ArrayList } :: import("std/collections/array_list");
+{ InlineType } :: import("../types.yo");
+{ InlineState, InlineToken } :: import("./state.yo");
+{ inline_escape } :: import("./escape.yo");
+{ inline_backticks } :: import("./backticks.yo");
+{ inline_emphasis } :: import("./emphasis.yo");
+{ inline_strikethrough } :: import("./strikethrough.yo");
+{ inline_subscript } :: import("./subscript.yo");
+{ inline_superscript } :: import("./superscript.yo");
+{ inline_mark } :: import("./mark.yo");
+{ inline_math } :: import("./math.yo");
+{ inline_link_open, inline_link_close } :: import("./link.yo");
+{ inline_newline } :: import("./newline.yo");
+{ inline_autolink } :: import("./autolink.yo");
+{ inline_html } :: import("./html_inline.yo");
+{ inline_entity } :: import("./entity.yo");
+{ inline_emoji } :: import("./emoji.yo");
+{ inline_wikilink } :: import("./wikilink.yo");
+{ inline_critic } :: import("./critic.yo");
+{ inline_footnote_ref, inline_footnote_inline } :: import("./footnote.yo");
+{ inline_render } :: import("./render.yo");
 
 // Check if a byte is a special inline character that could trigger a rule
 _is_inline_special :: (fn(ch: u8) -> bool)(
@@ -41,10 +42,10 @@ _is_inline_special :: (fn(ch: u8) -> bool)(
 _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
   (table : *(u8)) = state.*.special_table;
   // Main dispatch loop: try each inline rule at current position
-  while (state.*.pos < state.*.pos_max), {
+  while(state.*.pos < state.*.pos_max, {
     (matched : bool) = false;
 
-    (ch : i32) = i32((state.*.src_ptr &+ usize(state.*.pos)).*);
+    (ch : i32) = i32((state.*.src_ptr.add(usize(state.*.pos))).*);
 
     // Fast dispatch on first character
     cond(
@@ -145,8 +146,8 @@ _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
       (scan_max : i32) = state.*.pos_max;
       // 8-byte batch scan: check 8 bytes per iteration using u64 load
       // table[byte] & 1 is 1 only for inline specials (0&1=0, 1&1=1, 2&1=0)
-      while (((scan + i32(7)) < scan_max)), {
-        (w : u64) = *(u64)(src &+ usize(scan)).*;
+      while(((scan + i32(7)) < scan_max), {
+        (w : u64) = *(u64)(src.add(usize(scan))).*;
         (c0 : u8) = u8(w);
         (c1 : u8) = u8((w >> u64(8)));
         (c2 : u8) = u8((w >> u64(16)));
@@ -155,27 +156,27 @@ _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
         (c5 : u8) = u8((w >> u64(40)));
         (c6 : u8) = u8((w >> u64(48)));
         (c7 : u8) = u8((w >> u64(56)));
-        (b0 : u8) = ((table &+ usize(c0)).* & u8(1));
-        (b1 : u8) = ((table &+ usize(c1)).* & u8(1));
-        (b2 : u8) = ((table &+ usize(c2)).* & u8(1));
-        (b3 : u8) = ((table &+ usize(c3)).* & u8(1));
-        (b4 : u8) = ((table &+ usize(c4)).* & u8(1));
-        (b5 : u8) = ((table &+ usize(c5)).* & u8(1));
-        (b6 : u8) = ((table &+ usize(c6)).* & u8(1));
-        (b7 : u8) = ((table &+ usize(c7)).* & u8(1));
+        (b0 : u8) = ((table.add(usize(c0))).* & u8(1));
+        (b1 : u8) = ((table.add(usize(c1))).* & u8(1));
+        (b2 : u8) = ((table.add(usize(c2))).* & u8(1));
+        (b3 : u8) = ((table.add(usize(c3))).* & u8(1));
+        (b4 : u8) = ((table.add(usize(c4))).* & u8(1));
+        (b5 : u8) = ((table.add(usize(c5))).* & u8(1));
+        (b6 : u8) = ((table.add(usize(c6))).* & u8(1));
+        (b7 : u8) = ((table.add(usize(c7))).* & u8(1));
         (any : u8) =
           (((((((b0 | b1) | b2) | b3) | b4) | b5) | b6) | b7);
         if((any != u8(0)), { break; });
         scan = (scan + i32(8));
-      };
+      });
       // Byte-by-byte for remaining bytes or exact position within batch hit
-      while ((scan < scan_max) && ((table &+ usize((src &+ usize(scan)).*)).* != u8(1))), {
+      while((scan < scan_max) && ((table.add(usize((src.add(usize(scan))).*))).* != u8(1)), {
         scan = (scan + i32(1));
-      };
+      });
       state.*.pending_end = scan;
       state.*.pos = scan;
     });
-  };
+  });
 
   // Flush any remaining pending text
   state.*.push_pending();
@@ -196,7 +197,7 @@ inline_parse :: (fn(inline_state: *(InlineState), src: String) -> unit)({
 // Zero-copy: directly uses the source pointer without allocating a String copy.
 // Uses the provided reusable InlineState to avoid repeated allocations.
 inline_parse_range :: (fn(inline_state: *(InlineState), src_ptr: *(u8), start: i32, end: i32) -> unit)({
-  if((end <= start), { return (); });
+  if((end <= start), { return(); });
 
   // Fast path: pre-scan using combined table (1=inline special, 2=HTML-escape-only).
   // Single table lookup per byte instead of table lookup + 4 comparisons.
@@ -205,16 +206,16 @@ inline_parse_range :: (fn(inline_state: *(InlineState), src_ptr: *(u8), start: i
   (has_special : bool) = false;
   (has_html_char : bool) = false;
   // 8-byte batch pre-scan: quickly detect inline specials and HTML chars
-  while (((p + i32(7)) < end)), {
-    (w : u64) = *(u64)(src_ptr &+ usize(p)).*;
-    (t0 : u8) = (table &+ usize(u8(w))).*;
-    (t1 : u8) = (table &+ usize(u8((w >> u64(8))))).*;
-    (t2 : u8) = (table &+ usize(u8((w >> u64(16))))).*;
-    (t3 : u8) = (table &+ usize(u8((w >> u64(24))))).*;
-    (t4 : u8) = (table &+ usize(u8((w >> u64(32))))).*;
-    (t5 : u8) = (table &+ usize(u8((w >> u64(40))))).*;
-    (t6 : u8) = (table &+ usize(u8((w >> u64(48))))).*;
-    (t7 : u8) = (table &+ usize(u8((w >> u64(56))))).*;
+  while(((p + i32(7)) < end), {
+    (w : u64) = *(u64)(src_ptr.add(usize(p))).*;
+    (t0 : u8) = (table.add(usize(u8(w)))).*;
+    (t1 : u8) = (table.add(usize(u8((w >> u64(8)))))).*;
+    (t2 : u8) = (table.add(usize(u8((w >> u64(16)))))).*;
+    (t3 : u8) = (table.add(usize(u8((w >> u64(24)))))).*;
+    (t4 : u8) = (table.add(usize(u8((w >> u64(32)))))).*;
+    (t5 : u8) = (table.add(usize(u8((w >> u64(40)))))).*;
+    (t6 : u8) = (table.add(usize(u8((w >> u64(48)))))).*;
+    (t7 : u8) = (table.add(usize(u8((w >> u64(56)))))).*;
     (any_or : u8) = (((((((t0 | t1) | t2) | t3) | t4) | t5) | t6) | t7);
     if((any_or == u8(0)), {
       p = (p + i32(8));
@@ -227,10 +228,10 @@ inline_parse_range :: (fn(inline_state: *(InlineState), src_ptr: *(u8), start: i
         p = (p + i32(8));
       });
     });
-  };
+  });
   // Byte-by-byte for remaining 0-7 bytes
-  while (p < end), {
-    (tag : u8) = (table &+ usize((src_ptr &+ usize(p)).*)).*;
+  while(p < end, {
+    (tag : u8) = (table.add(usize((src_ptr.add(usize(p))).*))).*;
     if((tag == u8(1)), {
       has_special = true;
       p = end;
@@ -238,16 +239,16 @@ inline_parse_range :: (fn(inline_state: *(InlineState), src_ptr: *(u8), start: i
       has_html_char = true;
     }));
     p = (p + i32(1));
-  };
+  });
 
   if(has_special, {
     (len : i32) = (end - start);
-    inline_state.*.reset_for_ptr((src_ptr &+ usize(start)), len);
+    inline_state.*.reset_for_ptr((src_ptr.add(usize(start))), len);
     _inline_dispatch(inline_state);
   }, {
     if(inline_state.*.options.*.typographer, {
       (len : i32) = (end - start);
-      inline_state.*.reset_for_ptr((src_ptr &+ usize(start)), len);
+      inline_state.*.reset_for_ptr((src_ptr.add(usize(start))), len);
       _inline_dispatch(inline_state);
     }, {
       if(((has_html_char) || (inline_state.*.renderer.*.abbrs.len() > usize(0))), {
@@ -255,10 +256,10 @@ inline_parse_range :: (fn(inline_state: *(InlineState), src_ptr: *(u8), start: i
         inline_state.*.renderer.*.text(start, end);
       }, {
         // Pure text, no HTML chars, no abbreviations — direct copy to output buffer
-        inline_state.*.renderer.*.buf.extend_from_ptr((src_ptr &+ usize(start)), usize((end - start)));
+        inline_state.*.renderer.*.buf.extend_from_ptr((src_ptr.add(usize(start))), usize((end - start)));
       });
     });
   });
 });
 
-export inline_parse, inline_parse_range, _is_inline_special;
+export(inline_parse, inline_parse_range, _is_inline_special);

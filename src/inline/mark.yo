@@ -4,35 +4,36 @@
 // Uses emphasis-style flanking rules and delimiter pair resolution.
 // Minimum 2 consecutive = signs to open/close.
 
-{ ArrayList } :: import "std/collections/array_list";
-{ InlineState, InlineToken } :: import "./state.yo";
-{ Delimiter } :: import "../types.yo";
-{ is_white_space, is_punct_char } :: import "../common/utils.yo";
+pragma(Pragma.AllowUnsafe);
+{ ArrayList } :: import("std/collections/array_list");
+{ InlineState, InlineToken } :: import("./state.yo");
+{ Delimiter } :: import("../types.yo");
+{ is_white_space, is_punct_char } :: import("../common/utils.yo");
 
 inline_mark :: (fn(state: *(InlineState)) -> bool)({
   (pos : i32) = state.*.pos;
-  if((pos >= state.*.pos_max), { return false; });
+  if((pos >= state.*.pos_max), { return(false); });
 
-  (ch : u8) = (state.*.src_ptr &+ usize(pos)).*;
-  if((i32(ch) != i32(0x3D)), { return false; });
+  (ch : u8) = (state.*.src_ptr.add(usize(pos))).*;
+  if((i32(ch) != i32(0x3D)), { return(false); });
 
   // Count consecutive =
   (count : i32) = i32(0);
   (p : i32) = pos;
-  while ((p < state.*.pos_max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x3D))), {
+  while((p < state.*.pos_max) && (i32((state.*.src_ptr.add(usize(p))).*) == i32(0x3D)), {
     count = (count + i32(1));
     p = (p + i32(1));
-  };
+  });
 
-  if((count < i32(2)), { return false; });
+  if((count < i32(2)), { return(false); });
 
   // Flanking rules (same as emphasis)
   (char_before : i32) = cond(
-    (pos > i32(0)) => i32((state.*.src_ptr &+ usize((pos - i32(1)))).*),
+    (pos > i32(0)) => i32((state.*.src_ptr.add(usize((pos - i32(1))))).*),
     true => i32(0x20)
   );
   (char_after : i32) = cond(
-    (p < state.*.pos_max) => i32((state.*.src_ptr &+ usize(p)).*),
+    (p < state.*.pos_max) => i32((state.*.src_ptr.add(usize(p))).*),
     true => i32(0x20)
   );
 
@@ -57,7 +58,7 @@ inline_mark :: (fn(state: *(InlineState)) -> bool)({
     });
   });
 
-  if((!(can_open) && !(can_close)), { return false; });
+  if((!(can_open) && !(can_close)), { return(false); });
 
   state.*.push_pending();
 
@@ -71,7 +72,7 @@ inline_mark :: (fn(state: *(InlineState)) -> bool)({
     marker: u8(0x3D),
     length: count,
     token_idx: tok_idx,
-    end: i32(-1),
+    end: (i32(0) - i32(1)),
     jump: i32(0),
     open: can_open,
     close: can_close
@@ -83,4 +84,4 @@ inline_mark :: (fn(state: *(InlineState)) -> bool)({
   true
 });
 
-export inline_mark;
+export(inline_mark);

@@ -4,12 +4,13 @@
 // 1. inline_link_open: when [ or ![ is seen, push a bracket marker
 // 2. inline_link_close: when ] is seen, try to resolve as link/image
 
-open import "std/string";
-{ ArrayList } :: import "std/collections/array_list";
-{ InlineState, InlineToken } :: import "./state.yo";
-{ InlineType, Reference, LinkMarker, Delimiter, EmphasisPair } :: import "../types.yo";
-{ is_space } :: import "../common/utils.yo";
-{ try_decode_entity } :: import "../common/unescape.yo";
+pragma(Pragma.AllowUnsafe);
+open(import("std/string"));
+{ ArrayList } :: import("std/collections/array_list");
+{ InlineState, InlineToken } :: import("./state.yo");
+{ InlineType, Reference, LinkMarker, Delimiter, EmphasisPair } :: import("../types.yo");
+{ is_space } :: import("../common/utils.yo");
+{ try_decode_entity } :: import("../common/unescape.yo");
 
 // Check if a byte is ASCII alpha
 _is_alpha :: (fn(b: u8) -> bool)(
@@ -26,40 +27,40 @@ _to_lower :: (fn(b: u8) -> u8)(
 
 // Check if protocol is blocked. buf/len is the decoded URL prefix.
 _check_protocol :: (fn(buf: *(u8), buf_len: i32) -> bool)({
-  if((buf_len <= i32(0)), { return true; });
+  if((buf_len <= i32(0)), { return(true); });
 
   // Find the colon position (protocol separator)
-  (colon_pos : i32) = i32(-1);
+  (colon_pos : i32) = (i32(0) - i32(1));
   (i : i32) = i32(0);
-  while ((i < buf_len) && (i < i32(25))), {
-    (b : u8) = (buf &+ usize(i)).*;
+  while((i < buf_len) && (i < i32(25)), {
+    (b : u8) = (buf.add(usize(i))).*;
     if((b == u8(0x3A)), {
       colon_pos = i;
       i = buf_len; // break
     }, {
       if(!(_is_alpha(b)), {
-        return true;
+        return(true);
       });
     });
     i = (i + i32(1));
-  };
+  });
 
-  if((colon_pos < i32(0)), { return true; });
+  if((colon_pos < i32(0)), { return(true); });
 
   // Helper: compare lowercase protocol bytes against a known pattern
   // javascript: (10 chars)
   if((colon_pos == i32(10)), {
-    if(((_to_lower((buf &+ usize(0)).*) == u8(0x6A))
-     && (_to_lower((buf &+ usize(1)).*) == u8(0x61))), {
-      if(((_to_lower((buf &+ usize(2)).*) == u8(0x76))
-       && (_to_lower((buf &+ usize(3)).*) == u8(0x61))), {
-        if(((_to_lower((buf &+ usize(4)).*) == u8(0x73))
-         && (_to_lower((buf &+ usize(5)).*) == u8(0x63))), {
-          if(((_to_lower((buf &+ usize(6)).*) == u8(0x72))
-           && (_to_lower((buf &+ usize(7)).*) == u8(0x69))), {
-            if(((_to_lower((buf &+ usize(8)).*) == u8(0x70))
-             && (_to_lower((buf &+ usize(9)).*) == u8(0x74))), {
-              return false;
+    if(((_to_lower((buf.add(usize(0))).*) == u8(0x6A))
+     && (_to_lower((buf.add(usize(1))).*) == u8(0x61))), {
+      if(((_to_lower((buf.add(usize(2))).*) == u8(0x76))
+       && (_to_lower((buf.add(usize(3))).*) == u8(0x61))), {
+        if(((_to_lower((buf.add(usize(4))).*) == u8(0x73))
+         && (_to_lower((buf.add(usize(5))).*) == u8(0x63))), {
+          if(((_to_lower((buf.add(usize(6))).*) == u8(0x72))
+           && (_to_lower((buf.add(usize(7))).*) == u8(0x69))), {
+            if(((_to_lower((buf.add(usize(8))).*) == u8(0x70))
+             && (_to_lower((buf.add(usize(9))).*) == u8(0x74))), {
+              return(false);
             });
           });
         });
@@ -69,15 +70,15 @@ _check_protocol :: (fn(buf: *(u8), buf_len: i32) -> bool)({
 
   // vbscript: (8 chars)
   if((colon_pos == i32(8)), {
-    if(((_to_lower((buf &+ usize(0)).*) == u8(0x76))
-     && (_to_lower((buf &+ usize(1)).*) == u8(0x62))), {
-      if(((_to_lower((buf &+ usize(2)).*) == u8(0x73))
-       && (_to_lower((buf &+ usize(3)).*) == u8(0x63))), {
-        if(((_to_lower((buf &+ usize(4)).*) == u8(0x72))
-         && (_to_lower((buf &+ usize(5)).*) == u8(0x69))), {
-          if(((_to_lower((buf &+ usize(6)).*) == u8(0x70))
-           && (_to_lower((buf &+ usize(7)).*) == u8(0x74))), {
-            return false;
+    if(((_to_lower((buf.add(usize(0))).*) == u8(0x76))
+     && (_to_lower((buf.add(usize(1))).*) == u8(0x62))), {
+      if(((_to_lower((buf.add(usize(2))).*) == u8(0x73))
+       && (_to_lower((buf.add(usize(3))).*) == u8(0x63))), {
+        if(((_to_lower((buf.add(usize(4))).*) == u8(0x72))
+         && (_to_lower((buf.add(usize(5))).*) == u8(0x69))), {
+          if(((_to_lower((buf.add(usize(6))).*) == u8(0x70))
+           && (_to_lower((buf.add(usize(7))).*) == u8(0x74))), {
+            return(false);
           });
         });
       });
@@ -86,35 +87,35 @@ _check_protocol :: (fn(buf: *(u8), buf_len: i32) -> bool)({
 
   // file: (4 chars)
   if((colon_pos == i32(4)), {
-    if(((_to_lower((buf &+ usize(0)).*) == u8(0x66))
-     && (_to_lower((buf &+ usize(1)).*) == u8(0x69))), {
-      if(((_to_lower((buf &+ usize(2)).*) == u8(0x6C))
-       && (_to_lower((buf &+ usize(3)).*) == u8(0x65))), {
-        return false;
+    if(((_to_lower((buf.add(usize(0))).*) == u8(0x66))
+     && (_to_lower((buf.add(usize(1))).*) == u8(0x69))), {
+      if(((_to_lower((buf.add(usize(2))).*) == u8(0x6C))
+       && (_to_lower((buf.add(usize(3))).*) == u8(0x65))), {
+        return(false);
       });
     });
   });
 
   // data: (4 chars) — block unless data:image/
   if((colon_pos == i32(4)), {
-    if(((_to_lower((buf &+ usize(0)).*) == u8(0x64))
-     && (_to_lower((buf &+ usize(1)).*) == u8(0x61))), {
-      if(((_to_lower((buf &+ usize(2)).*) == u8(0x74))
-       && (_to_lower((buf &+ usize(3)).*) == u8(0x61))), {
+    if(((_to_lower((buf.add(usize(0))).*) == u8(0x64))
+     && (_to_lower((buf.add(usize(1))).*) == u8(0x61))), {
+      if(((_to_lower((buf.add(usize(2))).*) == u8(0x74))
+       && (_to_lower((buf.add(usize(3))).*) == u8(0x61))), {
         // Allow data:image/ (11+ decoded bytes)
         if((buf_len >= i32(11)), {
-          if(((_to_lower((buf &+ usize(5)).*) == u8(0x69))
-           && (_to_lower((buf &+ usize(6)).*) == u8(0x6D))), {
-            if(((_to_lower((buf &+ usize(7)).*) == u8(0x61))
-             && (_to_lower((buf &+ usize(8)).*) == u8(0x67))), {
-              if(((_to_lower((buf &+ usize(9)).*) == u8(0x65))
-               && ((buf &+ usize(10)).* == u8(0x2F))), {
-                return true;
+          if(((_to_lower((buf.add(usize(5))).*) == u8(0x69))
+           && (_to_lower((buf.add(usize(6))).*) == u8(0x6D))), {
+            if(((_to_lower((buf.add(usize(7))).*) == u8(0x61))
+             && (_to_lower((buf.add(usize(8))).*) == u8(0x67))), {
+              if(((_to_lower((buf.add(usize(9))).*) == u8(0x65))
+               && ((buf.add(usize(10))).* == u8(0x2F))), {
+                return(true);
               });
             });
           });
         });
-        return false;
+        return(false);
       });
     });
   });
@@ -126,7 +127,7 @@ _check_protocol :: (fn(buf: *(u8), buf_len: i32) -> bool)({
 // Decodes HTML entities first to prevent protocol obfuscation (e.g. &#74;avascript:)
 validate_link_url :: (fn(src: *(u8), start: i32, end_pos: i32, decoded: *(ArrayList(u8))) -> bool)({
   (len : i32) = (end_pos - start);
-  if((len <= i32(0)), { return true; });
+  if((len <= i32(0)), { return(true); });
 
   // Decode entities in the URL prefix (only need ~32 decoded bytes for protocol check)
   decoded.*.clear();
@@ -135,8 +136,8 @@ validate_link_url :: (fn(src: *(u8), start: i32, end_pos: i32, decoded: *(ArrayL
     ((start + i32(64)) < end_pos) => (start + i32(64)),
     true => end_pos
   );
-  while ((i < max) && (i32(decoded.*.len()) < i32(32))), {
-    (b : u8) = (src &+ usize(i)).*;
+  while((i < max) && (i32(decoded.*.len()) < i32(32)), {
+    (b : u8) = (src.add(usize(i))).*;
     if((b == u8(0x26)), {
       (decoded_end : i32) = try_decode_entity(src, i, end_pos, decoded);
       if((decoded_end > i32(0)), {
@@ -149,7 +150,7 @@ validate_link_url :: (fn(src: *(u8), start: i32, end_pos: i32, decoded: *(ArrayL
       _ := decoded.*.push(b);
       i = (i + i32(1));
     });
-  };
+  });
 
   cond(
     (decoded.*.len() == usize(0)) => true,
@@ -161,40 +162,40 @@ validate_link_url :: (fn(src: *(u8), start: i32, end_pos: i32, decoded: *(ArrayL
 // Returns end position or -1 on failure
 _parse_link_dest :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
   (pos : i32) = start;
-  if((pos >= max), { return i32(-1); });
+  if((pos >= max), { return((i32(0) - i32(1))); });
 
-  (ch : i32) = i32((src &+ usize(pos)).*);
+  (ch : i32) = i32((src.add(usize(pos))).*);
   if((ch == i32(0x3C)), {
     // <...> form
     pos = (pos + i32(1));
     (found : bool) = false;
-    while ((pos < max) && !(found)), {
-      (c : i32) = i32((src &+ usize(pos)).*);
-      if(((c == i32(0x0A)) || (c == i32(0x3C))), { return i32(-1); });
+    while((pos < max) && !(found), {
+      (c : i32) = i32((src.add(usize(pos))).*);
+      if(((c == i32(0x0A)) || (c == i32(0x3C))), { return((i32(0) - i32(1))); });
       if((c == i32(0x3E)), {
         found = true;
       }, {
         if((c == i32(0x5C)), {
           pos = (pos + i32(1));
-          if((pos >= max), { return i32(-1); });
+          if((pos >= max), { return((i32(0) - i32(1))); });
         });
         pos = (pos + i32(1));
       });
-    };
-    if(!(found), { return i32(-1); });
+    });
+    if(!(found), { return((i32(0) - i32(1))); });
     (pos + i32(1))
   }, {
     // Bare URL: no spaces/newlines, balanced parens
     (level : i32) = i32(0);
     (done : bool) = false;
-    while ((pos < max) && !(done)), {
-      (c : i32) = i32((src &+ usize(pos)).*);
+    while((pos < max) && !(done), {
+      (c : i32) = i32((src.add(usize(pos))).*);
       if((is_space(c) || (c == i32(0x0A))), {
         done = true;
       }, {
         if((c == i32(0x28)), {
           level = (level + i32(1));
-          if((level > i32(32)), { return i32(-1); });
+          if((level > i32(32)), { return((i32(0) - i32(1))); });
         }, {
           if((c == i32(0x29)), {
             if((level <= i32(0)), {
@@ -205,19 +206,19 @@ _parse_link_dest :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
           }, {
             if((c == i32(0x5C)), {
               // Don't let backslash escape spaces in link destinations
-              if((((pos + i32(1)) < max) && (i32((src &+ usize((pos + i32(1)))).*) == i32(0x20))), {
+              if((((pos + i32(1)) < max) && (i32((src.add(usize((pos + i32(1))))).*) == i32(0x20))), {
                 done = true;
               }, {
                 pos = (pos + i32(1));
-                if((pos >= max), { return i32(-1); });
+                if((pos >= max), { return((i32(0) - i32(1))); });
               });
             });
           });
         });
         if(!(done), { pos = (pos + i32(1)); });
       });
-    };
-    if((level != i32(0)), { return i32(-1); });
+    });
+    if((level != i32(0)), { return((i32(0) - i32(1))); });
     pos
   })
 });
@@ -226,10 +227,10 @@ _parse_link_dest :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
 // Returns end position (after closing quote) or -1
 _parse_link_title :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
   (pos : i32) = start;
-  if((pos >= max), { return i32(-1); });
+  if((pos >= max), { return((i32(0) - i32(1))); });
 
-  (marker : i32) = i32((src &+ usize(pos)).*);
-  if(((marker != i32(0x22)) && ((marker != i32(0x27)) && (marker != i32(0x28)))), { return i32(-1); });
+  (marker : i32) = i32((src.add(usize(pos))).*);
+  if(((marker != i32(0x22)) && ((marker != i32(0x27)) && (marker != i32(0x28)))), { return((i32(0) - i32(1))); });
 
   (close_marker : i32) = cond(
     (marker == i32(0x28)) => i32(0x29),
@@ -238,20 +239,20 @@ _parse_link_title :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
 
   pos = (pos + i32(1));
   (found : bool) = false;
-  while ((pos < max) && !(found)), {
-    (c : i32) = i32((src &+ usize(pos)).*);
+  while((pos < max) && !(found), {
+    (c : i32) = i32((src.add(usize(pos))).*);
     if((c == close_marker), {
       found = true;
     }, {
       // Opening paren inside (...) title is not allowed (even unescaped)
-      if(((marker == i32(0x28)) && (c == i32(0x28))), { return i32(-1); });
+      if(((marker == i32(0x28)) && (c == i32(0x28))), { return((i32(0) - i32(1))); });
       if((c == i32(0x5C)), {
         pos = (pos + i32(1));
       });
     });
     pos = (pos + i32(1));
-  };
-  if(!(found), { return i32(-1); });
+  });
+  if(!(found), { return((i32(0) - i32(1))); });
   pos
 });
 
@@ -259,8 +260,8 @@ _parse_link_title :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
 _find_close_bracket :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
   (pos : i32) = start;
   (level : i32) = i32(1);
-  while ((pos < max) && (level > i32(0))), {
-    (c : i32) = i32((src &+ usize(pos)).*);
+  while((pos < max) && (level > i32(0)), {
+    (c : i32) = i32((src.add(usize(pos))).*);
     if((c == i32(0x5C)), {
       pos = (pos + i32(2));
     }, {
@@ -276,8 +277,8 @@ _find_close_bracket :: (fn(src: *(u8), start: i32, max: i32) -> i32)({
         });
       });
     });
-  };
-  if((level == i32(0)), pos, i32(-1))
+  });
+  if((level == i32(0)), pos, (i32(0) - i32(1)))
 });
 
 // Normalize a reference label: trim, collapse whitespace, lowercase ASCII
@@ -286,8 +287,8 @@ _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
   (p : i32) = start;
   (last_was_space : bool) = true;
 
-  while (p < end), {
-    (b : u8) = (src &+ usize(p)).*;
+  while(p < end, {
+    (b : u8) = (src.add(usize(p))).*;
     (ch_byte : i32) = i32(b);
     if((is_space(ch_byte) || (ch_byte == i32(0x0A))), {
       if(!(last_was_space), {
@@ -304,17 +305,17 @@ _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
         cp = ch_byte;
       }, if(((ch_byte >= i32(0xC0)) && (ch_byte < i32(0xE0))), {
         if(((p + i32(1)) < end), {
-          cp = (((ch_byte - i32(0xC0)) * i32(64)) + (i32((src &+ usize((p + i32(1)))).*) - i32(0x80)));
+          cp = (((ch_byte - i32(0xC0)) * i32(64)) + (i32((src.add(usize((p + i32(1))))).*) - i32(0x80)));
           bytes_consumed = i32(2);
         }, { cp = ch_byte; });
       }, if(((ch_byte >= i32(0xE0)) && (ch_byte < i32(0xF0))), {
         if(((p + i32(2)) < end), {
-          cp = ((((ch_byte - i32(0xE0)) * i32(4096)) + ((i32((src &+ usize((p + i32(1)))).*) - i32(0x80)) * i32(64))) + (i32((src &+ usize((p + i32(2)))).*) - i32(0x80)));
+          cp = ((((ch_byte - i32(0xE0)) * i32(4096)) + ((i32((src.add(usize((p + i32(1))))).*) - i32(0x80)) * i32(64))) + (i32((src.add(usize((p + i32(2))))).*) - i32(0x80)));
           bytes_consumed = i32(3);
         }, { cp = ch_byte; });
       }, if(((ch_byte >= i32(0xF0)) && (ch_byte < i32(0xF8))), {
         if(((p + i32(3)) < end), {
-          cp = (((((ch_byte - i32(0xF0)) * i32(262144)) + ((i32((src &+ usize((p + i32(1)))).*) - i32(0x80)) * i32(4096))) + ((i32((src &+ usize((p + i32(2)))).*) - i32(0x80)) * i32(64))) + (i32((src &+ usize((p + i32(3)))).*) - i32(0x80)));
+          cp = (((((ch_byte - i32(0xF0)) * i32(262144)) + ((i32((src.add(usize((p + i32(1))))).*) - i32(0x80)) * i32(4096))) + ((i32((src.add(usize((p + i32(2))))).*) - i32(0x80)) * i32(64))) + (i32((src.add(usize((p + i32(3))))).*) - i32(0x80)));
           bytes_consumed = i32(4);
         }, { cp = ch_byte; });
       }, { cp = ch_byte; }))));
@@ -392,10 +393,10 @@ _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
         })));
       }))))))))));
     });
-  };
+  });
   // Trim trailing space
-  if(((result._length > usize(0)) && (result((result._length - usize(1))) == u8(0x20))), {
-    result._length = (result._length - usize(1));
+  if(((result.len() > usize(0)) && (result((result.len() - usize(1))) == u8(0x20))), {
+    result.set_len((result.len() - usize(1)));
   });
   String.from_bytes(result)
 });
@@ -406,7 +407,7 @@ _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
 _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: i32) -> unit)({
   (closer_idx : i32) = start_idx;
 
-  while (closer_idx < end_idx), {
+  while(closer_idx < end_idx, {
     (closer : Delimiter) = state.*.delimiters(usize(closer_idx));
     (is_em_marker : bool) = ((i32(closer.marker) == i32(0x2A)) || (i32(closer.marker) == i32(0x5F)));
     (is_strike : bool) = (i32(closer.marker) == i32(0x7E));
@@ -414,12 +415,12 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
 
     if((closer.close && ((is_em_marker || is_strike) || is_mark)), {
       (keep_matching : bool) = (closer.length > i32(0));
-      while keep_matching, {
+      while(keep_matching, {
         (opener_idx : i32) = (closer_idx - i32(1));
         (found : bool) = false;
 
         // Only search back to start_idx — don't cross link scope boundary
-        while ((opener_idx >= start_idx) && !(found)), {
+        while((opener_idx >= start_idx) && !(found), {
           (opener : Delimiter) = state.*.delimiters(usize(opener_idx));
           if(((opener.marker == closer.marker) && (opener.open && (opener.length > i32(0)))), {
             (skip : bool) = false;
@@ -442,7 +443,7 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
           }, {
             opener_idx = (opener_idx - i32(1));
           });
-        };
+        });
 
         if(found, {
           (opener : Delimiter) = state.*.delimiters(usize(opener_idx));
@@ -515,24 +516,24 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
 
           // Clear delimiters between opener and closer
           (mid : i32) = (opener_idx + i32(1));
-          while (mid < closer_idx), {
+          while(mid < closer_idx, {
             (d : Delimiter) = state.*.delimiters(usize(mid));
 &(            state.*.delimiters(usize(mid))).* = Delimiter(
               marker: d.marker, length: i32(0), token_idx: d.token_idx,
-              end: i32(-1), jump: i32(0), open: false, close: false
+              end: (i32(0) - i32(1)), jump: i32(0), open: false, close: false
             );
             mid = (mid + i32(1));
-          };
+          });
 
           keep_matching = (closer.length > i32(0));
         }, {
           keep_matching = false;
         });
-      };
+      });
     });
 
     closer_idx = (closer_idx + i32(1));
-  };
+  });
 });
 
 // Phase 1: Push a bracket marker when [ or ![ is encountered.
@@ -542,20 +543,20 @@ inline_link_open :: (fn(state: *(InlineState)) -> bool)({
   (pos : i32) = state.*.pos;
   (max : i32) = state.*.pos_max;
 
-  (ch : i32) = i32((state.*.src_ptr &+ usize(pos)).*);
+  (ch : i32) = i32((state.*.src_ptr.add(usize(pos))).*);
 
   (is_image : bool) = false;
   (bracket_pos : i32) = pos;
   if((ch == i32(0x21)), {
     if(((pos + i32(1)) < max), {
-      if((i32((state.*.src_ptr &+ usize((pos + i32(1)))).*) == i32(0x5B)), {
+      if((i32((state.*.src_ptr.add(usize((pos + i32(1))))).*) == i32(0x5B)), {
         is_image = true;
         bracket_pos = (pos + i32(2));
       }, {
-        return false;
+        return(false);
       });
     }, {
-      return false;
+      return(false);
     });
   }, {
     if((ch == i32(0x5B)), {
@@ -565,7 +566,7 @@ inline_link_open :: (fn(state: *(InlineState)) -> bool)({
       });
       bracket_pos = (pos + i32(1));
     }, {
-      return false;
+      return(false);
     });
   });
 
@@ -601,12 +602,12 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
   (pos : i32) = state.*.pos;
   (max : i32) = state.*.pos_max;
 
-  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x5D)), { return false; });
+  if((i32((state.*.src_ptr.add(usize(pos))).*) != i32(0x5D)), { return(false); });
 
   // Find last active link marker, but handle inactive markers specially
   // when inside an image context (active image marker exists before them).
   (marker_idx : i32) = (i32(state.*.link_markers.len()) - i32(1));
-  if((marker_idx < i32(0)), { return false; });
+  if((marker_idx < i32(0)), { return(false); });
 
   if(!(state.*.link_markers(usize(marker_idx)).active), {
     // Last marker is inactive. Check if there's an active image marker before it.
@@ -614,29 +615,29 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
     // the correct outer ]). If no, skip it and search for an active marker.
     (has_earlier_image : bool) = false;
     (j : i32) = i32(0);
-    while ((j < marker_idx) && !(has_earlier_image)), {
+    while((j < marker_idx) && !(has_earlier_image), {
       if((state.*.link_markers(usize(j)).is_image && state.*.link_markers(usize(j)).active), {
         has_earlier_image = true;
       });
       j = (j + i32(1));
-    };
+    });
 
     if(has_earlier_image, {
       // Inside image context: consume inactive marker as text bracket close
-      state.*.link_markers._length = usize(marker_idx);
-      return false;
+      state.*.link_markers.set_len(usize(marker_idx));
+      return(false);
     }, {
       // Normal case: skip inactive markers and search for active one
       marker_idx = (marker_idx - i32(1));
       (found_marker : bool) = false;
-      while ((marker_idx >= i32(0)) && !(found_marker)), {
+      while((marker_idx >= i32(0)) && !(found_marker), {
         if(state.*.link_markers(usize(marker_idx)).active, {
           found_marker = true;
         }, {
           marker_idx = (marker_idx - i32(1));
         });
-      };
-      if(!(found_marker), { return false; });
+      });
+      if(!(found_marker), { return(false); });
     });
   });
 
@@ -650,27 +651,27 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
   (href_end : i32) = i32(0);
   (title_start : i32) = i32(0);
   (title_end : i32) = i32(0);
-  (link_end : i32) = i32(-1);
+  (link_end : i32) = (i32(0) - i32(1));
 
   // Reference link state
   (ref_href : String) = ``;
   (ref_title : String) = ``;
   (is_ref : bool) = false;
 
-  if(((after_close < max) && (i32((state.*.src_ptr &+ usize(after_close)).*) == i32(0x28))), {
+  if(((after_close < max) && (i32((state.*.src_ptr.add(usize(after_close))).*) == i32(0x28))), {
     // Inline link: [text](url "title")
     (p : i32) = (after_close + i32(1));
 
     // Skip whitespace (spaces, tabs, newlines)
-    while ((p < max) && (is_space(i32((state.*.src_ptr &+ usize(p)).*)) || (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x0A)))), {
+    while((p < max) && (is_space(i32((state.*.src_ptr.add(usize(p))).*)) || (i32((state.*.src_ptr.add(usize(p))).*) == i32(0x0A))), {
       p = (p + i32(1));
-    };
+    });
 
     // Parse destination
     (dest_start : i32) = p;
     (dest_result : i32) = _parse_link_dest(state.*.src_ptr, p, max);
     if((dest_result >= i32(0)), {
-      if((i32((state.*.src_ptr &+ usize(dest_start)).*) == i32(0x3C)), {
+      if((i32((state.*.src_ptr.add(usize(dest_start))).*) == i32(0x3C)), {
         href_start = (dest_start + i32(1));
         href_end = (dest_result - i32(1));
       }, {
@@ -681,9 +682,9 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
 
       // Skip whitespace (spaces, tabs, newlines)
       (saved_p : i32) = p;
-      while ((p < max) && (is_space(i32((state.*.src_ptr &+ usize(p)).*)) || (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x0A)))), {
+      while((p < max) && (is_space(i32((state.*.src_ptr.add(usize(p))).*)) || (i32((state.*.src_ptr.add(usize(p))).*) == i32(0x0A))), {
         p = (p + i32(1));
-      };
+      });
 
       // Try parse title
       if((p != saved_p), {
@@ -696,11 +697,11 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
       });
 
       // Skip trailing whitespace
-      while ((p < max) && (is_space(i32((state.*.src_ptr &+ usize(p)).*)) || (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x0A)))), {
+      while((p < max) && (is_space(i32((state.*.src_ptr.add(usize(p))).*)) || (i32((state.*.src_ptr.add(usize(p))).*) == i32(0x0A))), {
         p = (p + i32(1));
-      };
+      });
 
-      if(((p < max) && (i32((state.*.src_ptr &+ usize(p)).*) == i32(0x29))), {
+      if(((p < max) && (i32((state.*.src_ptr.add(usize(p))).*) == i32(0x29))), {
         link_end = (p + i32(1));
       });
     });
@@ -708,9 +709,9 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
 
   if((link_end < i32(0)), {
     // Try reference: [text][label], [text][], [text]
-    (ref_start : i32) = i32(-1);
-    (ref_end : i32) = i32(-1);
-    if(((after_close < max) && (i32((state.*.src_ptr &+ usize(after_close)).*) == i32(0x5B))), {
+    (ref_start : i32) = (i32(0) - i32(1));
+    (ref_end : i32) = (i32(0) - i32(1));
+    if(((after_close < max) && (i32((state.*.src_ptr.add(usize(after_close))).*) == i32(0x5B))), {
       (label_start : i32) = (after_close + i32(1));
       (label_end_pos : i32) = _find_close_bracket(state.*.src_ptr, label_start, max);
       if((label_end_pos >= i32(0)), {
@@ -749,14 +750,14 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
     if(!(is_ref), {
       // Could not resolve — deactivate this marker
       &(state.*.link_markers(usize(marker_idx))).*.active = false;
-      return false;
+      return(false);
     });
   });
 
   if(!(is_ref), {
-    if(!(validate_link_url(state.*.src_ptr, href_start, href_end, (&state.*._validate_buf))), {
+    if(!(validate_link_url(state.*.src_ptr, href_start, href_end, (&(state.*._validate_buf)))), {
       &(state.*.link_markers(usize(marker_idx))).*.active = false;
-      return false;
+      return(false);
     });
   });
 
@@ -772,7 +773,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
   (delim_end : i32) = i32(state.*.delimiters.len());
   if((delim_end > delim_start), {
     _resolve_scoped_emphasis(state, delim_start, delim_end);
-    state.*.delimiters._length = usize(delim_start);
+    state.*.delimiters.set_len(usize(delim_start));
   });
 
   (open_token_idx : i32) = marker.token_idx;
@@ -792,7 +793,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
       info_start: i32(0), info_end: i32(0),
       title_start: i32(0), title_end: i32(0),
       markup_char: u8(0), markup_len: u8(0),
-      content_idx: i32(-1), href_idx: state.*.store_string(ref_href), title_idx: state.*.store_string(ref_title),
+      content_idx: (i32(0) - i32(1)), href_idx: state.*.store_string(ref_href), title_idx: state.*.store_string(ref_title),
       block: false, hidden: false
     );
   }, {
@@ -804,7 +805,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
       info_start: i32(0), info_end: i32(0),
       title_start: title_start, title_end: title_end,
       markup_char: u8(0), markup_len: u8(0),
-      content_idx: i32(-1), href_idx: i32(-1), title_idx: i32(-1),
+      content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1)),
       block: false, hidden: false
     );
   });
@@ -814,22 +815,22 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
     is_image => .ImageClose,
     true => .LinkClose
   );
-  _ := state.*.tokens.push(InlineToken.simple(close_type, i32(-1), state.*.level));
+  _ := state.*.tokens.push(InlineToken.simple(close_type, (i32(0) - i32(1)), state.*.level));
 
   // For non-image links, deactivate all earlier link markers (links can't nest)
   if(!(is_image), {
     (i : i32) = i32(0);
-    while (i < marker_idx), {
+    while(i < marker_idx, {
       if(!(state.*.link_markers(usize(i)).is_image), {
         &(state.*.link_markers(usize(i))).*.active = false;
       });
       i = (i + i32(1));
-    };
+    });
   });
 
   // Remove this marker and all after it
   // (Simply truncate the markers list)
-  state.*.link_markers._length = usize(marker_idx);
+  state.*.link_markers.set_len(usize(marker_idx));
 
   state.*.link_level = cond(
     is_image => state.*.link_level,
@@ -842,4 +843,4 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
   true
 });
 
-export inline_link_open, inline_link_close, validate_link_url;
+export(inline_link_open, inline_link_close, validate_link_url);

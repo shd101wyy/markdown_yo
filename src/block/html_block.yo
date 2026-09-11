@@ -2,9 +2,10 @@
 //
 // Matches: HTML blocks (types 1-7 per CommonMark spec)
 
-{ BlockState } :: import "./state.yo";
-{ is_space } :: import "../common/utils.yo";
-{ ParentType } :: import "../types.yo";
+pragma(Pragma.AllowUnsafe);
+{ BlockState } :: import("./state.yo");
+{ is_space } :: import("../common/utils.yo");
+{ ParentType } :: import("../types.yo");
 
 _lower :: (fn(b: i32) -> i32)(
   cond(
@@ -27,25 +28,25 @@ _is_space_or_end :: (fn(b: i32) -> bool)(
 
 // Match a lowercase string at src[pos..] (case insensitive). Returns true if matches.
 _match_ci :: (fn(src: *(u8), pos: i32, max: i32, expected: str, elen: i32) -> bool)({
-  if(((pos + elen) > max), { return false; });
+  if(((pos + elen) > max), { return(false); });
   (i : i32) = i32(0);
-  while (i < elen), {
-    (actual : i32) = _lower(i32((src &+ usize((pos + i))).*));
-    (exp : i32) = i32((expected.ptr() &+ usize(i)).*);
-    if((actual != exp), { return false; });
+  while(i < elen, {
+    (actual : i32) = _lower(i32((src.add(usize((pos + i)))).*));
+    (exp : i32) = i32((expected.ptr().add(usize(i))).*);
+    if((actual != exp), { return(false); });
     i = (i + i32(1));
-  };
+  });
   true
 });
 
 // Match a string exactly (case sensitive). Returns true if matches.
 _match_exact :: (fn(src: *(u8), pos: i32, max: i32, expected: str, elen: i32) -> bool)({
-  if(((pos + elen) > max), { return false; });
+  if(((pos + elen) > max), { return(false); });
   (i : i32) = i32(0);
-  while (i < elen), {
-    if((i32((src &+ usize((pos + i))).*) != i32((expected.ptr() &+ usize(i)).*)), { return false; });
+  while(i < elen, {
+    if((i32((src.add(usize((pos + i)))).*) != i32((expected.ptr().add(usize(i))).*)), { return(false); });
     i = (i + i32(1));
-  };
+  });
   true
 });
 
@@ -54,7 +55,7 @@ _is_tag_terminator :: (fn(src: *(u8), pos: i32, max: i32) -> bool)(
   cond(
     (pos >= max) => true,
     true => {
-      (b : i32) = i32((src &+ usize(pos)).*);
+      (b : i32) = i32((src.add(usize(pos))).*);
       ((b == i32(0x3E)) || ((b == i32(0x2F)) || (_is_space_or_end(b))))
     }
   )
@@ -63,23 +64,23 @@ _is_tag_terminator :: (fn(src: *(u8), pos: i32, max: i32) -> bool)(
 // HTML block type 1: <script>, <pre>, <style>, <textarea> (opening ONLY)
 // Closing tags (</pre> etc.) are NOT type 1 openers — they only END type 1 blocks.
 _detect_type1 :: (fn(src: *(u8), pos: i32, max: i32) -> bool)({
-  if(((pos + i32(2)) >= max), { return false; });
+  if(((pos + i32(2)) >= max), { return(false); });
   (start : i32) = (pos + i32(1));
   // Must be an opening tag, not a closing tag
-  if(((src &+ usize(start)).* == u8(0x2F)), { return false; });
+  if(((src.add(usize(start))).* == u8(0x2F)), { return(false); });
   (tag_start : i32) = start;
 
   if(_match_ci(src, tag_start, max, "pre", i32(3)), {
-    if(_is_tag_terminator(src, (tag_start + i32(3)), max), { return true; });
+    if(_is_tag_terminator(src, (tag_start + i32(3)), max), { return(true); });
   });
   if(_match_ci(src, tag_start, max, "script", i32(6)), {
-    if(_is_tag_terminator(src, (tag_start + i32(6)), max), { return true; });
+    if(_is_tag_terminator(src, (tag_start + i32(6)), max), { return(true); });
   });
   if(_match_ci(src, tag_start, max, "style", i32(5)), {
-    if(_is_tag_terminator(src, (tag_start + i32(5)), max), { return true; });
+    if(_is_tag_terminator(src, (tag_start + i32(5)), max), { return(true); });
   });
   if(_match_ci(src, tag_start, max, "textarea", i32(8)), {
-    if(_is_tag_terminator(src, (tag_start + i32(8)), max), { return true; });
+    if(_is_tag_terminator(src, (tag_start + i32(8)), max), { return(true); });
   });
   false
 });
@@ -88,262 +89,260 @@ _detect_type1 :: (fn(src: *(u8), pos: i32, max: i32) -> bool)({
 _is_block_tag :: (fn(src: *(u8), tag_start: i32, max: i32) -> bool)({
   // Read tag name length
   (p : i32) = tag_start;
-  while ((p < max) && _is_alnum_or_dash(i32((src &+ usize(p)).*))) , {
+  while((p < max) && _is_alnum_or_dash(i32((src.add(usize(p))).*)), {
     p = (p + i32(1));
-  };
+  });
   (len : i32) = (p - tag_start);
-  if(((len < i32(1)) || (len > i32(10))), { return false; });
-  if(!(_is_tag_terminator(src, p, max)), { return false; });
+  if(((len < i32(1)) || (len > i32(10))), { return(false); });
+  if(!(_is_tag_terminator(src, p, max)), { return(false); });
 
   // Use a hash of (first_char, length) to quickly dispatch
-  (c0 : i32) = _lower(i32((src &+ usize(tag_start)).*));
+  (c0 : i32) = _lower(i32((src.add(usize(tag_start))).*));
 
   cond(
     (c0 == i32(0x61)) => { // a...
       if((len == i32(7)), {
-        if(_match_ci(src, tag_start, max, "address", i32(7)), { return true; });
-        return _match_ci(src, tag_start, max, "article", i32(7));
+        if(_match_ci(src, tag_start, max, "address", i32(7)), { return(true); });
+        return(_match_ci(src, tag_start, max, "article", i32(7)));
       });
-      if((len == i32(5)), { return _match_ci(src, tag_start, max, "aside", i32(5)); });
+      if((len == i32(5)), { return(_match_ci(src, tag_start, max, "aside", i32(5))); });
       false
     },
     (c0 == i32(0x62)) => { // b...
       if((len == i32(4)), {
-        if(_match_ci(src, tag_start, max, "base", i32(4)), { return true; });
-        return _match_ci(src, tag_start, max, "body", i32(4));
+        if(_match_ci(src, tag_start, max, "base", i32(4)), { return(true); });
+        return(_match_ci(src, tag_start, max, "body", i32(4)));
       });
-      if((len == i32(8)), { return _match_ci(src, tag_start, max, "basefont", i32(8)); });
-      if((len == i32(10)), { return _match_ci(src, tag_start, max, "blockquote", i32(10)); });
+      if((len == i32(8)), { return(_match_ci(src, tag_start, max, "basefont", i32(8))); });
+      if((len == i32(10)), { return(_match_ci(src, tag_start, max, "blockquote", i32(10))); });
       false
     },
     (c0 == i32(0x63)) => { // c...
-      if((len == i32(7)), { return _match_ci(src, tag_start, max, "caption", i32(7)); });
-      if((len == i32(6)), { return _match_ci(src, tag_start, max, "center", i32(6)); });
-      if((len == i32(3)), { return _match_ci(src, tag_start, max, "col", i32(3)); });
-      if((len == i32(8)), { return _match_ci(src, tag_start, max, "colgroup", i32(8)); });
+      if((len == i32(7)), { return(_match_ci(src, tag_start, max, "caption", i32(7))); });
+      if((len == i32(6)), { return(_match_ci(src, tag_start, max, "center", i32(6))); });
+      if((len == i32(3)), { return(_match_ci(src, tag_start, max, "col", i32(3))); });
+      if((len == i32(8)), { return(_match_ci(src, tag_start, max, "colgroup", i32(8))); });
       false
     },
     (c0 == i32(0x64)) => { // d...
       if((len == i32(2)), {
-        if(_match_ci(src, tag_start, max, "dd", i32(2)), { return true; });
-        if(_match_ci(src, tag_start, max, "dl", i32(2)), { return true; });
-        return _match_ci(src, tag_start, max, "dt", i32(2));
+        if(_match_ci(src, tag_start, max, "dd", i32(2)), { return(true); });
+        if(_match_ci(src, tag_start, max, "dl", i32(2)), { return(true); });
+        return(_match_ci(src, tag_start, max, "dt", i32(2)));
       });
-      if((len == i32(7)), { return _match_ci(src, tag_start, max, "details", i32(7)); });
-      if((len == i32(6)), { return _match_ci(src, tag_start, max, "dialog", i32(6)); });
+      if((len == i32(7)), { return(_match_ci(src, tag_start, max, "details", i32(7))); });
+      if((len == i32(6)), { return(_match_ci(src, tag_start, max, "dialog", i32(6))); });
       if((len == i32(3)), {
-        if(_match_ci(src, tag_start, max, "dir", i32(3)), { return true; });
-        return _match_ci(src, tag_start, max, "div", i32(3));
+        if(_match_ci(src, tag_start, max, "dir", i32(3)), { return(true); });
+        return(_match_ci(src, tag_start, max, "div", i32(3)));
       });
       false
     },
     (c0 == i32(0x66)) => { // f...
       if((len == i32(8)), {
-        if(_match_ci(src, tag_start, max, "fieldset", i32(8)), { return true; });
-        return _match_ci(src, tag_start, max, "frameset", i32(8));
+        if(_match_ci(src, tag_start, max, "fieldset", i32(8)), { return(true); });
+        return(_match_ci(src, tag_start, max, "frameset", i32(8)));
       });
-      if((len == i32(10)), { return _match_ci(src, tag_start, max, "figcaption", i32(10)); });
+      if((len == i32(10)), { return(_match_ci(src, tag_start, max, "figcaption", i32(10))); });
       if((len == i32(6)), {
-        if(_match_ci(src, tag_start, max, "figure", i32(6)), { return true; });
-        return _match_ci(src, tag_start, max, "footer", i32(6));
+        if(_match_ci(src, tag_start, max, "figure", i32(6)), { return(true); });
+        return(_match_ci(src, tag_start, max, "footer", i32(6)));
       });
-      if((len == i32(4)), { return _match_ci(src, tag_start, max, "form", i32(4)); });
-      if((len == i32(5)), { return _match_ci(src, tag_start, max, "frame", i32(5)); });
+      if((len == i32(4)), { return(_match_ci(src, tag_start, max, "form", i32(4))); });
+      if((len == i32(5)), { return(_match_ci(src, tag_start, max, "frame", i32(5))); });
       false
     },
     (c0 == i32(0x68)) => { // h...
       if((len == i32(2)), {
-        (c1 : i32) = _lower(i32((src &+ usize((tag_start + i32(1)))).*));
-        if(((c1 >= i32(0x31)) && (c1 <= i32(0x36))), { return true; }); // h1-h6
-        if((c1 == i32(0x72)), { return true; }); // hr
-        return false;
+        (c1 : i32) = _lower(i32((src.add(usize((tag_start + i32(1))))).*));
+        if(((c1 >= i32(0x31)) && (c1 <= i32(0x36))), { return(true); }); // h1-h6
+        if((c1 == i32(0x72)), { return(true); }); // hr
+        return(false);
       });
       if((len == i32(4)), {
-        if(_match_ci(src, tag_start, max, "head", i32(4)), { return true; });
-        if(_match_ci(src, tag_start, max, "html", i32(4)), { return true; });
-        return false;
+        if(_match_ci(src, tag_start, max, "head", i32(4)), { return(true); });
+        if(_match_ci(src, tag_start, max, "html", i32(4)), { return(true); });
+        return(false);
       });
       if((len == i32(6)), {
-        return _match_ci(src, tag_start, max, "header", i32(6));
+        return(_match_ci(src, tag_start, max, "header", i32(6)));
       });
       false
     },
-    (c0 == i32(0x69)) => { // i...
-      (len == i32(6)) && _match_ci(src, tag_start, max, "iframe", i32(6))
-    },
+    (c0 == i32(0x69)) =>  // i...
+      ((len == i32(6)) && _match_ci(src, tag_start, max, "iframe", i32(6))),
     (c0 == i32(0x6C)) => { // l...
-      if((len == i32(6)), { return _match_ci(src, tag_start, max, "legend", i32(6)); });
-      if((len == i32(2)), { return _match_ci(src, tag_start, max, "li", i32(2)); });
-      if((len == i32(4)), { return _match_ci(src, tag_start, max, "link", i32(4)); });
+      if((len == i32(6)), { return(_match_ci(src, tag_start, max, "legend", i32(6))); });
+      if((len == i32(2)), { return(_match_ci(src, tag_start, max, "li", i32(2))); });
+      if((len == i32(4)), { return(_match_ci(src, tag_start, max, "link", i32(4))); });
       false
     },
     (c0 == i32(0x6D)) => { // m...
       if((len == i32(4)), {
-        if(_match_ci(src, tag_start, max, "main", i32(4)), { return true; });
-        return _match_ci(src, tag_start, max, "menu", i32(4));
+        if(_match_ci(src, tag_start, max, "main", i32(4)), { return(true); });
+        return(_match_ci(src, tag_start, max, "menu", i32(4)));
       });
-      if((len == i32(8)), { return _match_ci(src, tag_start, max, "menuitem", i32(8)); });
+      if((len == i32(8)), { return(_match_ci(src, tag_start, max, "menuitem", i32(8))); });
       false
     },
     (c0 == i32(0x6E)) => { // n...
-      if((len == i32(3)), { return _match_ci(src, tag_start, max, "nav", i32(3)); });
-      if((len == i32(8)), { return _match_ci(src, tag_start, max, "noframes", i32(8)); });
+      if((len == i32(3)), { return(_match_ci(src, tag_start, max, "nav", i32(3))); });
+      if((len == i32(8)), { return(_match_ci(src, tag_start, max, "noframes", i32(8))); });
       false
     },
     (c0 == i32(0x6F)) => { // o...
-      if((len == i32(2)), { return _match_ci(src, tag_start, max, "ol", i32(2)); });
-      if((len == i32(8)), { return _match_ci(src, tag_start, max, "optgroup", i32(8)); });
-      if((len == i32(6)), { return _match_ci(src, tag_start, max, "option", i32(6)); });
+      if((len == i32(2)), { return(_match_ci(src, tag_start, max, "ol", i32(2))); });
+      if((len == i32(8)), { return(_match_ci(src, tag_start, max, "optgroup", i32(8))); });
+      if((len == i32(6)), { return(_match_ci(src, tag_start, max, "option", i32(6))); });
       false
     },
     (c0 == i32(0x70)) => { // p...
-      if((len == i32(1)), { return true; }); // p
-      if((len == i32(5)), { return _match_ci(src, tag_start, max, "param", i32(5)); });
+      if((len == i32(1)), { return(true); }); // p
+      if((len == i32(5)), { return(_match_ci(src, tag_start, max, "param", i32(5))); });
       false
     },
     (c0 == i32(0x73)) => { // s...
       if((len == i32(6)), {
-        if(_match_ci(src, tag_start, max, "search", i32(6)), { return true; });
-        return false;
+        if(_match_ci(src, tag_start, max, "search", i32(6)), { return(true); });
+        return(false);
       });
       if((len == i32(7)), {
-        if(_match_ci(src, tag_start, max, "section", i32(7)), { return true; });
-        if(_match_ci(src, tag_start, max, "summary", i32(7)), { return true; });
-        return false;
+        if(_match_ci(src, tag_start, max, "section", i32(7)), { return(true); });
+        if(_match_ci(src, tag_start, max, "summary", i32(7)), { return(true); });
+        return(false);
       });
       false
     },
     (c0 == i32(0x74)) => { // t...
       if((len == i32(5)), {
-        if(_match_ci(src, tag_start, max, "table", i32(5)), { return true; });
-        if(_match_ci(src, tag_start, max, "tbody", i32(5)), { return true; });
-        if(_match_ci(src, tag_start, max, "tfoot", i32(5)), { return true; });
-        if(_match_ci(src, tag_start, max, "thead", i32(5)), { return true; });
-        if(_match_ci(src, tag_start, max, "title", i32(5)), { return true; });
-        if(_match_ci(src, tag_start, max, "track", i32(5)), { return true; });
-        return false;
+        if(_match_ci(src, tag_start, max, "table", i32(5)), { return(true); });
+        if(_match_ci(src, tag_start, max, "tbody", i32(5)), { return(true); });
+        if(_match_ci(src, tag_start, max, "tfoot", i32(5)), { return(true); });
+        if(_match_ci(src, tag_start, max, "thead", i32(5)), { return(true); });
+        if(_match_ci(src, tag_start, max, "title", i32(5)), { return(true); });
+        if(_match_ci(src, tag_start, max, "track", i32(5)), { return(true); });
+        return(false);
       });
       if((len == i32(2)), {
-        (c1 : i32) = _lower(i32((src &+ usize((tag_start + i32(1)))).*));
-        return ((c1 == i32(0x64)) || ((c1 == i32(0x68)) || (c1 == i32(0x72)))); // td, th, tr
+        (c1 : i32) = _lower(i32((src.add(usize((tag_start + i32(1))))).*));
+        return((c1 == i32(0x64)) || ((c1 == i32(0x68)) || (c1 == i32(0x72)))); // td, th, tr
       });
       false
     },
-    (c0 == i32(0x75)) => { // u...
-      (len == i32(2)) && (_lower(i32((src &+ usize((tag_start + i32(1)))).*)) == i32(0x6C)) // ul
-    },
+    (c0 == i32(0x75)) =>  // u...
+      ((len == i32(2)) && (_lower(i32((src.add(usize((tag_start + i32(1))))).*)) == i32(0x6C))), // ul
     true => false
   )
 });
 
 // Type 7: Check if line has an open or close HTML tag and nothing else after
 _detect_type7 :: (fn(src: *(u8), pos: i32, max: i32) -> bool)({
-  if((pos >= max), { return false; });
-  if(((src &+ usize(pos)).* != u8(0x3C)), { return false; });
+  if((pos >= max), { return(false); });
+  if(((src.add(usize(pos))).* != u8(0x3C)), { return(false); });
 
   (p : i32) = (pos + i32(1));
-  if((p >= max), { return false; });
+  if((p >= max), { return(false); });
 
-  (is_close : bool) = ((src &+ usize(p)).* == u8(0x2F));
+  (is_close : bool) = ((src.add(usize(p))).* == u8(0x2F));
   if(is_close, { p = (p + i32(1)); });
 
   // Must start with ASCII letter
-  if((p >= max), { return false; });
-  if(!(_is_alpha(i32((src &+ usize(p)).*))), { return false; });
+  if((p >= max), { return(false); });
+  if(!(_is_alpha(i32((src.add(usize(p))).*))), { return(false); });
 
   // Read tag name
-  while ((p < max) && _is_alnum_or_dash(i32((src &+ usize(p)).*))) , {
+  while((p < max) && _is_alnum_or_dash(i32((src.add(usize(p))).*)), {
     p = (p + i32(1));
-  };
+  });
 
   if(is_close, {
     // Close tag: </tagname followed by optional spaces and >
-    while ((p < max) && _is_space_or_end(i32((src &+ usize(p)).*))) , {
+    while((p < max) && _is_space_or_end(i32((src.add(usize(p))).*)), {
       p = (p + i32(1));
-    };
-    if((p >= max), { return false; });
-    if(((src &+ usize(p)).* != u8(0x3E)), { return false; });
+    });
+    if((p >= max), { return(false); });
+    if(((src.add(usize(p))).* != u8(0x3E)), { return(false); });
     p = (p + i32(1));
   }, {
     // Open tag: <tagname followed by attributes and > or />
     // Skip attributes: sequences of space + attrname + optional =value
     (done : bool) = false;
-    while ((p < max) && !(done)), {
+    while((p < max) && !(done), {
       // Skip spaces
       (had_space : bool) = false;
-      while ((p < max) && _is_space_or_end(i32((src &+ usize(p)).*))) , {
+      while((p < max) && _is_space_or_end(i32((src.add(usize(p))).*)), {
         had_space = true;
         p = (p + i32(1));
-      };
-      if((p >= max), { return false; });
+      });
+      if((p >= max), { return(false); });
 
-      (ch : i32) = i32((src &+ usize(p)).*);
+      (ch : i32) = i32((src.add(usize(p))).*);
       if((ch == i32(0x3E)), {
         p = (p + i32(1));
         done = true;
       }, {
-        if(((ch == i32(0x2F)) && (((p + i32(1)) < max) && ((src &+ usize((p + i32(1)))).* == u8(0x3E)))), {
+        if(((ch == i32(0x2F)) && (((p + i32(1)) < max) && ((src.add(usize((p + i32(1))))).* == u8(0x3E)))), {
           p = (p + i32(2));
           done = true;
         }, {
-          if(!(had_space), { return false; });
+          if(!(had_space), { return(false); });
           // Attribute name: [a-zA-Z_:][a-zA-Z0-9_.:-]*
-          if((!(_is_alpha(ch)) && ((ch != i32(0x5F)) && (ch != i32(0x3A)))), { return false; });
+          if((!(_is_alpha(ch)) && ((ch != i32(0x5F)) && (ch != i32(0x3A)))), { return(false); });
           p = (p + i32(1));
-          while ((p < max) && ((_is_alnum_or_dash(i32((src &+ usize(p)).*))) || (((src &+ usize(p)).* == u8(0x5F)) || (((src &+ usize(p)).* == u8(0x3A)) || ((src &+ usize(p)).* == u8(0x2E)))))) , {
+          while((p < max) && ((_is_alnum_or_dash(i32((src.add(usize(p))).*))) || (((src.add(usize(p))).* == u8(0x5F)) || (((src.add(usize(p))).* == u8(0x3A)) || ((src.add(usize(p))).* == u8(0x2E))))), {
             p = (p + i32(1));
-          };
+          });
           // Optional = value
-          if(((p < max) && ((src &+ usize(p)).* == u8(0x3D))), {
+          if(((p < max) && ((src.add(usize(p))).* == u8(0x3D))), {
             p = (p + i32(1));
             // Skip spaces after =
-            while ((p < max) && _is_space_or_end(i32((src &+ usize(p)).*))) , {
+            while((p < max) && _is_space_or_end(i32((src.add(usize(p))).*)), {
               p = (p + i32(1));
-            };
-            if((p >= max), { return false; });
-            (qch : i32) = i32((src &+ usize(p)).*);
+            });
+            if((p >= max), { return(false); });
+            (qch : i32) = i32((src.add(usize(p))).*);
             if(((qch == i32(0x22)) || (qch == i32(0x27))), {
               // Quoted value
               p = (p + i32(1));
-              while ((p < max) && (i32((src &+ usize(p)).*) != qch)), {
+              while((p < max) && (i32((src.add(usize(p))).*) != qch), {
                 p = (p + i32(1));
-              };
-              if((p >= max), { return false; });
+              });
+              if((p >= max), { return(false); });
               p = (p + i32(1)); // skip closing quote
             }, {
               // Unquoted value: non-space non-> non-"'=<>`
-              while ((p < max) && (((src &+ usize(p)).* != u8(0x20)) && (((src &+ usize(p)).* != u8(0x09)) && (((src &+ usize(p)).* != u8(0x0A)) && (((src &+ usize(p)).* != u8(0x3E)) && (((src &+ usize(p)).* != u8(0x22)) && (((src &+ usize(p)).* != u8(0x27)) && (((src &+ usize(p)).* != u8(0x3D)) && (((src &+ usize(p)).* != u8(0x3C)) && ((src &+ usize(p)).* != u8(0x60))))))))))) , {
+              while((p < max) && (((src.add(usize(p))).* != u8(0x20)) && (((src.add(usize(p))).* != u8(0x09)) && (((src.add(usize(p))).* != u8(0x0A)) && (((src.add(usize(p))).* != u8(0x3E)) && (((src.add(usize(p))).* != u8(0x22)) && (((src.add(usize(p))).* != u8(0x27)) && (((src.add(usize(p))).* != u8(0x3D)) && (((src.add(usize(p))).* != u8(0x3C)) && ((src.add(usize(p))).* != u8(0x60)))))))))), {
                 p = (p + i32(1));
-              };
+              });
             });
           });
         });
       });
-    };
-    if(!(done), { return false; });
+    });
+    if(!(done), { return(false); });
   });
 
   // After the tag, rest of line must be blank
-  while ((p < max) && ((i32((src &+ usize(p)).*) == i32(0x20)) || (i32((src &+ usize(p)).*) == i32(0x09)))), {
+  while((p < max) && ((i32((src.add(usize(p))).*) == i32(0x20)) || (i32((src.add(usize(p))).*) == i32(0x09))), {
     p = (p + i32(1));
-  };
-  ((p >= max) || (i32((src &+ usize(p)).*) == i32(0x0A)))
+  });
+  ((p >= max) || (i32((src.add(usize(p))).*) == i32(0x0A)))
 });
 
 // Search for a closing tag </name> (case insensitive) in line [start, end)
 _line_has_close_tag :: (fn(src: *(u8), start: i32, end: i32, tag: str, tag_len: i32) -> bool)({
   (p : i32) = start;
-  while (p < (end - (tag_len + i32(2)))), {
-    if(((i32((src &+ usize(p)).*) == i32(0x3C)) && (i32((src &+ usize((p + i32(1)))).*) == i32(0x2F))), {
+  while(p < (end - (tag_len + i32(2))), {
+    if(((i32((src.add(usize(p))).*) == i32(0x3C)) && (i32((src.add(usize((p + i32(1))))).*) == i32(0x2F))), {
       if(_match_ci(src, (p + i32(2)), end, tag, tag_len), {
         (after : i32) = ((p + i32(2)) + tag_len);
-        if(((after < end) && (i32((src &+ usize(after)).*) == i32(0x3E))), {
-          return true;
+        if(((after < end) && (i32((src.add(usize(after))).*) == i32(0x3E))), {
+          return(true);
         });
       });
     });
     p = (p + i32(1));
-  };
+  });
   false
 });
 
@@ -353,9 +352,9 @@ block_html :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
   (em : i32) = state.em(start_line);
   (pos : i32) = (bm + ts);
 
-  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return false; });
-  if((pos >= em), { return false; });
-  if((i32((state.*.src_ptr &+ usize(pos)).*) != i32(0x3C)), { return false; });
+  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return(false); });
+  if((pos >= em), { return(false); });
+  if((i32((state.*.src_ptr.add(usize(pos))).*) != i32(0x3C)), { return(false); });
 
   (html_type : i32) = i32(0);
   (src : *(u8)) = state.*.src_ptr;
@@ -367,22 +366,22 @@ block_html :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
 
   // Type 2: <!-- comment -->
   if(((html_type == i32(0)) && ((pos + i32(4)) <= em)), {
-    if((((src &+ usize((pos + i32(1)))).* == u8(0x21)) && (((src &+ usize((pos + i32(2)))).* == u8(0x2D)) && ((src &+ usize((pos + i32(3)))).* == u8(0x2D)))), {
+    if((((src.add(usize((pos + i32(1))))).* == u8(0x21)) && (((src.add(usize((pos + i32(2))))).* == u8(0x2D)) && ((src.add(usize((pos + i32(3))))).* == u8(0x2D)))), {
       html_type = i32(2);
     });
   });
 
   // Type 3: <?processing instruction?>
   if(((html_type == i32(0)) && ((pos + i32(2)) <= em)), {
-    if(((src &+ usize((pos + i32(1)))).* == u8(0x3F)), {
+    if(((src.add(usize((pos + i32(1))))).* == u8(0x3F)), {
       html_type = i32(3);
     });
   });
 
   // Type 4: <! followed by an uppercase ASCII letter
   if(((html_type == i32(0)) && ((pos + i32(3)) <= em)), {
-    if(((src &+ usize((pos + i32(1)))).* == u8(0x21)), {
-      (ch4 : i32) = i32((src &+ usize((pos + i32(2)))).*);
+    if(((src.add(usize((pos + i32(1))))).* == u8(0x21)), {
+      (ch4 : i32) = i32((src.add(usize((pos + i32(2))))).*);
       if(((ch4 >= i32(0x41)) && (ch4 <= i32(0x5A))), {
         html_type = i32(4);
       });
@@ -391,7 +390,7 @@ block_html :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
 
   // Type 5: <![CDATA[ (case sensitive)
   if(((html_type == i32(0)) && ((pos + i32(9)) <= em)), {
-    if((((src &+ usize((pos + i32(1)))).* == u8(0x21)) && (((src &+ usize((pos + i32(2)))).* == u8(0x5B)) && _match_exact(state.*.src_ptr, (pos + i32(3)), em, "CDATA[", i32(6)))), {
+    if((((src.add(usize((pos + i32(1))))).* == u8(0x21)) && (((src.add(usize((pos + i32(2))))).* == u8(0x5B)) && _match_exact(state.*.src_ptr, (pos + i32(3)), em, "CDATA[", i32(6)))), {
       html_type = i32(5);
     });
   });
@@ -399,7 +398,7 @@ block_html :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
   // Type 6: Block-level tag (open or close)
   if((html_type == i32(0)), {
     (tag_start : i32) = (pos + i32(1));
-    (is_close : bool) = ((tag_start < em) && ((src &+ usize(tag_start)).* == u8(0x2F)));
+    (is_close : bool) = ((tag_start < em) && ((src.add(usize(tag_start))).* == u8(0x2F)));
     (name_start : i32) = cond(is_close => (tag_start + i32(1)), true => tag_start);
     if(_is_block_tag(state.*.src_ptr, name_start, em), {
       html_type = i32(6);
@@ -413,9 +412,9 @@ block_html :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
     });
   });
 
-  if((html_type == i32(0)), { return false; });
+  if((html_type == i32(0)), { return(false); });
   // Type 7 cannot be a terminator (can't interrupt paragraphs or reference continuations)
-  if(silent, { return (html_type != i32(7)); });
+  if(silent, { return(html_type != i32(7)); });
 
   // Find end of HTML block
   (next_line : i32) = (start_line + i32(1));
@@ -429,7 +428,7 @@ block_html :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
        || (_line_has_close_tag(src, pos, em, "style", i32(5))
        || _line_has_close_tag(src, pos, em, "textarea", i32(8))))));
 
-      while ((next_line < end_line) && !(done1)), {
+      while((next_line < end_line) && !(done1), {
         (nbm : i32) = state.bm(next_line);
         (nem : i32) = state.em(next_line);
         if((_line_has_close_tag(src, nbm, nem, "script", i32(6))
@@ -441,131 +440,131 @@ block_html :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
         }, {
           next_line = (next_line + i32(1));
         });
-      };
+      });
     },
     // Type 2: ends at -->
     (html_type == i32(2)) => {
       // Check opening line
       (done2 : bool) = false;
       (sp : i32) = pos;
-      while ((sp < (em - i32(2))) && !(done2)), {
-        if((((src &+ usize(sp)).* == u8(0x2D)) && (((src &+ usize((sp + i32(1)))).* == u8(0x2D)) && ((src &+ usize((sp + i32(2)))).* == u8(0x3E)))), {
+      while((sp < (em - i32(2))) && !(done2), {
+        if((((src.add(usize(sp))).* == u8(0x2D)) && (((src.add(usize((sp + i32(1))))).* == u8(0x2D)) && ((src.add(usize((sp + i32(2))))).* == u8(0x3E)))), {
           done2 = true;
         });
         sp = (sp + i32(1));
-      };
-      while ((next_line < end_line) && !(done2)), {
+      });
+      while((next_line < end_line) && !(done2), {
         (nbm : i32) = state.bm(next_line);
         (nem : i32) = state.em(next_line);
         (sp2 : i32) = nbm;
         (found2 : bool) = false;
-        while ((sp2 < (nem - i32(2))) && !(found2)), {
-          if((((src &+ usize(sp2)).* == u8(0x2D)) && (((src &+ usize((sp2 + i32(1)))).* == u8(0x2D)) && ((src &+ usize((sp2 + i32(2)))).* == u8(0x3E)))), {
+        while((sp2 < (nem - i32(2))) && !(found2), {
+          if((((src.add(usize(sp2))).* == u8(0x2D)) && (((src.add(usize((sp2 + i32(1))))).* == u8(0x2D)) && ((src.add(usize((sp2 + i32(2))))).* == u8(0x3E)))), {
             found2 = true;
           });
           sp2 = (sp2 + i32(1));
-        };
+        });
         if(found2, {
           next_line = (next_line + i32(1));
           done2 = true;
         }, {
           next_line = (next_line + i32(1));
         });
-      };
+      });
     },
     // Type 3: ends at ?>
     (html_type == i32(3)) => {
       (done3 : bool) = false;
       (sp3 : i32) = pos;
-      while ((sp3 < (em - i32(1))) && !(done3)), {
-        if((((src &+ usize(sp3)).* == u8(0x3F)) && ((src &+ usize((sp3 + i32(1)))).* == u8(0x3E))), {
+      while((sp3 < (em - i32(1))) && !(done3), {
+        if((((src.add(usize(sp3))).* == u8(0x3F)) && ((src.add(usize((sp3 + i32(1))))).* == u8(0x3E))), {
           done3 = true;
         });
         sp3 = (sp3 + i32(1));
-      };
-      while ((next_line < end_line) && !(done3)), {
+      });
+      while((next_line < end_line) && !(done3), {
         (nbm : i32) = state.bm(next_line);
         (nem : i32) = state.em(next_line);
         (sp3b : i32) = nbm;
         (found3 : bool) = false;
-        while ((sp3b < (nem - i32(1))) && !(found3)), {
-          if((((src &+ usize(sp3b)).* == u8(0x3F)) && ((src &+ usize((sp3b + i32(1)))).* == u8(0x3E))), {
+        while((sp3b < (nem - i32(1))) && !(found3), {
+          if((((src.add(usize(sp3b))).* == u8(0x3F)) && ((src.add(usize((sp3b + i32(1))))).* == u8(0x3E))), {
             found3 = true;
           });
           sp3b = (sp3b + i32(1));
-        };
+        });
         if(found3, {
           next_line = (next_line + i32(1));
           done3 = true;
         }, {
           next_line = (next_line + i32(1));
         });
-      };
+      });
     },
     // Type 4: ends at >
     (html_type == i32(4)) => {
       (done4 : bool) = false;
       (sp4 : i32) = pos;
-      while ((sp4 < em) && !(done4)), {
-        if(((src &+ usize(sp4)).* == u8(0x3E)), {
+      while((sp4 < em) && !(done4), {
+        if(((src.add(usize(sp4))).* == u8(0x3E)), {
           done4 = true;
         });
         sp4 = (sp4 + i32(1));
-      };
-      while ((next_line < end_line) && !(done4)), {
+      });
+      while((next_line < end_line) && !(done4), {
         (nbm : i32) = state.bm(next_line);
         (nem : i32) = state.em(next_line);
         (sp4b : i32) = nbm;
         (found4 : bool) = false;
-        while ((sp4b < nem) && !(found4)), {
-          if(((src &+ usize(sp4b)).* == u8(0x3E)), {
+        while((sp4b < nem) && !(found4), {
+          if(((src.add(usize(sp4b))).* == u8(0x3E)), {
             found4 = true;
           });
           sp4b = (sp4b + i32(1));
-        };
+        });
         if(found4, {
           next_line = (next_line + i32(1));
           done4 = true;
         }, {
           next_line = (next_line + i32(1));
         });
-      };
+      });
     },
     // Type 5: ends at ]]>
     (html_type == i32(5)) => {
       // Check opening line first
       (done5 : bool) = false;
       (sp5f : i32) = pos;
-      while ((sp5f < (em - i32(2))) && !(done5)), {
-        if((((src &+ usize(sp5f)).* == u8(0x5D)) && (((src &+ usize((sp5f + i32(1)))).* == u8(0x5D)) && ((src &+ usize((sp5f + i32(2)))).* == u8(0x3E)))), {
+      while((sp5f < (em - i32(2))) && !(done5), {
+        if((((src.add(usize(sp5f))).* == u8(0x5D)) && (((src.add(usize((sp5f + i32(1))))).* == u8(0x5D)) && ((src.add(usize((sp5f + i32(2))))).* == u8(0x3E)))), {
           done5 = true;
         });
         sp5f = (sp5f + i32(1));
-      };
-      while ((next_line < end_line) && !(done5)), {
+      });
+      while((next_line < end_line) && !(done5), {
         (nbm : i32) = state.bm(next_line);
         (nem : i32) = state.em(next_line);
         (sp5 : i32) = nbm;
         (found5 : bool) = false;
-        while ((sp5 < (nem - i32(2))) && !(found5)), {
-          if((((src &+ usize(sp5)).* == u8(0x5D)) && (((src &+ usize((sp5 + i32(1)))).* == u8(0x5D)) && ((src &+ usize((sp5 + i32(2)))).* == u8(0x3E)))), {
+        while((sp5 < (nem - i32(2))) && !(found5), {
+          if((((src.add(usize(sp5))).* == u8(0x5D)) && (((src.add(usize((sp5 + i32(1))))).* == u8(0x5D)) && ((src.add(usize((sp5 + i32(2))))).* == u8(0x3E)))), {
             found5 = true;
           });
           sp5 = (sp5 + i32(1));
-        };
+        });
         if(found5, {
           next_line = (next_line + i32(1));
           done5 = true;
         }, {
           next_line = (next_line + i32(1));
         });
-      };
+      });
     },
     // Type 6, 7: ends at empty line or outdented line
     true => {
-      while (((next_line < end_line) && !(state.*.is_empty(next_line))) && (state.sc(next_line) >= state.*.blk_indent)), {
+      while(((next_line < end_line) && !(state.*.is_empty(next_line))) && (state.sc(next_line) >= state.*.blk_indent), {
         next_line = (next_line + i32(1));
-      };
+      });
     }
   );
 
@@ -577,7 +576,7 @@ block_html :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
   (indent : i32) = state.*.blk_indent;
   (hl : i32) = start_line;
   (r) := state.*.renderer;
-  while (hl <= last_html_line), {
+  while(hl <= last_html_line, {
     (line_start : i32) = state.bm(hl);
     (line_end : i32) = state.em(hl);
 
@@ -585,8 +584,8 @@ block_html :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
     (first : i32) = line_start;
     (col : i32) = i32(0);
     (line_tshift : i32) = state.ts(hl);
-    while ((first < line_end) && (col < indent)), {
-      (ch : u8) = (state.*.src_ptr &+ usize(first)).*;
+    while((first < line_end) && (col < indent), {
+      (ch : u8) = (state.*.src_ptr.add(usize(first))).*;
       if((ch == u8(0x09)), {
         col = (col + (i32(4) - ((col + state.bs(hl)) % i32(4))));
         first = (first + i32(1));
@@ -599,25 +598,25 @@ block_html :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
       }, {
         col = indent;
       })));
-    };
+    });
 
     // Partially consumed tab → emit extra spaces
     if((col > indent), {
       (extra : i32) = (col - indent);
       (sp : i32) = i32(0);
-      while (sp < extra), {
+      while(sp < extra, {
         r.*.byte(u8(0x20));
         sp = (sp + i32(1));
-      };
+      });
     });
 
     r.*.raw(first, line_end);
     r.*.byte(u8(0x0A));
     hl = (hl + i32(1));
-  };
+  });
 
   state.*.line = next_line;
   true
 });
 
-export block_html;
+export(block_html);
