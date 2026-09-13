@@ -1,33 +1,34 @@
 build :: import("std/build");
-{ imports } :: import("./deps.yo");
 { platform, Platform } :: import("std/process");
 
-mod :: build.module({ name: "markdown_yo", root: "./src/lib.yo"});
-
-exe :: build.executable({ name: "markdown_yo", root: "./src/main.yo", optimize: build.Optimize.ReleaseFast});
-exe.add_import_list(imports);
+// The module root is declared in `yo.toml` `[modules]`; `build.module` no
+// longer takes one, and its only remaining job is attaching system libraries,
+// of which this package has none.
+exe :: build.executable({ name : "markdown_yo", root : "./src/main.yo", optimize : build.Optimize.ReleaseFast });
 exe.add_c_flags("-flto");
-if((platform == Platform.Windows), exe.add_c_flags("-fuse-ld=lld"));
+if(platform == Platform.Windows, exe.add_c_flags("-fuse-ld=lld"));
 
-wasm_exe :: build.executable({ name: "markdown_yo_wasm_exe",
-  root: "./src/main.yo",
-  target: build.CompilationTarget.Wasm32_Unknown_Emscripten,
-  optimize: build.Optimize.ReleaseSmall,
-  allocator: build.Allocator.System});
-wasm_exe.add_import_list(imports);
+wasm_exe :: build.executable({
+  name : "markdown_yo_wasm_exe",
+  root : "./src/main.yo",
+  target : build.CompilationTarget.Wasm32_Unknown_Emscripten,
+  optimize : build.Optimize.ReleaseSmall,
+  allocator : build.Allocator.System
+});
 wasm_exe.add_c_flags("-O3 -flto -mbulk-memory -sNODERAWFS -sEXIT_RUNTIME=1 -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=67108864 -sWASM_BIGINT");
 
-wasm_api :: build.executable({ name: "markdown_yo_wasm_api",
-  root: "./src/wasm_api.yo",
-  target: build.CompilationTarget.Wasm32_Unknown_Emscripten,
-  optimize: build.Optimize.ReleaseSmall,
-  allocator: build.Allocator.System});
-wasm_api.add_import_list(imports);
+wasm_api :: build.executable({
+  name : "markdown_yo_wasm_api",
+  root : "./src/wasm_api.yo",
+  target : build.CompilationTarget.Wasm32_Unknown_Emscripten,
+  optimize : build.Optimize.ReleaseSmall,
+  allocator : build.Allocator.System
+});
 wasm_api.add_c_flags("-O3 -flto -mbulk-memory -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=16777216 -sWASM_BIGINT -sENVIRONMENT=web,node -sMODULARIZE=1 -sEXPORT_NAME=createMarkdownYo -sEXPORTED_FUNCTIONS=_main,_wasm_render,_wasm_result_len,_wasm_free,_malloc,_free -sEXPORTED_RUNTIME_METHODS=HEAPU8");
 
-lib :: build.static_library({ name: "markdown_yo-lib", root: "./src/lib.yo"});
+lib :: build.static_library({ name : "markdown_yo-lib", root : "./src/lib.yo" });
 
-tests :: build.test({ name: "tests", root: "./tests/"});
+tests :: build.test({ name : "tests", root : "./tests/" });
 
 run_exe :: build.run(exe);
 
