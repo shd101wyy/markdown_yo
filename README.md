@@ -107,7 +107,46 @@ yo build wasm_api
 ./scripts/build_demo.sh  # or manually: copy yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.{js,wasm} to demo/
 ```
 
-## Usage
+## Use as a library
+
+`markdown_yo` is a Yo package, so add it and import it by name — no paths:
+
+```bash
+yo add shd101wyy/markdown_yo
+```
+
+```rust
+{ markdown_to_html, Options, default_options } :: import("markdown_yo");
+{ println } :: import("std/fmt");
+
+// `markdown_to_html` takes `*(Options)`, a raw pointer, so `&opts` needs the
+// file to be audit-capable. The Yo compiler's own `yo doc` renderer does the
+// same thing.
+pragma(Pragma.AllowUnsafe);
+
+main :: (fn() -> unit)({
+  (opts : Options) = default_options();
+  opts.html = true;
+
+  html := markdown_to_html(`# Hello\n\nSome **bold** text.`, &opts);
+  println(html);
+});
+
+export(main);
+```
+
+Prints:
+
+```html
+<h1>Hello</h1>
+<p>Some <strong>bold</strong> text.</p>
+```
+
+`commonmark_options()` is the strict-CommonMark preset; `default_options()` has
+the extensions off, and each is a field you can flip (`enable_math`,
+`enable_footnote`, `enable_emoji`, …) exactly as the CLI flags below do.
+
+## Usage (CLI)
 
 ```bash
 # Convert a file
