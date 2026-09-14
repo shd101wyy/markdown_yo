@@ -13,7 +13,15 @@ pragma(Pragma.AllowUnsafe);
 { block_parse } :: import("./block/parser.yo");
 
 // Convert markdown source to HTML.
-markdown_to_html :: (fn(src: String, options: *(Options)) -> String)({
+// `options` is taken BY VALUE, not as `*(Options)`. It is never mutated here —
+// it is only handed down to the renderer and the block state, which want a
+// reference for cost. Taking the address is the LIBRARY's business, so it
+// happens below, inside a file that is already `Pragma.AllowUnsafe`; asking
+// every caller to write `&opts` pushed that unsafe out to every consumer for
+// no benefit.
+markdown_to_html :: (fn(src: String, options: Options) -> String)({
+  (opts_ref : *(Options)) = &(options);
+
   // 1. Create environment for link references
   (env : Env) = new_env();
 
@@ -26,10 +34,10 @@ markdown_to_html :: (fn(src: String, options: *(Options)) -> String)({
   );
 
   // 3. Create renderer with pre-allocated output buffer
-  (renderer : HtmlRenderer) = HtmlRenderer.new(options, src_ptr, src_len);
+  (renderer : HtmlRenderer) = HtmlRenderer.new(opts_ref, src_ptr, src_len);
 
   // 4. Create block state (includes normalization + line scan in one pass)
-  (state : BlockState) = BlockState.new(src, env, (&(renderer)), options);
+  (state : BlockState) = BlockState.new(src, env, (&(renderer)), opts_ref);
   block_parse((&(state)));
 
   // 5. Return rendered HTML

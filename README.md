@@ -119,16 +119,11 @@ yo add shd101wyy/markdown_yo
 { markdown_to_html, Options, default_options } :: import("markdown_yo");
 { println } :: import("std/fmt");
 
-// `markdown_to_html` takes `*(Options)`, a raw pointer, so `&opts` needs the
-// file to be audit-capable. The Yo compiler's own `yo doc` renderer does the
-// same thing.
-pragma(Pragma.AllowUnsafe);
-
 main :: (fn() -> unit)({
   (opts : Options) = default_options();
   opts.html = true;
 
-  html := markdown_to_html(`# Hello\n\nSome **bold** text.`, &opts);
+  html := markdown_to_html(`# Hello\n\nSome **bold** text.`, opts);
   println(html);
 });
 

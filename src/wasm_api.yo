@@ -79,7 +79,7 @@ wasm_render :: (fn(input_ptr: *(u8), input_len: i32, flags: i32) -> *(u8))({
   if(((flags & i32(131072)) != i32(0)), { opts.xhtml_out = true; });
 
   // Render
-  result := markdown_to_html(input, (&(opts)));
+  result := markdown_to_html(input, opts);
 
   // Get result bytes and copy to malloc'd buffer
   result_bytes := result.as_bytes();
