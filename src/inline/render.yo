@@ -413,7 +413,7 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(EmphasisPair))) 
           if(found, {
             (opener : Delimiter) = state.*.delimiters(usize(opener_idx));
 
-            (consume : i32) = cond(
+            (consume_n : i32) = cond(
               is_strike => i32(2),
               is_mark => i32(2),
               ((opener.length >= i32(2)) && (closer.length >= i32(2))) => i32(2),
@@ -423,21 +423,21 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(EmphasisPair))) 
             (pt : i32) = cond(
               is_strike => i32(3),
               is_mark => i32(4),
-              (consume == i32(2)) => i32(2),
+              (consume_n == i32(2)) => i32(2),
               true => i32(1)
             );
 
             _ := pairs.*.push(EmphasisPair(
               opener_tok: opener.token_idx,
               closer_tok: closer.token_idx,
-              consume: consume,
+              consume: consume_n,
               pair_type: pt
             ));
 
             // Update opener
 &(            state.*.delimiters(usize(opener_idx))).* = Delimiter(
               marker: opener.marker,
-              length: (opener.length - consume),
+              length: (opener.length - consume_n),
               token_idx: opener.token_idx,
               end: closer_idx,
               jump: i32(0),
@@ -446,7 +446,7 @@ _resolve_pairs :: (fn(state: *(InlineState), pairs: *(ArrayList(EmphasisPair))) 
             );
 
             // Update closer
-            (new_closer_len : i32) = (closer.length - consume);
+            (new_closer_len : i32) = (closer.length - consume_n);
 &(            state.*.delimiters(usize(closer_idx))).* = Delimiter(
               marker: closer.marker,
               length: new_closer_len,
