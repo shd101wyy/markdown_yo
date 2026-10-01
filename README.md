@@ -104,7 +104,7 @@ yo build wasm_exe
 
 # Build WASM API module (browser + Node.js)
 yo build wasm_api
-./scripts/build_demo.sh  # or manually: copy yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.{js,wasm} to demo/
+./scripts/build_demo.sh  # or manually: copy yo-out/wasm32-unknown-emscripten/bin/markdown_yo_wasm_api.{js,wasm} to demo/
 ```
 
 ## Use as a library

@@ -111,8 +111,8 @@ jobs:
 
       - name: Prepare npm package
         run: |
-          cp yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.js  npm/markdown_yo_wasm_api.js
-          cp yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.wasm npm/markdown_yo_wasm_api.wasm
+          cp yo-out/wasm32-unknown-emscripten/bin/markdown_yo_wasm_api.js  npm/markdown_yo_wasm_api.js
+          cp yo-out/wasm32-unknown-emscripten/bin/markdown_yo_wasm_api.wasm npm/markdown_yo_wasm_api.wasm
           cp docs/WASM.md npm/README.md
 
       - name: Package WASM release artifact

@@ -14,8 +14,8 @@ echo "==> Building browser WASM API target..."
 
 # Copy WASM artifacts into demo/
 echo "==> Copying WASM artifacts to demo/..."
-cp yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.js   demo/markdown_yo_wasm_api.js
-cp yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.wasm demo/markdown_yo_wasm_api.wasm
+cp yo-out/wasm32-unknown-emscripten/bin/markdown_yo_wasm_api.js   demo/markdown_yo_wasm_api.js
+cp yo-out/wasm32-unknown-emscripten/bin/markdown_yo_wasm_api.wasm demo/markdown_yo_wasm_api.wasm
 
 echo "==> Demo ready in demo/"
 echo "    Serve with:  npx serve demo"
