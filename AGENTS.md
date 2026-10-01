@@ -47,22 +47,43 @@ Source str ──► Normalize ──► Block Parser ──► Inline Parser �
 
 ## Build & Test
 
+The Yo version is pinned in `.yo-version`; `yo` on your PATH honours it.
+
 ```bash
-# Build (from Yo directory)
-cd ~/Workspace/Yo && bun run build
-
-# Build markdown_yo
-cd ~/Workspace/markdown_yo && ~/Workspace/Yo/yo-cli build
-
-# Run
-~/Workspace/Yo/yo-cli build run
-
-# Test
-~/Workspace/Yo/yo-cli build test
-
-# Benchmark
-node benchmark/run.js
+yo build                               # native binary → yo-out/<target>/bin/markdown_yo
+yo build wasm_exe                      # WebAssembly build (needs emsdk)
+yo test ./tests --parallel 1           # unit tests
+node scripts/run_fixture_tests.js      # markdown-it compatibility fixtures
+node benchmark/run.js                  # benchmark (run benchmark/generate_samples.js first)
+yo fmt --check ./src ./tests ./build.yo
 ```
+
+CI runs all of these. Run `yo fmt` on every `.yo` file you change: CI fails on
+unformatted code. Put an item's comment on the line above it, not after its comma
+(`html : bool, // why`). Yo ≤ 0.2.47's formatter moves a comment after a comma
+onto the NEXT item (shd101wyy/Yo#1086).
+
+## Releasing
+
+**Always publish through the `release.yml` workflow. Never create or push a
+version tag by hand.**
+
+```bash
+gh workflow run release.yml --repo shd101wyy/markdown_yo -f bump=patch   # or bump=minor
+```
+
+The workflow:
+- bumps `npm/package.json` and `yo.toml` to the new version and commits the bump;
+- tags that commit `v<version>`;
+- builds the native and WASM bundles, creates the GitHub release, and publishes
+  to npm.
+
+Yo resolves this package by its `v<version>` tags, so the tag, `yo.toml`, and
+`npm/package.json` must agree.
+
+Hand-made tags broke that: v0.0.6 to v0.0.8 were pushed by hand while
+`npm/package.json` stayed at 0.0.5. npm missed those versions, and the next
+workflow run would have tried to re-create v0.0.6.
 
 ## Conventions
 
