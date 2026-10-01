@@ -214,3 +214,247 @@ admonition with blockquote inside
 </blockquote>
 </div>
 .
+
+collapsible note with title (starts closed)
+.
+??? note Click me
+    Hidden content
+.
+<details class="admonition note">
+<summary class="admonition-title">Click me</summary>
+<p>Hidden content</p>
+</details>
+.
+
+collapsible note expanded (???+)
+.
+???+ note Open by default
+    Visible content
+.
+<details class="admonition note" open>
+<summary class="admonition-title">Open by default</summary>
+<p>Visible content</p>
+</details>
+.
+
+collapsible warning with default title
+.
+??? warning
+    No title given
+.
+<details class="admonition warning">
+<summary class="admonition-title">Warning</summary>
+<p>No title given</p>
+</details>
+.
+
+collapsible empty title ""
+.
+??? tip ""
+    No title shown
+.
+<details class="admonition tip">
+<summary class="admonition-title"></summary>
+<p>No title shown</p>
+</details>
+.
+
+collapsible unknown type defaults to note
+.
+??? unknown Custom title
+    Body
+.
+<details class="admonition note">
+<summary class="admonition-title">Custom title</summary>
+<p>Body</p>
+</details>
+.
+
+collapsible tldr default title
+.
+??? tldr
+    Summary
+.
+<details class="admonition tldr">
+<summary class="admonition-title">TL;DR</summary>
+<p>Summary</p>
+</details>
+.
+
+collapsible faq default title
+.
+??? faq
+    Question
+.
+<details class="admonition faq">
+<summary class="admonition-title">FAQ</summary>
+<p>Question</p>
+</details>
+.
+
+extended question marks (4+)
+.
+???? danger Watch out
+    Body here
+.
+<details class="admonition danger">
+<summary class="admonition-title">Watch out</summary>
+<p>Body here</p>
+</details>
+.
+
+extended question marks with plus
+.
+????+ info Expanded
+    Body
+.
+<details class="admonition info" open>
+<summary class="admonition-title">Expanded</summary>
+<p>Body</p>
+</details>
+.
+
+collapsible nested inside static
+.
+!!! note Outer
+    ??? tip Inner
+        Nested content
+
+    Back to outer
+.
+<div class="admonition note">
+<p class="admonition-title">Outer</p>
+<details class="admonition tip">
+<summary class="admonition-title">Inner</summary>
+<p>Nested content</p>
+</details>
+<p>Back to outer</p>
+</div>
+.
+
+static nested inside collapsible
+.
+??? note Outer
+    !!! tip Inner
+        Nested content
+
+    Back to outer
+.
+<details class="admonition note">
+<summary class="admonition-title">Outer</summary>
+<div class="admonition tip">
+<p class="admonition-title">Inner</p>
+<p>Nested content</p>
+</div>
+<p>Back to outer</p>
+</details>
+.
+
+collapsible with list inside
+.
+??? tip Lists
+    - item 1
+    - item 2
+.
+<details class="admonition tip">
+<summary class="admonition-title">Lists</summary>
+<ul>
+<li>item 1</li>
+<li>item 2</li>
+</ul>
+</details>
+.
+
+collapsible with code inside
+.
+??? note Code example
+    Some text
+
+        code block
+
+    More text
+.
+<details class="admonition note">
+<summary class="admonition-title">Code example</summary>
+<p>Some text</p>
+<pre><code>code block
+</code></pre>
+<p>More text</p>
+</details>
+.
+
+collapsible with blockquote inside
+.
+??? note Title
+    > quoted text
+.
+<details class="admonition note">
+<summary class="admonition-title">Title</summary>
+<blockquote>
+<p>quoted text</p>
+</blockquote>
+</details>
+.
+
+collapsible with inline formatting
+.
+??? note Title
+    **Bold** and *italic* text
+.
+<details class="admonition note">
+<summary class="admonition-title">Title</summary>
+<p><strong>Bold</strong> and <em>italic</em> text</p>
+</details>
+.
+
+content after collapsible
+.
+??? note Title
+    Inside
+
+Outside paragraph
+.
+<details class="admonition note">
+<summary class="admonition-title">Title</summary>
+<p>Inside</p>
+</details>
+<p>Outside paragraph</p>
+.
+
+not collapsible - only 2 question marks
+.
+?? note Not admonition
+    Content
+.
+<p>?? note Not admonition
+Content</p>
+.
+
+not collapsible - no space after ???
+.
+???note Not admonition
+.
+<p>???note Not admonition</p>
+.
+
+not admonition - !!!+ is not valid
+.
+!!!+ note Not admonition
+.
+<p>!!!+ note Not admonition</p>
+.
+
+not admonition - mixed marker
+.
+!?! note Not admonition
+.
+<p>!?! note Not admonition</p>
+.
+
+not collapsible - indented 4 spaces
+.
+    ??? note Not admonition
+.
+<pre><code>??? note Not admonition
+</code></pre>
+.
