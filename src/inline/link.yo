@@ -447,7 +447,7 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
 
         if(found, {
           (opener : Delimiter) = state.*.delimiters(usize(opener_idx));
-          (consume : i32) = cond(
+          (consume_n : i32) = cond(
             (is_strike || is_mark) => i32(2),
             ((opener.length >= i32(2)) && (closer.length >= i32(2))) => i32(2),
             true => i32(1)
@@ -455,14 +455,14 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
           (pt : i32) = cond(
             is_mark => i32(4),
             is_strike => i32(3),
-            (consume == i32(2)) => i32(2),
+            (consume_n == i32(2)) => i32(2),
             true => i32(1)
           );
 
           _ := state.*.resolved_pairs.push(EmphasisPair(
             opener_tok: opener.token_idx,
             closer_tok: closer.token_idx,
-            consume: consume,
+            consume: consume_n,
             pair_type: pt
           ));
 
@@ -470,7 +470,7 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
           (otok : InlineToken) = state.*.tokens(usize(opener.token_idx));
 &(          state.*.tokens(usize(opener.token_idx))).* = InlineToken(
             type_name: otok.type_name,
-            start: otok.start, end: (otok.end - consume),
+            start: otok.start, end: (otok.end - consume_n),
             nesting: otok.nesting, level: otok.level,
             info_start: otok.info_start, info_end: otok.info_end,
             title_start: otok.title_start, title_end: otok.title_end,
@@ -483,7 +483,7 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
           (ctok : InlineToken) = state.*.tokens(usize(closer.token_idx));
 &(          state.*.tokens(usize(closer.token_idx))).* = InlineToken(
             type_name: ctok.type_name,
-            start: (ctok.start + consume), end: ctok.end,
+            start: (ctok.start + consume_n), end: ctok.end,
             nesting: ctok.nesting, level: ctok.level,
             info_start: ctok.info_start, info_end: ctok.info_end,
             title_start: ctok.title_start, title_end: ctok.title_end,
@@ -495,14 +495,14 @@ _resolve_scoped_emphasis :: (fn(state: *(InlineState), start_idx: i32, end_idx: 
           // Update delimiter lengths
 &(          state.*.delimiters(usize(opener_idx))).* = Delimiter(
             marker: opener.marker,
-            length: (opener.length - consume),
+            length: (opener.length - consume_n),
             token_idx: opener.token_idx,
             end: closer_idx,
             jump: i32(0),
             open: opener.open,
             close: opener.close
           );
-          (new_closer_len : i32) = (closer.length - consume);
+          (new_closer_len : i32) = (closer.length - consume_n);
 &(          state.*.delimiters(usize(closer_idx))).* = Delimiter(
             marker: closer.marker,
             length: new_closer_len,
