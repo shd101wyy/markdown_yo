@@ -1,46 +1,55 @@
 // markdown_yo — Inline entity rule
 //
 // Matches: &amp;, &lt;, &#123;, &#x1F4A9; etc.
-
 pragma(Pragma.AllowUnsafe);
 { ArrayList } :: import("std/collections/array_list");
 { InlineState, InlineToken } :: import("./state.yo");
 { decode_named_entity } :: import("../common/entities.yo");
 
 // Check if ch is a hex digit
-_is_hex :: (fn(ch: i32) -> bool)(
-  (((ch >= i32(0x30)) && (ch <= i32(0x39))) ||
-  (((ch >= i32(0x41)) && (ch <= i32(0x46))) ||
-  ((ch >= i32(0x61)) && (ch <= i32(0x66)))))
+_is_hex :: (fn(ch : i32) -> bool)(
+  ((ch >= i32(0x30)) && (ch <= i32(0x39))) ||
+    (
+      ((ch >= i32(0x41)) && (ch <= i32(0x46))) ||
+        ((ch >= i32(0x61)) && (ch <= i32(0x66)))
+    )
 );
 
 // Check if ch is a digit
-_is_digit :: (fn(ch: i32) -> bool)(
-  ((ch >= i32(0x30)) && (ch <= i32(0x39)))
+_is_digit :: (fn(ch : i32) -> bool)(
+  (ch >= i32(0x30)) && (ch <= i32(0x39))
 );
 
 // Check if ch is a letter or digit
-_is_alnum :: (fn(ch: i32) -> bool)(
-  (((ch >= i32(0x41)) && (ch <= i32(0x5A))) ||
-  (((ch >= i32(0x61)) && (ch <= i32(0x7A))) ||
-  ((ch >= i32(0x30)) && (ch <= i32(0x39)))))
+_is_alnum :: (fn(ch : i32) -> bool)(
+  ((ch >= i32(0x41)) && (ch <= i32(0x5A))) ||
+    (
+      ((ch >= i32(0x61)) && (ch <= i32(0x7A))) ||
+        ((ch >= i32(0x30)) && (ch <= i32(0x39)))
+    )
 );
 
-inline_entity :: (fn(state: *(InlineState)) -> bool)({
+inline_entity :: (fn(state : *InlineState) -> bool)({
   (pos : i32) = state.*.pos;
   (max : i32) = state.*.pos_max;
 
-  if((i32((state.*.src_ptr.add(usize(pos))).*) != i32(0x26)), { return(false); });
-  if(((pos + i32(1)) >= max), { return(false); });
+  if(i32((state.*.src_ptr.add(usize(pos))).*) != i32(0x26), {
+    return(false);
+  });
+  if((pos + i32(1)) >= max, {
+    return(false);
+  });
 
-  (ch : i32) = i32((state.*.src_ptr.add(usize((pos + i32(1))))).*);
+  (ch : i32) = i32((state.*.src_ptr.add(usize(pos + i32(1)))).*);
 
-  if((ch == i32(0x23)), {
+  if(ch == i32(0x23), {
     // Numeric entity: &#123; or &#x1F4A9;
-    if(((pos + i32(2)) >= max), { return(false); });
+    if((pos + i32(2)) >= max, {
+      return(false);
+    });
 
-    (ch2 : i32) = i32((state.*.src_ptr.add(usize((pos + i32(2))))).*);
-    if(((ch2 == i32(0x78)) || (ch2 == i32(0x58))), {
+    (ch2 : i32) = i32((state.*.src_ptr.add(usize(pos + i32(2)))).*);
+    if((ch2 == i32(0x78)) || (ch2 == i32(0x58)), {
       // Hex: &#xHHHH;
       (p : i32) = (pos + i32(3));
       (digit_count : i32) = i32(0);
@@ -48,18 +57,28 @@ inline_entity :: (fn(state: *(InlineState)) -> bool)({
         digit_count = (digit_count + i32(1));
         p = (p + i32(1));
       });
-      if(((digit_count >= i32(1)) && ((digit_count <= i32(6)) && ((p < max) && (i32((state.*.src_ptr.add(usize(p))).*) == i32(0x3B))))), {
+      if((digit_count >= i32(1)) && ((digit_count <= i32(6)) && ((p < max) && (i32((state.*.src_ptr.add(usize(p))).*) == i32(0x3B)))), {
         state.*.push_pending();
-        _ := state.*.tokens.push(InlineToken(
-          type_name: .Entity,
-          start: pos, end: (p + i32(1)),
-          nesting: i32(0), level: state.*.level,
-          info_start: i32(0), info_end: i32(0),
-          title_start: i32(0), title_end: i32(0),
-          markup_char: u8(0), markup_len: u8(0),
-          content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1)),
-          block: false, hidden: false
-        ));
+        _ := state.*.tokens.push(
+          InlineToken(
+            type_name : .Entity,
+            start : pos,
+            end : (p + i32(1)),
+            nesting : i32(0),
+            level : state.*.level,
+            info_start : i32(0),
+            info_end : i32(0),
+            title_start : i32(0),
+            title_end : i32(0),
+            markup_char : u8(0),
+            markup_len : u8(0),
+            content_idx : (i32(0) - i32(1)),
+            href_idx : (i32(0) - i32(1)),
+            title_idx : (i32(0) - i32(1)),
+            block : false,
+            hidden : false
+          )
+        );
         state.*.pos = (p + i32(1));
         state.*.pending_start = state.*.pos;
         state.*.pending_end = state.*.pos;
@@ -73,18 +92,28 @@ inline_entity :: (fn(state: *(InlineState)) -> bool)({
         digit_count = (digit_count + i32(1));
         p = (p + i32(1));
       });
-      if(((digit_count >= i32(1)) && ((digit_count <= i32(7)) && ((p < max) && (i32((state.*.src_ptr.add(usize(p))).*) == i32(0x3B))))), {
+      if((digit_count >= i32(1)) && ((digit_count <= i32(7)) && ((p < max) && (i32((state.*.src_ptr.add(usize(p))).*) == i32(0x3B)))), {
         state.*.push_pending();
-        _ := state.*.tokens.push(InlineToken(
-          type_name: .Entity,
-          start: pos, end: (p + i32(1)),
-          nesting: i32(0), level: state.*.level,
-          info_start: i32(0), info_end: i32(0),
-          title_start: i32(0), title_end: i32(0),
-          markup_char: u8(0), markup_len: u8(0),
-          content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1)),
-          block: false, hidden: false
-        ));
+        _ := state.*.tokens.push(
+          InlineToken(
+            type_name : .Entity,
+            start : pos,
+            end : (p + i32(1)),
+            nesting : i32(0),
+            level : state.*.level,
+            info_start : i32(0),
+            info_end : i32(0),
+            title_start : i32(0),
+            title_end : i32(0),
+            markup_char : u8(0),
+            markup_len : u8(0),
+            content_idx : (i32(0) - i32(1)),
+            href_idx : (i32(0) - i32(1)),
+            title_idx : (i32(0) - i32(1)),
+            block : false,
+            hidden : false
+          )
+        );
         state.*.pos = (p + i32(1));
         state.*.pending_start = state.*.pos;
         state.*.pending_end = state.*.pos;
@@ -100,22 +129,32 @@ inline_entity :: (fn(state: *(InlineState)) -> bool)({
         name_len = (name_len + i32(1));
         p = (p + i32(1));
       });
-      if(((p < max) && (i32((state.*.src_ptr.add(usize(p))).*) == i32(0x3B))), {
+      if((p < max) && (i32((state.*.src_ptr.add(usize(p))).*) == i32(0x3B)), {
         // Validate: check if entity name is known
         state.*.entity_buf.clear();
-        (name_ptr : *(u8)) = (state.*.src_ptr.add(usize((pos + i32(1)))));
-        if(decode_named_entity(name_ptr, name_len, (&(state.*.entity_buf))), {
+        (name_ptr : *u8) = (state.*.src_ptr.add(usize(pos + i32(1))));
+        if(decode_named_entity(name_ptr, name_len, &(state.*.entity_buf)), {
           state.*.push_pending();
-          _ := state.*.tokens.push(InlineToken(
-            type_name: .Entity,
-            start: pos, end: (p + i32(1)),
-            nesting: i32(0), level: state.*.level,
-            info_start: i32(0), info_end: i32(0),
-            title_start: i32(0), title_end: i32(0),
-            markup_char: u8(0), markup_len: u8(0),
-            content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1)),
-            block: false, hidden: false
-          ));
+          _ := state.*.tokens.push(
+            InlineToken(
+              type_name : .Entity,
+              start : pos,
+              end : (p + i32(1)),
+              nesting : i32(0),
+              level : state.*.level,
+              info_start : i32(0),
+              info_end : i32(0),
+              title_start : i32(0),
+              title_end : i32(0),
+              markup_char : u8(0),
+              markup_len : u8(0),
+              content_idx : (i32(0) - i32(1)),
+              href_idx : (i32(0) - i32(1)),
+              title_idx : (i32(0) - i32(1)),
+              block : false,
+              hidden : false
+            )
+          );
           state.*.pos = (p + i32(1));
           state.*.pending_start = state.*.pos;
           state.*.pending_end = state.*.pos;

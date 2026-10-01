@@ -1,4 +1,21 @@
 { assert } :: import("std/assert");
+{ String } :: import("std/string");
+{ markdown_to_html, default_options } :: import("../src/lib.yo");
+
 test("it works", {
   assert((1 + 1) == 2, "math is broken");
-};
+});
+
+// escape_html_buf reserved ~12.5% headroom and wrote escapes straight into
+// the buffer, but `"` escapes to 6 bytes: 5000 quotes wrote past capacity
+// (issues/escape-dense-text-overflows-the-output-buffer.md).
+test("escape-dense text grows the output instead of overflowing it", {
+  (src : String) = String.new();
+  (i : usize) = usize(0);
+  while(i < usize(5000), {
+    src.push_str("\"");
+    i = (i + usize(1));
+  });
+  html := markdown_to_html(src, default_options());
+  assert(html.len() == usize(30008), `expected <p> + 5000 &quot; + </p>\n, got ${html.len().to_string()} bytes`);
+});

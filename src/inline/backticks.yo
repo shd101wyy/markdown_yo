@@ -2,16 +2,19 @@
 //
 // Matches: `code` or ``code with ` inside``
 // The number of opening and closing backticks must match.
-
 pragma(Pragma.AllowUnsafe);
 { InlineState, InlineToken } :: import("./state.yo");
 
-inline_backticks :: (fn(state: *(InlineState)) -> bool)({
+inline_backticks :: (fn(state : *InlineState) -> bool)({
   (pos : i32) = state.*.pos;
-  if((pos >= state.*.pos_max), { return(false); });
+  if(pos >= state.*.pos_max, {
+    return(false);
+  });
 
   (ch : i32) = i32((state.*.src_ptr.add(usize(pos))).*);
-  if((ch != i32(0x60)), { return(false); });
+  if(ch != i32(0x60), {
+    return(false);
+  });
 
   // Count opening backticks
   (open_count : i32) = i32(0);
@@ -27,8 +30,8 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
   (close_start : i32) = i32(0);
   (close_end : i32) = i32(0);
 
-  while((search < state.*.pos_max) && !(found), {
-    if((i32((state.*.src_ptr.add(usize(search))).*) == i32(0x60)), {
+  while((search < state.*.pos_max) && !found, {
+    if(i32((state.*.src_ptr.add(usize(search))).*) == i32(0x60), {
       // Count close backticks
       (cnt : i32) = i32(0);
       (cs : i32) = search;
@@ -37,7 +40,7 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
         cs = (cs + i32(1));
       });
 
-      if((cnt == open_count), {
+      if(cnt == open_count, {
         close_start = search;
         close_end = cs;
         found = true;
@@ -49,7 +52,7 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
     });
   });
 
-  if(!(found), {
+  if(!found, {
     // No matching close — treat opening backticks as literal text
     state.*.pending_end = p;
     state.*.pos = p;
@@ -67,23 +70,23 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
   // Newlines count because the renderer converts them to spaces.
   (content_start : i32) = p;
   (content_end : i32) = close_start;
-  if(((content_end - content_start) >= i32(2)), {
+  if((content_end - content_start) >= i32(2), {
     (first : i32) = i32((state.*.src_ptr.add(usize(content_start))).*);
-    (last : i32) = i32((state.*.src_ptr.add(usize((content_end - i32(1))))).*);
+    (last : i32) = i32((state.*.src_ptr.add(usize(content_end - i32(1)))).*);
     (first_is_space : bool) = ((first == i32(0x20)) || (first == i32(0x0A)));
     (last_is_space : bool) = ((last == i32(0x20)) || (last == i32(0x0A)));
-    if((first_is_space && last_is_space), {
+    if(first_is_space && last_is_space, {
       // Check content is not all whitespace — count non-whitespace chars
       (non_space_count : i32) = i32(0);
       (sp : i32) = content_start;
       while(sp < content_end, {
         (c : i32) = i32((state.*.src_ptr.add(usize(sp))).*);
-        if(((c != i32(0x20)) && (c != i32(0x0A))), {
+        if((c != i32(0x20)) && (c != i32(0x0A)), {
           non_space_count = (non_space_count + i32(1));
         });
         sp = (sp + i32(1));
       });
-      if((non_space_count > i32(0)), {
+      if(non_space_count > i32(0), {
         content_start = (content_start + i32(1));
         content_end = (content_end - i32(1));
       });
@@ -91,17 +94,23 @@ inline_backticks :: (fn(state: *(InlineState)) -> bool)({
   });
 
   // Update token with content range
-&(  state.*.tokens(usize(tok_idx))).* = InlineToken(
-    type_name: .CodeInline,
-    start: content_start,
-    end: content_end,
-    nesting: i32(0),
-    level: state.*.level,
-    info_start: i32(0), info_end: i32(0),
-    title_start: i32(0), title_end: i32(0),
-    markup_char: u8(0x60), markup_len: u8(open_count),
-    content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1)),
-    block: false, hidden: false
+  &(state.*.tokens(usize(tok_idx))).* = InlineToken(
+    type_name : .CodeInline,
+    start : content_start,
+    end : content_end,
+    nesting : i32(0),
+    level : state.*.level,
+    info_start : i32(0),
+    info_end : i32(0),
+    title_start : i32(0),
+    title_end : i32(0),
+    markup_char : u8(0x60),
+    markup_len : u8(open_count),
+    content_idx : (i32(0) - i32(1)),
+    href_idx : (i32(0) - i32(1)),
+    title_idx : (i32(0) - i32(1)),
+    block : false,
+    hidden : false
   );
 
   state.*.pos = close_end;

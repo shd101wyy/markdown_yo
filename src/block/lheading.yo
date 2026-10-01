@@ -1,7 +1,6 @@
 // markdown_yo — Setext heading rule (lheading)
 //
 // Matches: text followed by === (h1) or --- (h2) underline
-
 pragma(Pragma.AllowUnsafe);
 import("std/string");
 { ArrayList } :: import("std/collections/array_list");
@@ -12,7 +11,7 @@ import("std/string");
 { _try_block_terminate } :: import("./terminators.yo");
 
 // Build inline content from multiple lines into the reusable _line_buf
-_build_lheading_inline_buf :: (fn(state: *(BlockState), start_line: i32, end_line: i32) -> unit)({
+_build_lheading_inline_buf :: (fn(state : *BlockState, start_line : i32, end_line : i32) -> unit)({
   state.*._line_buf.clear();
   (line : i32) = start_line;
   while(line < end_line, {
@@ -23,24 +22,26 @@ _build_lheading_inline_buf :: (fn(state: *(BlockState), start_line: i32, end_lin
 
     // Trim trailing spaces
     (content_end : i32) = em;
-    while((content_end > content_start) && is_space(i32((state.*.src_ptr.add(usize((content_end - i32(1))))).*)), {
+    while((content_end > content_start) && is_space(i32((state.*.src_ptr.add(usize(content_end - i32(1)))).*)), {
       content_end = (content_end - i32(1));
     });
 
-    if((content_end > content_start), {
-      if((line > start_line), {
+    if(content_end > content_start, {
+      if(line > start_line, {
         _ := state.*._line_buf.push(u8(0x0A));
       });
-      state.*._line_buf.extend_from_ptr((state.*.src_ptr.add(usize(content_start))), usize((content_end - content_start)));
+      state.*._line_buf.extend_from_ptr(state.*.src_ptr.add(usize(content_start)), usize(content_end - content_start));
     });
 
     line = (line + i32(1));
   });
 });
 
-block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+block_lheading :: (fn(state : *BlockState, start_line : i32, end_line : i32, silent : bool) -> bool)({
   // Must not be indented >3 spaces
-  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return(false); });
+  if((state.sc(start_line) - state.*.blk_indent) >= i32(4), {
+    return(false);
+  });
 
   (old_parent_type : ParentType) = state.*.parent_type;
   state.*.parent_type = .Paragraph;
@@ -50,21 +51,21 @@ block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sile
   (next_line : i32) = (start_line + i32(1));
 
   (searching : bool) = true;
-  while(((next_line < end_line) && !(state.*.is_empty(next_line))) && searching, {
-    if(((state.sc(next_line) - state.*.blk_indent) > i32(3)), {
+  while((next_line < end_line) && !(state.*.is_empty(next_line)) && searching, {
+    if((state.sc(next_line) - state.*.blk_indent) > i32(3), {
       // Lazy continuation
       next_line = (next_line + i32(1));
     }, {
       // Check for underline
       (found_underline : bool) = false;
-      if((state.sc(next_line) >= state.*.blk_indent), {
+      if(state.sc(next_line) >= state.*.blk_indent, {
         (pos : i32) = (state.bm(next_line) + state.ts(next_line));
         (max : i32) = state.em(next_line);
 
-        if((pos < max), {
+        if(pos < max, {
           (marker : i32) = i32((state.*.src_ptr.add(usize(pos))).*);
 
-          if(((marker == i32(0x2D)) || (marker == i32(0x3D))), {
+          if((marker == i32(0x2D)) || (marker == i32(0x3D)), {
             // Skip marker chars
             (p : i32) = pos;
             while((p < max) && (i32((state.*.src_ptr.add(usize(p))).*) == marker), {
@@ -73,7 +74,7 @@ block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sile
             // Skip trailing spaces
             p = state.*.skip_spaces(p);
 
-            if((p >= max), {
+            if(p >= max, {
               level = cond(
                 (marker == i32(0x3D)) => i32(1),
                 true => i32(2)
@@ -88,11 +89,11 @@ block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sile
         searching = false;
       }, {
         // Blockquote quirk: sCount < 0 means continuation line
-        if((state.sc(next_line) < i32(0)), {
+        if(state.sc(next_line) < i32(0), {
           next_line = (next_line + i32(1));
         }, {
           // Check terminator rules (silent mode)
-          if((_try_block_terminate(state, next_line, end_line)), {
+          if(_try_block_terminate(state, next_line, end_line), {
             searching = false;
           }, {
             next_line = (next_line + i32(1));
@@ -102,7 +103,7 @@ block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sile
     });
   });
 
-  if((level == i32(0)), {
+  if(level == i32(0), {
     state.*.parent_type = old_parent_type;
     return(false);
   });
@@ -118,21 +119,21 @@ block_lheading :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sile
 
   // Build inline content and parse it
   // Single-line: zero-copy path
-  if((next_line == (start_line + i32(1))), {
+  if(next_line == (start_line + i32(1)), {
     (bm : i32) = state.bm(start_line);
     (ts : i32) = state.ts(start_line);
     (em : i32) = state.em(start_line);
     (content_start : i32) = (bm + ts);
     (content_end : i32) = em;
-    while(((content_end > content_start) && ((state.*.src_ptr.add(usize((content_end - i32(1))))).* == u8(0x20))), {
+    while((content_end > content_start) && ((state.*.src_ptr.add(usize(content_end - i32(1)))).* == u8(0x20)), {
       content_end = (content_end - i32(1));
     });
-    inline_parse_range((&(state.*._inline_state)), state.*.src_ptr, content_start, content_end);
+    inline_parse_range(&(state.*._inline_state), state.*.src_ptr, content_start, content_end);
   }, {
     _build_lheading_inline_buf(state, start_line, next_line);
-    (buf_ptr : *(u8)) = state.*._line_buf.ptr().unwrap();
+    (buf_ptr : *u8) = state.*._line_buf.ptr().unwrap();
     (buf_len : i32) = i32(state.*._line_buf.len());
-    inline_parse_range((&(state.*._inline_state)), buf_ptr, i32(0), buf_len);
+    inline_parse_range(&(state.*._inline_state), buf_ptr, i32(0), buf_len);
   });
 
   state.*.renderer.*.close_heading(level);

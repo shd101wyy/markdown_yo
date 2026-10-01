@@ -1,6 +1,5 @@
 // Punycode encoder/decoder (RFC 3492)
 // Used for Internationalized Domain Names (IDN)
-
 pragma(Pragma.AllowUnsafe);
 { String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
@@ -15,7 +14,7 @@ _PC_INITIAL_BIAS :: i32(72);
 _PC_INITIAL_N :: i32(128);
 
 // Adapt bias (RFC 3492 section 6.1)
-_adapt :: (fn(delta_in: i32, num_points: i32, first_time: bool) -> i32)({
+_adapt :: (fn(delta_in : i32, num_points : i32, first_time : bool) -> i32)({
   (delta : i32) = cond(
     first_time => (delta_in / _PC_DAMP),
     true => (delta_in / i32(2))
@@ -30,15 +29,16 @@ _adapt :: (fn(delta_in: i32, num_points: i32, first_time: bool) -> i32)({
 });
 
 // Encode a digit value to a basic code point
-_encode_digit :: (fn(d: i32) -> u8)(
+_encode_digit :: (fn(d : i32) -> u8)(
   cond(
-    (d < i32(26)) => u8((d + i32(0x61))),  // a-z
-    true => u8(((d - i32(26)) + i32(0x30)))  // 0-9
+    // a-z
+    (d < i32(26)) => u8((d + i32(0x61))),
+    true => u8(((d - i32(26)) + i32(0x30))) // 0-9
   )
 );
 
 // Decode a basic code point to a digit value
-_decode_digit :: (fn(cp: i32) -> i32)(
+_decode_digit :: (fn(cp : i32) -> i32)(
   cond(
     ((cp >= i32(0x30)) && (cp <= i32(0x39))) => ((cp - i32(0x30)) + i32(26)),
     ((cp >= i32(0x41)) && (cp <= i32(0x5A))) => (cp - i32(0x41)),
@@ -50,7 +50,7 @@ _decode_digit :: (fn(cp: i32) -> i32)(
 // Decode a punycode-encoded string (without "xn--" prefix) to Unicode codepoints,
 // then re-encode as UTF-8 string.
 // Returns .None on decode error.
-punycode_decode :: (fn(input: str) -> Option(String))({
+punycode_decode :: (fn(input : str) -> Option(String))({
   (src : *(u8)) = input.ptr();
   (len : i32) = i32(input.len());
 
@@ -163,7 +163,7 @@ punycode_decode :: (fn(input: str) -> Option(String))({
 
 // Encode a Unicode string as punycode (without "xn--" prefix).
 // Input is UTF-8 encoded.
-punycode_encode :: (fn(input: str) -> String)({
+punycode_encode :: (fn(input : str) -> String)({
   (src : *(u8)) = input.ptr();
   (len : i32) = i32(input.len());
 
@@ -269,7 +269,7 @@ punycode_encode :: (fn(input: str) -> String)({
 });
 
 // Check if a domain label contains any non-ASCII characters
-_has_non_ascii :: (fn(src: *(u8), start: i32, end: i32) -> bool)({
+_has_non_ascii :: (fn(src : *(u8), start : i32, end : i32) -> bool)({
   (p : i32) = start;
   (found : bool) = false;
   while((p < end) && !(found), {
@@ -283,7 +283,7 @@ _has_non_ascii :: (fn(src: *(u8), start: i32, end: i32) -> bool)({
 
 // Encode domain name (Unicode → punycode for each label with non-ASCII)
 // Input: domain like "☃.net", output: "xn--n3h.net"
-encode_domain :: (fn(domain_ptr: *(u8), domain_len: i32) -> String)({
+encode_domain :: (fn(domain_ptr : *(u8), domain_len : i32) -> String)({
   (src : *(u8)) = domain_ptr;
   (len : i32) = domain_len;
   (result : ArrayList(u8)) = ArrayList(u8).new();
@@ -298,10 +298,10 @@ encode_domain :: (fn(domain_ptr: *(u8), domain_len: i32) -> String)({
 
     if(_has_non_ascii(src, start, end), {
       // Encode this label as punycode
-      _ := result.push(u8(0x78));  // x
-      _ := result.push(u8(0x6E));  // n
-      _ := result.push(u8(0x2D));  // -
-      _ := result.push(u8(0x2D));  // -
+      _ := result.push(u8(0x78)); // x
+      _ := result.push(u8(0x6E)); // n
+      _ := result.push(u8(0x2D)); // -
+      _ := result.push(u8(0x2D)); // -
       (label : str) = str.from_raw_parts((src.add(usize(start))), usize((end - start)));
       (encoded : String) = punycode_encode(label);
       (enc_ptr : *(u8)) = match(encoded.as_bytes().ptr(), .Some(p_) => p_, .None => *(u8)(""));
@@ -334,7 +334,7 @@ encode_domain :: (fn(domain_ptr: *(u8), domain_len: i32) -> String)({
 
 // Decode domain name (punycode → Unicode for each xn-- label)
 // Input: domain like "xn--n3h.net", output: "☃.net"
-decode_domain :: (fn(domain_ptr: *(u8), domain_len: i32) -> String)({
+decode_domain :: (fn(domain_ptr : *(u8), domain_len : i32) -> String)({
   (src : *(u8)) = domain_ptr;
   (len : i32) = domain_len;
   (result : ArrayList(u8)) = ArrayList(u8).new();
@@ -349,15 +349,24 @@ decode_domain :: (fn(domain_ptr: *(u8), domain_len: i32) -> String)({
 
     (label_len : i32) = (end - start);
     // Check for "xn--" prefix (case-insensitive)
-    if(((label_len > i32(4))
-      && (((i32((src.add(usize(start))).*) == i32(0x78)) || (i32((src.add(usize(start))).*) == i32(0x58)))
-      && (((i32((src.add(usize((start + i32(1))))).*) == i32(0x6E)) || (i32((src.add(usize((start + i32(1))))).*) == i32(0x4E)))
-      && ((i32((src.add(usize((start + i32(2))))).*) == i32(0x2D))
-      && (i32((src.add(usize((start + i32(3))))).*) == i32(0x2D)))))), {
+    if((
+      (label_len > i32(4))
+      && (
+        ((i32((src.add(usize(start))).*) == i32(0x78)) || (i32((src.add(usize(start))).*) == i32(0x58)))
+        && (
+          ((i32((src.add(usize((start + i32(1))))).*) == i32(0x6E)) || (i32((src.add(usize((start + i32(1))))).*) == i32(0x4E)))
+          && (
+            (i32((src.add(usize((start + i32(2))))).*) == i32(0x2D))
+            && (i32((src.add(usize((start + i32(3))))).*) == i32(0x2D))
+          )
+        )
+      )
+    ), {
       // Decode punycode label
       (pc_str : str) = str.from_raw_parts((src.add(usize((start + i32(4))))), usize(((end - start) - i32(4))));
       (decoded : Option(String)) = punycode_decode(pc_str);
-      match(decoded,
+      match(
+        decoded,
         .Some(s) => {
           // Check decoded has no non-ASCII? No, it should have non-ASCII
           // Check if decoded label is valid — it should contain non-ASCII chars

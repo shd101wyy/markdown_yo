@@ -1,13 +1,14 @@
 // markdown_yo — Inline newline rule
 //
 // Handles hard break (2+ trailing spaces + \n, or \\\n) and soft break (\n).
-
 pragma(Pragma.AllowUnsafe);
 { InlineState, InlineToken } :: import("./state.yo");
 
-inline_newline :: (fn(state: *(InlineState)) -> bool)({
+inline_newline :: (fn(state : *InlineState) -> bool)({
   (pos : i32) = state.*.pos;
-  if((i32((state.*.src_ptr.add(usize(pos))).*) != i32(0x0A)), { return(false); });
+  if(i32((state.*.src_ptr.add(usize(pos))).*) != i32(0x0A), {
+    return(false);
+  });
 
   // Count trailing spaces in pending text before pushing
   (back : i32) = (pos - i32(1));
@@ -18,16 +19,16 @@ inline_newline :: (fn(state: *(InlineState)) -> bool)({
   });
 
   // Trim trailing spaces from pending before flushing
-  if((space_count > i32(0)), {
+  if(space_count > i32(0), {
     state.*.pending_end = (state.*.pending_end - space_count);
   });
 
   state.*.push_pending();
 
-  if((space_count >= i32(2)), {
+  if(space_count >= i32(2), {
     _ := state.*.tokens.push(InlineToken.simple(.Hardbreak, i32(0), state.*.level));
   }, {
-    if((space_count == i32(1)), {
+    if(space_count == i32(1), {
       _ := state.*.tokens.push(InlineToken.simple(.Softbreak, i32(0), state.*.level));
     }, {
       _ := state.*.tokens.push(InlineToken.simple(.Softbreak, i32(0), state.*.level));

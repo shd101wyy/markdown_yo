@@ -5,47 +5,46 @@
 // - If no |, display = target
 // - Cannot span multiple lines
 // - Empty [[ ]] is not a wikilink
-
 pragma(Pragma.AllowUnsafe);
 import("std/string");
 
 { InlineToken, InlineState } :: import("./state.yo");
 { InlineType } :: import("../types.yo");
 
-inline_wikilink :: (fn(state : *(InlineState)) -> bool)({
-  (src : *(u8)) = state.*.src_ptr;
+inline_wikilink :: (fn(state : *InlineState) -> bool)({
+  (src : *u8) = state.*.src_ptr;
   max := state.*.pos_max;
   pos := state.*.pos;
 
   // Need at least [[ + one char + ]]  →  5 chars
-  if(((pos + i32(5)) > max), return(false));
+  if((pos + i32(5)) > max, return(false));
 
   // Must start with [[
-  if((i32((src.add(usize(pos))).*) != i32(0x5B)), return(false));
-  if((i32((src.add(usize((pos + i32(1))))).*) != i32(0x5B)), return(false));
+  if(i32((src.add(usize(pos))).*) != i32(0x5B), return(false));
+  if(i32((src.add(usize(pos + i32(1)))).*) != i32(0x5B), return(false));
 
   // Scan for ]] tracking | position
   (pipe_pos : i32) = (i32(0) - i32(1));
   (scan : i32) = (pos + i32(2));
 
   while(runtime(true), {
-    if((scan >= max), {
+    if(scan >= max, {
       return(false);
     });
     (ch : i32) = i32((src.add(usize(scan))).*);
 
     // Newline terminates search
-    if((ch == i32(0x0A)), {
+    if(ch == i32(0x0A), {
       return(false);
     });
 
     // Found ]]
-    if(((ch == i32(0x5D)) && (((scan + i32(1)) < max) && (i32((src.add(usize((scan + i32(1))))).*) == i32(0x5D)))), {
+    if((ch == i32(0x5D)) && (((scan + i32(1)) < max) && (i32((src.add(usize(scan + i32(1)))).*) == i32(0x5D))), {
       break;
     });
 
     // Track first | for display separator
-    if(((ch == i32(0x7C)) && (pipe_pos == (i32(0) - i32(1)))), {
+    if((ch == i32(0x7C)) && (pipe_pos == (i32(0) - i32(1))), {
       pipe_pos = scan;
     });
 
@@ -57,7 +56,7 @@ inline_wikilink :: (fn(state : *(InlineState)) -> bool)({
   content_end := scan;
 
   // Empty content is not a wikilink
-  if((content_start >= content_end), return(false));
+  if(content_start >= content_end, return(false));
 
   // Determine href and display ranges
   (href_start : i32) = content_start;
@@ -65,7 +64,7 @@ inline_wikilink :: (fn(state : *(InlineState)) -> bool)({
   (display_start : i32) = content_start;
   (display_end : i32) = content_end;
 
-  if((pipe_pos != (i32(0) - i32(1))), {
+  if(pipe_pos != (i32(0) - i32(1)), {
     href_end = pipe_pos;
     display_start = (pipe_pos + i32(1));
   });
@@ -73,22 +72,22 @@ inline_wikilink :: (fn(state : *(InlineState)) -> bool)({
   // Create a single Wikilink token storing href in info and display in title
   state.*.push_pending();
   tok := InlineToken(
-    type_name: .Wikilink,
-    start: pos,
-    end: (scan + i32(2)),
-    nesting: i32(0),
-    level: state.*.level,
-    info_start: href_start,
-    info_end: href_end,
-    title_start: display_start,
-    title_end: display_end,
-    markup_char: u8(0x5B),
-    markup_len: u8(2),
-    block: false,
-    hidden: false,
-    content_idx: (i32(0) - i32(1)),
-    href_idx: (i32(0) - i32(1)),
-    title_idx: (i32(0) - i32(1))
+    type_name : .Wikilink,
+    start : pos,
+    end : (scan + i32(2)),
+    nesting : i32(0),
+    level : state.*.level,
+    info_start : href_start,
+    info_end : href_end,
+    title_start : display_start,
+    title_end : display_end,
+    markup_char : u8(0x5B),
+    markup_len : u8(2),
+    block : false,
+    hidden : false,
+    content_idx : (i32(0) - i32(1)),
+    href_idx : (i32(0) - i32(1)),
+    title_idx : (i32(0) - i32(1))
   );
 
   _ := state.*.tokens.push(tok);

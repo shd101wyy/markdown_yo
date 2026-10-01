@@ -3,7 +3,6 @@
 // Matches: [label]: destination "title"
 // Labels, destinations, and titles can span multiple lines.
 // Stores references in env for later use by inline parser.
-
 pragma(Pragma.AllowUnsafe);
 { String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
@@ -18,7 +17,7 @@ pragma(Pragma.AllowUnsafe);
 // Uses .toLowerCase().toUpperCase() equivalent (Unicode case folding) to match
 // markdown-it's normalizeReference behavior.
 // Also treats newlines as whitespace (for multiline labels)
-_normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
+_normalize_label :: (fn(src : *(u8), start : i32, end : i32) -> String)({
   (result : ArrayList(u8)) = ArrayList(u8).new();
   (p : i32) = start;
   (last_was_space : bool) = true;
@@ -43,18 +42,26 @@ _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
         if(((p + i32(1)) < end), {
           cp = (((ch_byte - i32(0xC0)) * i32(64)) + (i32((src.add(usize((p + i32(1))))).*) - i32(0x80)));
           bytes_consumed = i32(2);
-        }, { cp = ch_byte; });
+        }, {
+          cp = ch_byte;
+        });
       }, if(((ch_byte >= i32(0xE0)) && (ch_byte < i32(0xF0))), {
         if(((p + i32(2)) < end), {
           cp = ((((ch_byte - i32(0xE0)) * i32(4096)) + ((i32((src.add(usize((p + i32(1))))).*) - i32(0x80)) * i32(64))) + (i32((src.add(usize((p + i32(2))))).*) - i32(0x80)));
           bytes_consumed = i32(3);
-        }, { cp = ch_byte; });
+        }, {
+          cp = ch_byte;
+        });
       }, if(((ch_byte >= i32(0xF0)) && (ch_byte < i32(0xF8))), {
         if(((p + i32(3)) < end), {
           cp = (((((ch_byte - i32(0xF0)) * i32(262144)) + ((i32((src.add(usize((p + i32(1))))).*) - i32(0x80)) * i32(4096))) + ((i32((src.add(usize((p + i32(2))))).*) - i32(0x80)) * i32(64))) + (i32((src.add(usize((p + i32(3))))).*) - i32(0x80)));
           bytes_consumed = i32(4);
-        }, { cp = ch_byte; });
-      }, { cp = ch_byte; }))));
+        }, {
+          cp = ch_byte;
+        });
+      }, {
+        cp = ch_byte;
+      }))));
 
       p = (p + bytes_consumed);
 
@@ -164,7 +171,7 @@ _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
 
 // Unescape a byte range: handle backslash escapes and HTML entity decoding
 // This matches markdown-it's unescapeAll behavior
-_unescape_range :: (fn(src: *(u8), start: i32, end: i32) -> String)({
+_unescape_range :: (fn(src : *(u8), start : i32, end : i32) -> String)({
   (result : ArrayList(u8)) = ArrayList(u8).new();
   (p : i32) = start;
 
@@ -173,10 +180,12 @@ _unescape_range :: (fn(src: *(u8), start: i32, end: i32) -> String)({
     if(((ch == u8(0x5C)) && ((p + i32(1)) < end)), {
       (next : u8) = (src.add(usize((p + i32(1))))).*;
       // Check if next is an ASCII punctuation character
-      if((((next >= u8(0x21)) && (next <= u8(0x2F)))
+      if((
+        ((next >= u8(0x21)) && (next <= u8(0x2F)))
         || ((next >= u8(0x3A)) && (next <= u8(0x40)))
         || ((next >= u8(0x5B)) && (next <= u8(0x60)))
-        || ((next >= u8(0x7B)) && (next <= u8(0x7E)))), {
+        || ((next >= u8(0x7B)) && (next <= u8(0x7E)))
+      ), {
         _ := result.push(next);
         p = (p + i32(2));
       }, {
@@ -201,7 +210,7 @@ _unescape_range :: (fn(src: *(u8), start: i32, end: i32) -> String)({
   String.from_bytes(result)
 });
 
-block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+block_reference :: (fn(state : *(BlockState), start_line : i32, end_line : i32, silent : bool) -> bool)({
   (src : *(u8)) = state.*.src_ptr;
   (bm : i32) = state.bm(start_line);
   (ts : i32) = state.ts(start_line);
@@ -210,11 +219,17 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
   (end_l : i32) = state.*.line_max;
 
   // Must not be indented >3 spaces
-  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return(false); });
+  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), {
+    return(false);
+  });
 
   (initial_pos : i32) = (bm + ts);
-  if((initial_pos >= em), { return(false); });
-  if((i32((src.add(usize(initial_pos))).*) != i32(0x5B)), { return(false); });
+  if((initial_pos >= em), {
+    return(false);
+  });
+  if((i32((src.add(usize(initial_pos))).*) != i32(0x5B)), {
+    return(false);
+  });
 
   // Build concatenated string buffer (like markdown-it)
   // Each line is appended as: content from tShift to eMarks + newline
@@ -239,7 +254,6 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
   // Inline the getNextLine logic from markdown-it
   // _try_extend checks: not past end, not empty, lazy continuation / blockquote quirk, terminator rules
   // On success: appends content to str_buf, updates max, increments next_line
-
   // ---- Parse label ----
   pos = i32(1); // skip [
   (label_end : i32) = (i32(0) - i32(1));
@@ -249,7 +263,9 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
     (s_ptr : *(u8)) = str_buf.ptr().unwrap_or(src);
     (ch : i32) = i32((s_ptr.add(usize(pos))).*);
     cond(
-      (ch == i32(0x5B)) => { return(false); },
+      (ch == i32(0x5B)) => {
+        return(false);
+      },
       (ch == i32(0x5D)) => {
         label_end = pos;
         label_scan_done = true;
@@ -264,8 +280,8 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
           if((state.sc(next_line) < i32(0)), {
             is_cont = true;
           });
-          if((!(is_cont) && _try_block_terminate(state, next_line, end_l)),  // terminated, don't extend
-            () , {
+          // terminated, don't extend
+          if((!(is_cont) && _try_block_terminate(state, next_line, end_l)), (), {
             // Extend: append next line content
             (nl_bm : i32) = state.bm(next_line);
             (nl_ts : i32) = state.ts(next_line);
@@ -298,7 +314,7 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
               if((state.sc(next_line) < i32(0)), {
                 is_cont2 = true;
               });
-              if((!(is_cont2) && _try_block_terminate(state, next_line, end_l)),  () , {
+              if((!(is_cont2) && _try_block_terminate(state, next_line, end_l)), (), {
                 (nl_bm2 : i32) = state.bm(next_line);
                 (nl_ts2 : i32) = state.ts(next_line);
                 (nl_em2 : i32) = state.em(next_line);
@@ -320,15 +336,21 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
       },
       true => ()
     );
-    if(!(label_scan_done), { pos = (pos + i32(1)); });
+    if(!(label_scan_done), {
+      pos = (pos + i32(1));
+    });
   });
 
-  if((label_end < i32(0)), { return(false); });
+  if((label_end < i32(0)), {
+    return(false);
+  });
 
   // Check for : after ]
   (s_ptr : *(u8)) = str_buf.ptr().unwrap_or(src);
   pos = (label_end + i32(1));
-  if(((pos >= max) || (i32((s_ptr.add(usize(pos))).*) != i32(0x3A))), { return(false); });
+  if(((pos >= max) || (i32((s_ptr.add(usize(pos))).*) != i32(0x3A))), {
+    return(false);
+  });
   pos = (pos + i32(1));
 
   // ---- Skip whitespace (including newlines → extend) ----
@@ -390,21 +412,29 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
       s_ptr = str_buf.ptr().unwrap_or(src);
       (c : i32) = i32((s_ptr.add(usize(pos))).*);
       cond(
-        (c == i32(0x0A)) => { return(false); },
-        (c == i32(0x3C)) => { return(false); },
+        (c == i32(0x0A)) => {
+          return(false);
+        },
+        (c == i32(0x3C)) => {
+          return(false);
+        },
         (c == i32(0x3E)) => {
           dest_end = pos;
           found_close = true;
         },
         (c == i32(0x5C)) => {
           pos = (pos + i32(1));
-          if((pos >= max), { return(false); });
+          if((pos >= max), {
+            return(false);
+          });
         },
         true => ()
       );
       pos = (pos + i32(1));
     });
-    if(!(found_close), { return(false); });
+    if(!(found_close), {
+      return(false);
+    });
     dest_ok = true;
   }, {
     // Bare URL (no spaces, balanced parens, reject control chars)
@@ -415,8 +445,12 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
       s_ptr = str_buf.ptr().unwrap_or(src);
       (c : i32) = i32((s_ptr.add(usize(pos))).*);
       cond(
-        (c == i32(0x20)) => { scanning = false; },
-        ((c < i32(0x20)) || (c == i32(0x7F))) => { scanning = false; },
+        (c == i32(0x20)) => {
+          scanning = false;
+        },
+        ((c < i32(0x20)) || (c == i32(0x7F))) => {
+          scanning = false;
+        },
         (c == i32(0x5C)) => {
           pos = (pos + i32(1));
           if(((pos < max) && (i32((str_buf.ptr().unwrap_or(src).add(usize(pos))).*) == i32(0x20))), {
@@ -427,7 +461,9 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
         },
         (c == i32(0x28)) => {
           level = (level + i32(1));
-          if((level > i32(32)), { return(false); });
+          if((level > i32(32)), {
+            return(false);
+          });
           pos = (pos + i32(1));
         },
         (c == i32(0x29)) => {
@@ -438,16 +474,24 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
             pos = (pos + i32(1));
           });
         },
-        true => { pos = (pos + i32(1)); }
+        true => {
+          pos = (pos + i32(1));
+        }
       );
     });
     dest_end = pos;
-    if((dest_start == dest_end), { return(false); });
-    if((level != i32(0)), { return(false); });
+    if((dest_start == dest_end), {
+      return(false);
+    });
+    if((level != i32(0)), {
+      return(false);
+    });
     dest_ok = true;
   });
 
-  if(!(dest_ok), { return(false); });
+  if(!(dest_ok), {
+    return(false);
+  });
 
   // Save rollback state
   (dest_end_pos : i32) = pos;
@@ -605,7 +649,9 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
               });
             });
           },
-          true => { pos = (pos + i32(1)); }
+          true => {
+            pos = (pos + i32(1));
+          }
         );
       });
     });
@@ -656,13 +702,17 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
     return(false);
   });
 
-  if(silent, { return(true); });
+  if(silent, {
+    return(true);
+  });
 
   // Validate link URL — reject dangerous protocols
   // Get fresh pointer since str_buf may have been reallocated
   (final_ptr : *(u8)) = str_buf.ptr().unwrap_or(src);
   (ref_validate_buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(32));
-  if(!(validate_link_url(final_ptr, dest_start, dest_end, &(ref_validate_buf))), { return(false); });
+  if(!(validate_link_url(final_ptr, dest_start, dest_end, &(ref_validate_buf))), {
+    return(false);
+  });
 
   (dest_str : String) = _unescape_range(final_ptr, dest_start, dest_end);
   (title_str : String) = cond(
@@ -672,10 +722,11 @@ block_reference :: (fn(state: *(BlockState), start_line: i32, end_line: i32, sil
 
   // Store reference only if not already defined (first definition wins)
   (existing : Option(Reference)) = state.*.env.references.get(label_str);
-  match(existing,
+  match(
+    existing,
     .Some(_) => (),
     .None => {
-      (ref : Reference) = Reference(href: dest_str, title: title_str);
+      (ref : Reference) = Reference(href : dest_str, title : title_str);
       state.*.env.references.insert(label_str, ref);
     }
   );

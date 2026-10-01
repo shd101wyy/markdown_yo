@@ -1,7 +1,6 @@
 // markdown_yo — Inline parser state
 //
 // Tracks position, delimiters, and inline tokens during inline parsing.
-
 pragma(Pragma.AllowUnsafe);
 { assert } :: import("std/assert");
 { String } :: import("std/string");
@@ -18,17 +17,26 @@ pragma(Pragma.AllowUnsafe);
 // String content (entities, resolved URLs) stored separately in InlineState._str_buf
 InlineToken :: struct(
   type_name : InlineType,
-  start : i32,          // byte offset in source
-  end : i32,            // byte offset in source
-  nesting : i32,        // -1, 0, 1
+  // byte offset in source
+  start : i32,
+  // byte offset in source
+  end : i32,
+  // -1, 0, 1
+  nesting : i32,
   level : i32,
   // Extra fields for links/images
-  info_start : i32,     // href/src start
-  info_end : i32,       // href/src end
-  title_start : i32,    // title start
-  title_end : i32,      // title end
-  markup_char : u8,     // '*', '_', '~', '`'
-  markup_len : u8,      // number of marker chars
+  // href/src start
+  info_start : i32,
+  // href/src end
+  info_end : i32,
+  // title start
+  title_start : i32,
+  // title end
+  title_end : i32,
+  // '*', '_', '~', '`'
+  markup_char : u8,
+  // number of marker chars
+  markup_len : u8,
   block : bool,
   hidden : bool,
   // Indices into InlineState._str_buf (-1 = none)
@@ -37,33 +45,85 @@ InlineToken :: struct(
   title_idx : i32
 );
 
-impl(InlineToken,
-  text : (fn(start: i32, end: i32, level: i32) -> Self)(
-    Self(type_name: .Text, start: start, end: end, nesting: i32(0), level: level,
-         info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
-         markup_char: u8(0), markup_len: u8(0), block: false, hidden: false,
-         content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1)))
+impl(
+  InlineToken,
+  text : (fn(start : i32, end : i32, level : i32) -> Self)(
+    Self(
+      type_name : .Text,
+      start : start,
+      end : end,
+      nesting : i32(0),
+      level : level,
+      info_start : i32(0),
+      info_end : i32(0),
+      title_start : i32(0),
+      title_end : i32(0),
+      markup_char : u8(0),
+      markup_len : u8(0),
+      block : false,
+      hidden : false,
+      content_idx : (i32(0) - i32(1)),
+      href_idx : (i32(0) - i32(1)),
+      title_idx : (i32(0) - i32(1))
+    )
   ),
-  text_special : (fn(start: i32, end: i32, level: i32) -> Self)(
-    Self(type_name: .TextSpecial, start: start, end: end, nesting: i32(0), level: level,
-         info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
-         markup_char: u8(0), markup_len: u8(0), block: false, hidden: false,
-         content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1)))
+  text_special : (fn(start : i32, end : i32, level : i32) -> Self)(
+    Self(
+      type_name : .TextSpecial,
+      start : start,
+      end : end,
+      nesting : i32(0),
+      level : level,
+      info_start : i32(0),
+      info_end : i32(0),
+      title_start : i32(0),
+      title_end : i32(0),
+      markup_char : u8(0),
+      markup_len : u8(0),
+      block : false,
+      hidden : false,
+      content_idx : (i32(0) - i32(1)),
+      href_idx : (i32(0) - i32(1)),
+      title_idx : (i32(0) - i32(1))
+    )
   ),
-  simple : (fn(type_name: InlineType, nesting: i32, level: i32) -> Self)(
-    Self(type_name: type_name, start: i32(0), end: i32(0), nesting: nesting, level: level,
-         info_start: i32(0), info_end: i32(0), title_start: i32(0), title_end: i32(0),
-         markup_char: u8(0), markup_len: u8(0), block: false, hidden: false,
-         content_idx: (i32(0) - i32(1)), href_idx: (i32(0) - i32(1)), title_idx: (i32(0) - i32(1)))
+  simple : (fn(type_name : InlineType, nesting : i32, level : i32) -> Self)(
+    Self(
+      type_name : type_name,
+      start : i32(0),
+      end : i32(0),
+      nesting : nesting,
+      level : level,
+      info_start : i32(0),
+      info_end : i32(0),
+      title_start : i32(0),
+      title_end : i32(0),
+      markup_char : u8(0),
+      markup_len : u8(0),
+      block : false,
+      hidden : false,
+      content_idx : (i32(0) - i32(1)),
+      href_idx : (i32(0) - i32(1)),
+      title_idx : (i32(0) - i32(1))
+    )
   )
 );
 
+// The table is constant, so one copy serves every InlineState: building it per
+// state leaked 256 bytes on every markdown_to_html call (nothing frees a raw
+// `*u8` field).
+(_special_table_ptr : Option(*u8)) = .None;
+
 // Initialize a 256-byte lookup table for inline special characters.
 // Returns a *(u8) where table[ch] != 0 means ch is special.
-_init_special_table :: (fn() -> *(u8))({
-  (ptr : *(u8)) = match(unsafe(calloc(usize(256), usize(1))),
-    .Some(p) => *(u8)(p),
-    .None => { assert(false, "calloc failed"); *(u8)("") }
+_init_special_table :: (fn() -> *u8)({
+  (ptr : *u8) = match(
+    unsafe(calloc(usize(256), usize(1))),
+    .Some(p) => (*u8)(p),
+    .None => {
+      assert(false, "calloc failed");
+      (*u8)("")
+    }
   );
   // 1 = inline special character (needs full inline dispatch)
   // 0x0A = newline, 0x21 = !, 0x24 = $, 0x26 = &, 0x2A = *
@@ -92,119 +152,135 @@ _init_special_table :: (fn() -> *(u8))({
   ptr
 });
 
+_get_special_table :: (fn() -> *u8)(
+  match(
+    _special_table_ptr,
+    .Some(p) => p,
+    .None => {
+      (p : *u8) = _init_special_table();
+      _special_table_ptr = .Some(p);
+      p
+    }
+  )
+);
+
 InlineState :: struct(
-  src : Option(String),      // inline content string (None for range-based parsing)
-  src_ptr : *(u8),         // raw pointer for fast access
-  pos : i32,               // current position in source
-  pos_max : i32,           // source length
-
-  level : i32,             // nesting level
-  pending_start : i32,     // start of pending text (byte offset)
-  pending_end : i32,       // end of pending text
-
+  // inline content string (None for range-based parsing)
+  src : Option(String),
+  // raw pointer for fast access
+  src_ptr : *u8,
+  // current position in source
+  pos : i32,
+  // source length
+  pos_max : i32,
+  // nesting level
+  level : i32,
+  // start of pending text (byte offset)
+  pending_start : i32,
+  // end of pending text
+  pending_end : i32,
   tokens : ArrayList(InlineToken),
   delimiters : ArrayList(Delimiter),
   prev_delimiters : ArrayList(ArrayList(Delimiter)),
-
-  cache : Option(HashMap(i32, i32)),        // backtrack positions (lazy)
-  backticks : Option(HashMap(i32, i32)),    // backtick length → last seen position (lazy)
+  // backtrack positions (lazy)
+  cache : Option(HashMap(i32, i32)),
+  // backtick length → last seen position (lazy)
+  backticks : Option(HashMap(i32, i32)),
   backticks_scanned : bool,
-
   link_level : i32,
   link_markers : ArrayList(LinkMarker),
   resolved_pairs : ArrayList(EmphasisPair),
-
   // Reusable render-phase buffer for delimiter pair resolution
   _render_pairs : ArrayList(EmphasisPair),
-
   // Reusable buffers for link/image rendering (avoids per-link allocation)
-  _link_buf1 : ArrayList(u8),  // unescaped content
-  _link_buf2 : ArrayList(u8),  // normalized link
-  _validate_buf : ArrayList(u8),  // URL validation decoding
-  entity_buf : ArrayList(u8),  // entity name decoding
-
+  // unescaped content
+  _link_buf1 : ArrayList(u8),
+  // normalized link
+  _link_buf2 : ArrayList(u8),
+  // URL validation decoding
+  _validate_buf : ArrayList(u8),
+  // entity name decoding
+  entity_buf : ArrayList(u8),
   // Flat byte buffer for token strings (content/href/title)
   // Tokens reference these by index (content_idx/href_idx/title_idx)
   // Bytes are concatenated; _str_offsets stores the start of each entry.
   // This avoids String RC overhead during get operations.
   _str_buf : ArrayList(u8),
   _str_offsets : ArrayList(i32),
-
   env : Env,
-  renderer : *(HtmlRenderer),
-  options : *(Options),
-
+  renderer : *HtmlRenderer,
+  options : *Options,
   // 256-byte lookup table: table[ch] != 0 means ch is an inline special character
-  special_table : *(u8)
+  special_table : *u8
 );
 
-impl(InlineState,
+impl(
+  InlineState,
   // Create a reusable state with pre-allocated buffers
-  reusable : (fn(env: Env, renderer: *(HtmlRenderer), options: *(Options)) -> Self)(
+  reusable : (fn(env : Env, renderer : *HtmlRenderer, options : *Options) -> Self)(
     Self(
-      src: .None,
-      src_ptr: *(u8)(""),
-      pos: i32(0),
-      pos_max: i32(0),
-      level: i32(0),
-      pending_start: i32(0),
-      pending_end: i32(0),
-      tokens: ArrayList(InlineToken).with_capacity(usize(128)),
-      delimiters: ArrayList(Delimiter).with_capacity(usize(64)),
-      prev_delimiters: ArrayList(ArrayList(Delimiter)).new(),
-      cache: .None,
-      backticks: .None,
-      backticks_scanned: false,
-      link_level: i32(0),
-      link_markers: ArrayList(LinkMarker).with_capacity(usize(16)),
-      resolved_pairs: ArrayList(EmphasisPair).with_capacity(usize(32)),
-      _render_pairs: ArrayList(EmphasisPair).with_capacity(usize(32)),
-      _link_buf1: ArrayList(u8).with_capacity(usize(256)),
-      _link_buf2: ArrayList(u8).with_capacity(usize(256)),
-      _validate_buf: ArrayList(u8).with_capacity(usize(32)),
-      entity_buf: ArrayList(u8).with_capacity(usize(8)),
-      _str_buf: ArrayList(u8).with_capacity(usize(512)),
-      _str_offsets: ArrayList(i32).with_capacity(usize(16)),
-      env: env,
-      renderer: renderer,
-      options: options,
-      special_table: _init_special_table()
+      src : .None,
+      src_ptr : (*u8)(""),
+      pos : i32(0),
+      pos_max : i32(0),
+      level : i32(0),
+      pending_start : i32(0),
+      pending_end : i32(0),
+      tokens : ArrayList(InlineToken).with_capacity(usize(128)),
+      delimiters : ArrayList(Delimiter).with_capacity(usize(64)),
+      prev_delimiters : ArrayList(ArrayList(Delimiter)).new(),
+      cache : .None,
+      backticks : .None,
+      backticks_scanned : false,
+      link_level : i32(0),
+      link_markers : ArrayList(LinkMarker).with_capacity(usize(16)),
+      resolved_pairs : ArrayList(EmphasisPair).with_capacity(usize(32)),
+      _render_pairs : ArrayList(EmphasisPair).with_capacity(usize(32)),
+      _link_buf1 : ArrayList(u8).with_capacity(usize(256)),
+      _link_buf2 : ArrayList(u8).with_capacity(usize(256)),
+      _validate_buf : ArrayList(u8).with_capacity(usize(32)),
+      entity_buf : ArrayList(u8).with_capacity(usize(8)),
+      _str_buf : ArrayList(u8).with_capacity(usize(512)),
+      _str_offsets : ArrayList(i32).with_capacity(usize(16)),
+      env : env,
+      renderer : renderer,
+      options : options,
+      special_table : _get_special_table()
     )
   ),
-
   // Store a string's bytes in _str_buf and return its index
-  store_string : (fn(self: *(Self), s: String) -> i32)({
+  store_string : (fn(self : *Self, s : String) -> i32)({
     (idx : i32) = i32(self.*._str_offsets.len());
     (start : i32) = i32(self.*._str_buf.len());
     _ := self.*._str_offsets.push(start);
     (sbytes : ArrayList(u8)) = s.as_bytes();
-    match(sbytes.ptr(),
+    match(
+      sbytes.ptr(),
       .Some(sp) => self.*._str_buf.extend_from_ptr(sp, sbytes.len()),
       .None => ()
     );
     idx
   }),
-
   // Get pointer to stored string bytes (zero-copy, no RC)
-  stored_ptr : (fn(self: *(Self), idx: i32) -> *(u8))({
+  stored_ptr : (fn(self : *Self, idx : i32) -> *u8)({
     (offset : i32) = self.*._str_offsets(usize(idx));
-    match(self.*._str_buf.ptr(),
-      .Some(p) => (p.add(usize(offset))),
-      .None => *(u8)("")
+    match(
+      self.*._str_buf.ptr(),
+      .Some(p) => p.add(usize(offset)),
+      .None => (*u8)("")
     )
   }),
-
   // Get length of stored string bytes
-  stored_len : (fn(self: *(Self), idx: i32) -> i32)({
+  stored_len : (fn(self : *Self, idx : i32) -> i32)({
     (start : i32) = self.*._str_offsets(usize(idx));
-    if(((idx + i32(1)) < i32(self.*._str_offsets.len())),
-      (self.*._str_offsets(usize((idx + i32(1)))) - start),
-      (i32(self.*._str_buf.len()) - start)
+    if(
+      (idx + i32(1)) < i32(self.*._str_offsets.len()),
+      self.*._str_offsets(usize(idx + i32(1))) - start,
+      i32(self.*._str_buf.len()) - start
     )
   }),
-
   // Reset for range-based (zero-copy) parsing. Clears lists but keeps allocated capacity.
-  reset_for_ptr : (fn(self: *(Self), ptr: *(u8), len: i32) -> unit)({
+  reset_for_ptr : (fn(self : *Self, ptr : *u8, len : i32) -> unit)({
     self.*.tokens.clear();
     self.*.delimiters.clear();
     self.*.prev_delimiters.clear();
@@ -224,9 +300,8 @@ impl(InlineState,
     self.*.backticks = .None;
     self.*.backticks_scanned = false;
   }),
-
   // Reset for string-based parsing. Clears lists but keeps allocated capacity.
-  reset_for_string : (fn(self: *(Self), src: String) -> unit)({
+  reset_for_string : (fn(self : *Self, src : String) -> unit)({
     self.*.tokens.clear();
     self.*.delimiters.clear();
     self.*.prev_delimiters.clear();
@@ -236,9 +311,10 @@ impl(InlineState,
     self.*._str_offsets.clear();
     (bytes : ArrayList(u8)) = src.as_bytes();
     (len : i32) = i32(bytes.len());
-    (src_p : *(u8)) = match(bytes.ptr(),
+    (src_p : *u8) = match(
+      bytes.ptr(),
       .Some(p) => p,
-      .None => *(u8)("")
+      .None => (*u8)("")
     );
     self.*.src = .Some(src);
     self.*.src_ptr = src_p;
@@ -252,19 +328,17 @@ impl(InlineState,
     self.*.backticks = .None;
     self.*.backticks_scanned = false;
   }),
-
   // Push pending text as a token if there's any accumulated
-  push_pending : (fn(self: *(Self)) -> unit)({
-    if((self.*.pending_end > self.*.pending_start), {
+  push_pending : (fn(self : *Self) -> unit)({
+    if(self.*.pending_end > self.*.pending_start, {
       (tok : InlineToken) = InlineToken.text(self.*.pending_start, self.*.pending_end, self.*.level);
       _ := self.*.tokens.push(tok);
     });
     self.*.pending_start = self.*.pos;
     self.*.pending_end = self.*.pos;
   }),
-
   // Get byte at current position (or -1 if at end)
-  char_at : (fn(self: *(Self), pos: i32) -> i32)(
+  char_at : (fn(self : *Self, pos : i32) -> i32)(
     cond(
       ((pos < i32(0)) || (pos >= self.*.pos_max)) => (i32(0) - i32(1)),
       true => i32((self.*.src_ptr.add(usize(pos))).*)

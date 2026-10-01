@@ -11,62 +11,66 @@
 // Content is raw text — no inline parsing inside critic markup.
 // Multi-line content is allowed.
 // Empty content (e.g. {++++}) is not valid.
-
 pragma(Pragma.AllowUnsafe);
 import("std/string");
 
 { InlineToken, InlineState } :: import("./state.yo");
 { InlineType } :: import("../types.yo");
 
-inline_critic :: (fn(state : *(InlineState)) -> bool)({
-  (src : *(u8)) = state.*.src_ptr;
+inline_critic :: (fn(state : *InlineState) -> bool)({
+  (src : *u8) = state.*.src_ptr;
   max := state.*.pos_max;
   pos := state.*.pos;
 
   // Need at least {XX...XX} → minimum 7 chars for {++a++}
-  if(((pos + i32(6)) > max), return(false));
+  if((pos + i32(6)) > max, return(false));
 
   // Must start with {
-  if((i32((src.add(usize(pos))).*) != i32(0x7B)), return(false));
+  if(i32((src.add(usize(pos))).*) != i32(0x7B), return(false));
 
   // Check the second and third chars to determine type
-  (c1 : i32) = i32((src.add(usize((pos + i32(1))))).*);
-  (c2 : i32) = i32((src.add(usize((pos + i32(2))))).*);
+  (c1 : i32) = i32((src.add(usize(pos + i32(1)))).*);
+  (c2 : i32) = i32((src.add(usize(pos + i32(2)))).*);
 
   // Determine marker type: ++, --, ~~, ==, >>
   (marker : i32) = cond(
-    ((c1 == i32(0x2B)) && (c2 == i32(0x2B))) => i32(0x2B),  // +
-    ((c1 == i32(0x2D)) && (c2 == i32(0x2D))) => i32(0x2D),  // -
-    ((c1 == i32(0x7E)) && (c2 == i32(0x7E))) => i32(0x7E),  // ~
-    ((c1 == i32(0x3D)) && (c2 == i32(0x3D))) => i32(0x3D),  // =
-    ((c1 == i32(0x3E)) && (c2 == i32(0x3E))) => i32(0x3E),  // >
+    // +
+    ((c1 == i32(0x2B)) && (c2 == i32(0x2B))) => i32(0x2B),
+    // -
+    ((c1 == i32(0x2D)) && (c2 == i32(0x2D))) => i32(0x2D),
+    // ~
+    ((c1 == i32(0x7E)) && (c2 == i32(0x7E))) => i32(0x7E),
+    // =
+    ((c1 == i32(0x3D)) && (c2 == i32(0x3D))) => i32(0x3D),
+    // >
+    ((c1 == i32(0x3E)) && (c2 == i32(0x3E))) => i32(0x3E),
     true => i32(0)
   );
 
-  if((marker == i32(0)), return(false));
+  if(marker == i32(0), return(false));
 
   // Determine closing sequence: ++}, --}, ~~}, ==}, <<}
   // For >> (comment), the closing is <<}
   (close1 : i32) = cond(
-    (marker == i32(0x3E)) => i32(0x3C),  // < for comment close
+    // < for comment close
+    (marker == i32(0x3E)) => i32(0x3C),
     true => marker
   );
 
   // Scan for closing sequence
   (scan : i32) = (pos + i32(3));
-  (sub_pos : i32) = (i32(0) - i32(1));  // position of ~> for substitution
-
+  (sub_pos : i32) = (i32(0) - i32(1)); // position of ~> for substitution
   while(runtime(true), {
-    if(((scan + i32(2)) > max), {
+    if((scan + i32(2)) > max, {
       return(false);
     });
     (ch : i32) = i32((src.add(usize(scan))).*);
 
     // For substitution, track ~> position
-    if((((marker == i32(0x7E)) && (ch == i32(0x7E))) && (sub_pos == (i32(0) - i32(1)))), {
-      if(((scan + i32(1)) < max), {
-        (next : i32) = i32((src.add(usize((scan + i32(1))))).*);
-        if((next == i32(0x3E)), {
+    if((marker == i32(0x7E)) && (ch == i32(0x7E)) && (sub_pos == (i32(0) - i32(1))), {
+      if((scan + i32(1)) < max, {
+        (next : i32) = i32((src.add(usize(scan + i32(1)))).*);
+        if(next == i32(0x3E), {
           sub_pos = scan;
           scan = (scan + i32(2));
           continue;
@@ -75,11 +79,11 @@ inline_critic :: (fn(state : *(InlineState)) -> bool)({
     });
 
     // Check for closing: close1 close1 }
-    if((ch == close1), {
-      if(((scan + i32(2)) <= max), {
-        (n1 : i32) = i32((src.add(usize((scan + i32(1))))).*);
-        (n2 : i32) = i32((src.add(usize((scan + i32(2))))).*);
-        if(((n1 == close1) && (n2 == i32(0x7D))), {
+    if(ch == close1, {
+      if((scan + i32(2)) <= max, {
+        (n1 : i32) = i32((src.add(usize(scan + i32(1)))).*);
+        (n2 : i32) = i32((src.add(usize(scan + i32(2)))).*);
+        if((n1 == close1) && (n2 == i32(0x7D)), {
           break;
         });
       });
@@ -93,12 +97,12 @@ inline_critic :: (fn(state : *(InlineState)) -> bool)({
   content_end := scan;
 
   // Empty content is not valid
-  if((content_start >= content_end), return(false));
+  if(content_start >= content_end, return(false));
 
   // For substitution, require ~> separator with non-empty old text
-  if((marker == i32(0x7E)), {
-    if((sub_pos == (i32(0) - i32(1))), return(false));
-    if((sub_pos <= content_start), return(false));
+  if(marker == i32(0x7E), {
+    if(sub_pos == (i32(0) - i32(1)), return(false));
+    if(sub_pos <= content_start, return(false));
   });
 
   // Build the token
@@ -109,7 +113,7 @@ inline_critic :: (fn(state : *(InlineState)) -> bool)({
   (title_s : i32) = i32(0);
   (title_e : i32) = i32(0);
 
-  if((marker == i32(0x7E)), {
+  if(marker == i32(0x7E), {
     info_e = sub_pos;
     title_s = (sub_pos + i32(2));
     title_e = content_end;
@@ -117,22 +121,22 @@ inline_critic :: (fn(state : *(InlineState)) -> bool)({
 
   state.*.push_pending();
   tok := InlineToken(
-    type_name: .CriticMarkup,
-    start: pos,
-    end: (scan + i32(3)),
-    nesting: i32(0),
-    level: state.*.level,
-    info_start: info_s,
-    info_end: info_e,
-    title_start: title_s,
-    title_end: title_e,
-    markup_char: u8(marker),
-    markup_len: u8(2),
-    block: false,
-    hidden: false,
-    content_idx: (i32(0) - i32(1)),
-    href_idx: (i32(0) - i32(1)),
-    title_idx: (i32(0) - i32(1))
+    type_name : .CriticMarkup,
+    start : pos,
+    end : (scan + i32(3)),
+    nesting : i32(0),
+    level : state.*.level,
+    info_start : info_s,
+    info_end : info_e,
+    title_start : title_s,
+    title_end : title_e,
+    markup_char : u8(marker),
+    markup_len : u8(2),
+    block : false,
+    hidden : false,
+    content_idx : (i32(0) - i32(1)),
+    href_idx : (i32(0) - i32(1)),
+    title_idx : (i32(0) - i32(1))
   );
 
   _ := state.*.tokens.push(tok);

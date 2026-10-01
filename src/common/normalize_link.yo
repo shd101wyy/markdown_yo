@@ -7,7 +7,6 @@
 // - Non-ASCII chars are UTF-8 encoded then percent-encoded
 // - Invalid surrogate pairs become U+FFFD
 // - Domain names with non-ASCII are punycode-encoded (IDN)
-
 pragma(Pragma.AllowUnsafe);
 { ArrayList } :: import("std/collections/array_list");
 { String } :: import("std/string");
@@ -19,50 +18,76 @@ _HEX_CHARS :: "0123456789ABCDEF";
 // These chars are NOT percent-encoded in URLs
 _is_default_exclude :: (fn(ch : u8) -> bool)(
   cond(
-    (ch == u8(0x3B)) => true, // ;
-    (ch == u8(0x2F)) => true, // /
-    (ch == u8(0x3F)) => true, // ?
-    (ch == u8(0x3A)) => true, // :
-    (ch == u8(0x40)) => true, // @
-    (ch == u8(0x26)) => true, // &
-    (ch == u8(0x3D)) => true, // =
-    (ch == u8(0x2B)) => true, // +
-    (ch == u8(0x24)) => true, // $
-    (ch == u8(0x2C)) => true, // ,
-    (ch == u8(0x2D)) => true, // -
-    (ch == u8(0x5F)) => true, // _
-    (ch == u8(0x2E)) => true, // .
-    (ch == u8(0x21)) => true, // !
-    (ch == u8(0x7E)) => true, // ~
-    (ch == u8(0x2A)) => true, // *
-    (ch == u8(0x27)) => true, // '
-    (ch == u8(0x28)) => true, // (
-    (ch == u8(0x29)) => true, // )
-    (ch == u8(0x23)) => true, // #
+    // ;
+    (ch == u8(0x3B)) => true,
+    // /
+    (ch == u8(0x2F)) => true,
+    // ?
+    (ch == u8(0x3F)) => true,
+    // :
+    (ch == u8(0x3A)) => true,
+    // @
+    (ch == u8(0x40)) => true,
+    // &
+    (ch == u8(0x26)) => true,
+    // =
+    (ch == u8(0x3D)) => true,
+    // +
+    (ch == u8(0x2B)) => true,
+    // $
+    (ch == u8(0x24)) => true,
+    // ,
+    (ch == u8(0x2C)) => true,
+    // -
+    (ch == u8(0x2D)) => true,
+    // _
+    (ch == u8(0x5F)) => true,
+    // .
+    (ch == u8(0x2E)) => true,
+    // !
+    (ch == u8(0x21)) => true,
+    // ~
+    (ch == u8(0x7E)) => true,
+    // *
+    (ch == u8(0x2A)) => true,
+    // '
+    (ch == u8(0x27)) => true,
+    // (
+    (ch == u8(0x28)) => true,
+    // )
+    (ch == u8(0x29)) => true,
+    // #
+    (ch == u8(0x23)) => true,
     true => false
   )
 );
 
 _is_hex_char :: (fn(ch : u8) -> bool)(
   cond(
-    ((ch >= u8(0x30)) && (ch <= u8(0x39))) => true, // 0-9
-    ((ch >= u8(0x41)) && (ch <= u8(0x46))) => true, // A-F
-    ((ch >= u8(0x61)) && (ch <= u8(0x66))) => true, // a-f
+    // 0-9
+    ((ch >= u8(0x30)) && (ch <= u8(0x39))) => true,
+    // A-F
+    ((ch >= u8(0x41)) && (ch <= u8(0x46))) => true,
+    // a-f
+    ((ch >= u8(0x61)) && (ch <= u8(0x66))) => true,
     true => false
   )
 );
 
 _is_alnum :: (fn(ch : u8) -> bool)(
   cond(
-    ((ch >= u8(0x30)) && (ch <= u8(0x39))) => true, // 0-9
-    ((ch >= u8(0x41)) && (ch <= u8(0x5A))) => true, // A-Z
-    ((ch >= u8(0x61)) && (ch <= u8(0x7A))) => true, // a-z
+    // 0-9
+    ((ch >= u8(0x30)) && (ch <= u8(0x39))) => true,
+    // A-Z
+    ((ch >= u8(0x41)) && (ch <= u8(0x5A))) => true,
+    // a-z
+    ((ch >= u8(0x61)) && (ch <= u8(0x7A))) => true,
     true => false
   )
 );
 
 // Emit a percent-encoded byte (%XX) into the output buffer
-_emit_pct :: (fn(out: *(ArrayList(u8)), b: u8) -> unit)({
+_emit_pct :: (fn(out : *(ArrayList(u8)), b : u8) -> unit)({
   (hex_ptr : *(u8)) = *(u8)(_HEX_CHARS);
   _ := out.*.push(u8(0x25)); // %
   _ := out.*.push((hex_ptr.add(usize((b >> u8(4))))).*);
@@ -77,26 +102,38 @@ _emit_pct :: (fn(out: *(ArrayList(u8)), b: u8) -> unit)({
 // Skips userinfo (user:pass@) if present.
 // Check if an ASCII byte is a URI reserved character (not decoded by decodeURI)
 // Reserved: ; / ? : @ & = + $ , # and % itself
-_is_uri_reserved :: (fn(ch: i32) -> bool)(
+_is_uri_reserved :: (fn(ch : i32) -> bool)(
   cond(
-    (ch == i32(0x23)) => true, // #
-    (ch == i32(0x24)) => true, // $
-    (ch == i32(0x25)) => true, // %
-    (ch == i32(0x26)) => true, // &
-    (ch == i32(0x2B)) => true, // +
-    (ch == i32(0x2C)) => true, // ,
-    (ch == i32(0x2F)) => true, // /
-    (ch == i32(0x3A)) => true, // :
-    (ch == i32(0x3B)) => true, // ;
-    (ch == i32(0x3D)) => true, // =
-    (ch == i32(0x3F)) => true, // ?
-    (ch == i32(0x40)) => true, // @
+    // #
+    (ch == i32(0x23)) => true,
+    // $
+    (ch == i32(0x24)) => true,
+    // %
+    (ch == i32(0x25)) => true,
+    // &
+    (ch == i32(0x26)) => true,
+    // +
+    (ch == i32(0x2B)) => true,
+    // ,
+    (ch == i32(0x2C)) => true,
+    // /
+    (ch == i32(0x2F)) => true,
+    // :
+    (ch == i32(0x3A)) => true,
+    // ;
+    (ch == i32(0x3B)) => true,
+    // =
+    (ch == i32(0x3D)) => true,
+    // ?
+    (ch == i32(0x3F)) => true,
+    // @
+    (ch == i32(0x40)) => true,
     true => false
   )
 );
 
 // Decode a hex digit to its value (0-15), or -1 if not hex
-_hex_val :: (fn(ch: u8) -> i32)(
+_hex_val :: (fn(ch : u8) -> i32)(
   cond(
     ((ch >= u8(0x30)) && (ch <= u8(0x39))) => (i32(ch) - i32(0x30)),
     ((ch >= u8(0x41)) && (ch <= u8(0x46))) => ((i32(ch) - i32(0x41)) + i32(10)),
@@ -104,7 +141,7 @@ _hex_val :: (fn(ch: u8) -> i32)(
     true => (i32(0) - i32(1))
   )
 );
-_find_domain :: (fn(src: *(u8), len: i32) -> i32)({
+_find_domain :: (fn(src : *(u8), len : i32) -> i32)({
   // Look for :// or //
   (authority_start : i32) = (i32(0) - i32(1));
   (p : i32) = i32(0);
@@ -119,7 +156,7 @@ _find_domain :: (fn(src: *(u8), len: i32) -> i32)({
   authority_start
 });
 
-_find_domain_end :: (fn(src: *(u8), start: i32, len: i32) -> i32)({
+_find_domain_end :: (fn(src : *(u8), start : i32, len : i32) -> i32)({
   (p : i32) = start;
   while(p < len, {
     (ch : i32) = i32((src.add(usize(p))).*);
@@ -132,7 +169,7 @@ _find_domain_end :: (fn(src: *(u8), start: i32, len: i32) -> i32)({
 });
 
 // Skip userinfo (user:pass@) — find @ before domain end
-_skip_userinfo :: (fn(src: *(u8), start: i32, end: i32) -> i32)({
+_skip_userinfo :: (fn(src : *(u8), start : i32, end : i32) -> i32)({
   (p : i32) = start;
   while(p < end, {
     if((i32((src.add(usize(p))).*) == i32(0x40)), {
@@ -143,7 +180,7 @@ _skip_userinfo :: (fn(src: *(u8), start: i32, end: i32) -> i32)({
   start
 });
 
-normalize_link :: (fn(url: str) -> String)({
+normalize_link :: (fn(url : str) -> String)({
   (src : *(u8)) = url.ptr();
   (len : i32) = i32(url.len());
   (out : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(len));
@@ -267,7 +304,8 @@ normalize_link :: (fn(url: str) -> String)({
             dp2 = (dp2 + i32(1));
           });
         });
-        (puny_domain : String) = match(domain_bytes.ptr(),
+        (puny_domain : String) = match(
+          domain_bytes.ptr(),
           .Some(dbp) => encode_domain(dbp, i32(domain_bytes.len())),
           .None => String.new()
         );
@@ -298,7 +336,7 @@ normalize_link :: (fn(url: str) -> String)({
 
 // Buffer-based normalize_link — writes to caller-provided buffer, avoiding allocation.
 // The buffer is cleared before use; caller reuses the same ArrayList across calls.
-normalize_link_buf :: (fn(url_ptr: *(u8), url_len: i32, out: *(ArrayList(u8))) -> unit)({
+normalize_link_buf :: (fn(url_ptr : *(u8), url_len : i32, out : *(ArrayList(u8))) -> unit)({
   out.*.clear();
   (src : *(u8)) = url_ptr;
   (len : i32) = url_len;
@@ -350,20 +388,32 @@ normalize_link_buf :: (fn(url_ptr: *(u8), url_len: i32, out: *(ArrayList(u8))) -
         });
         if(((b & u8(0xE0)) == u8(0xC0)), {
           _emit_pct(out, b);
-          if(((i + i32(1)) < len), { _emit_pct(out, (src.add(usize((i + i32(1))))).*); });
+          if(((i + i32(1)) < len), {
+            _emit_pct(out, (src.add(usize((i + i32(1))))).*);
+          });
           i = (i + i32(2));
         }, {
           if(((b & u8(0xF0)) == u8(0xE0)), {
             _emit_pct(out, b);
-            if(((i + i32(1)) < len), { _emit_pct(out, (src.add(usize((i + i32(1))))).*); });
-            if(((i + i32(2)) < len), { _emit_pct(out, (src.add(usize((i + i32(2))))).*); });
+            if(((i + i32(1)) < len), {
+              _emit_pct(out, (src.add(usize((i + i32(1))))).*);
+            });
+            if(((i + i32(2)) < len), {
+              _emit_pct(out, (src.add(usize((i + i32(2))))).*);
+            });
             i = (i + i32(3));
           }, {
             if(((b & u8(0xF8)) == u8(0xF0)), {
               _emit_pct(out, b);
-              if(((i + i32(1)) < len), { _emit_pct(out, (src.add(usize((i + i32(1))))).*); });
-              if(((i + i32(2)) < len), { _emit_pct(out, (src.add(usize((i + i32(2))))).*); });
-              if(((i + i32(3)) < len), { _emit_pct(out, (src.add(usize((i + i32(3))))).*); });
+              if(((i + i32(1)) < len), {
+                _emit_pct(out, (src.add(usize((i + i32(1))))).*);
+              });
+              if(((i + i32(2)) < len), {
+                _emit_pct(out, (src.add(usize((i + i32(2))))).*);
+              });
+              if(((i + i32(3)) < len), {
+                _emit_pct(out, (src.add(usize((i + i32(3))))).*);
+              });
               i = (i + i32(4));
             }, {
               _emit_pct(out, u8(0xEF));
@@ -386,7 +436,8 @@ normalize_link_buf :: (fn(url_ptr: *(u8), url_len: i32, out: *(ArrayList(u8))) -
   // This path is rare — only for international domain names
   (enc_len2 : i32) = i32(out.*.len());
   if((enc_len2 > i32(0)), {
-    (enc_ptr : *(u8)) = match(out.*.ptr(),
+    (enc_ptr : *(u8)) = match(
+      out.*.ptr(),
       .Some(p) => p,
       .None => *(u8)("")
     );
@@ -402,7 +453,9 @@ normalize_link_buf :: (fn(url_ptr: *(u8), url_len: i32, out: *(ArrayList(u8))) -
             (hv1 : i32) = _hex_val((enc_ptr.add(usize((dp3 + i32(1))))).*);
             (hv2 : i32) = _hex_val((enc_ptr.add(usize((dp3 + i32(2))))).*);
             if(((hv1 >= i32(0)) && (hv2 >= i32(0))), {
-              if((((hv1 * i32(16)) + hv2) >= i32(0xC0)), { has_pct2 = true; });
+              if((((hv1 * i32(16)) + hv2) >= i32(0xC0)), {
+                has_pct2 = true;
+              });
             });
           });
           dp3 = (dp3 + i32(1));
@@ -420,11 +473,10 @@ normalize_link_buf :: (fn(url_ptr: *(u8), url_len: i32, out: *(ArrayList(u8))) -
   });
 });
 
-
 // Normalize link text for display — decode percent-encoded sequences
 // Matches mdurl.decode behavior: decodes %XX sequences to their byte values,
 // except keeps %25 as literal % (to avoid double-decoding)
-normalize_link_text :: (fn(url: str) -> String)({
+normalize_link_text :: (fn(url : str) -> String)({
   (src : *(u8)) = url.ptr();
   (len : i32) = i32(url.len());
   (out : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(len));
@@ -442,8 +494,10 @@ normalize_link_text :: (fn(url: str) -> String)({
           // Check for multi-byte UTF-8 sequences
           if(((decoded & i32(0xE0)) == i32(0xC0)), {
             // 2-byte UTF-8: %CC%XX
-            if((((i + i32(5)) < len) &&
-                ((src.add(usize((i + i32(3))))).* == u8(0x25))), {
+            if((
+              ((i + i32(5)) < len) &&
+                ((src.add(usize((i + i32(3))))).* == u8(0x25))
+            ), {
               (h3 : i32) = _hex_val((src.add(usize((i + i32(4))))).*);
               (h4 : i32) = _hex_val((src.add(usize((i + i32(5))))).*);
               if(((h3 >= i32(0)) && (h4 >= i32(0))), {
@@ -466,9 +520,11 @@ normalize_link_text :: (fn(url: str) -> String)({
             });
           }, if(((decoded & i32(0xF0)) == i32(0xE0)), {
             // 3-byte UTF-8: %EE%XX%XX
-            if((((i + i32(8)) < len) &&
+            if((
+              ((i + i32(8)) < len) &&
                 ((src.add(usize((i + i32(3))))).* == u8(0x25)) &&
-                ((src.add(usize((i + i32(6))))).* == u8(0x25))), {
+                  ((src.add(usize((i + i32(6))))).* == u8(0x25))
+            ), {
               (h3 : i32) = _hex_val((src.add(usize((i + i32(4))))).*);
               (h4 : i32) = _hex_val((src.add(usize((i + i32(5))))).*);
               (h5 : i32) = _hex_val((src.add(usize((i + i32(7))))).*);
@@ -495,23 +551,29 @@ normalize_link_text :: (fn(url: str) -> String)({
             });
           }, if(((decoded & i32(0xF8)) == i32(0xF0)), {
             // 4-byte UTF-8: %FF%XX%XX%XX
-            if((((i + i32(11)) < len) &&
+            if((
+              ((i + i32(11)) < len) &&
                 ((src.add(usize((i + i32(3))))).* == u8(0x25)) &&
-                ((src.add(usize((i + i32(6))))).* == u8(0x25)) &&
-                ((src.add(usize((i + i32(9))))).* == u8(0x25))), {
+                  ((src.add(usize((i + i32(6))))).* == u8(0x25)) &&
+                    ((src.add(usize((i + i32(9))))).* == u8(0x25))
+            ), {
               (h3 : i32) = _hex_val((src.add(usize((i + i32(4))))).*);
               (h4 : i32) = _hex_val((src.add(usize((i + i32(5))))).*);
               (h5 : i32) = _hex_val((src.add(usize((i + i32(7))))).*);
               (h6 : i32) = _hex_val((src.add(usize((i + i32(8))))).*);
               (h7 : i32) = _hex_val((src.add(usize((i + i32(10))))).*);
               (h8 : i32) = _hex_val((src.add(usize((i + i32(11))))).*);
-              if(((((h3 >= i32(0)) && (h4 >= i32(0))) && ((h5 >= i32(0)) && (h6 >= i32(0)))) &&
-                  ((h7 >= i32(0)) && (h8 >= i32(0)))), {
+              if((
+                (((h3 >= i32(0)) && (h4 >= i32(0))) && ((h5 >= i32(0)) && (h6 >= i32(0)))) &&
+                  ((h7 >= i32(0)) && (h8 >= i32(0)))
+              ), {
                 (b2 : i32) = ((h3 * i32(16)) + h4);
                 (b3 : i32) = ((h5 * i32(16)) + h6);
                 (b4 : i32) = ((h7 * i32(16)) + h8);
-                if(((((b2 & i32(0xC0)) == i32(0x80)) && ((b3 & i32(0xC0)) == i32(0x80))) &&
-                    ((b4 & i32(0xC0)) == i32(0x80))), {
+                if((
+                  (((b2 & i32(0xC0)) == i32(0x80)) && ((b3 & i32(0xC0)) == i32(0x80))) &&
+                    ((b4 & i32(0xC0)) == i32(0x80))
+                ), {
                   _ := out.push(u8(decoded));
                   _ := out.push(u8(b2));
                   _ := out.push(u8(b3));
@@ -573,11 +635,19 @@ normalize_link_text :: (fn(url: str) -> String)({
       while((dp < domain_end) && !(has_punycode), {
         // Check for xn-- at start of label (start of domain or after dot)
         if(((dp == domain_start) || (i32((dec_src.add(usize((dp - i32(1))))).*) == i32(0x2E))), {
-          if((((dp + i32(4)) <= domain_end)
-            && (((i32((dec_src.add(usize(dp))).*) == i32(0x78)) || (i32((dec_src.add(usize(dp))).*) == i32(0x58)))
-            && (((i32((dec_src.add(usize((dp + i32(1))))).*) == i32(0x6E)) || (i32((dec_src.add(usize((dp + i32(1))))).*) == i32(0x4E)))
-            && ((i32((dec_src.add(usize((dp + i32(2))))).*) == i32(0x2D))
-            && (i32((dec_src.add(usize((dp + i32(3))))).*) == i32(0x2D)))))), {
+          if((
+            ((dp + i32(4)) <= domain_end)
+            && (
+              ((i32((dec_src.add(usize(dp))).*) == i32(0x78)) || (i32((dec_src.add(usize(dp))).*) == i32(0x58)))
+              && (
+                ((i32((dec_src.add(usize((dp + i32(1))))).*) == i32(0x6E)) || (i32((dec_src.add(usize((dp + i32(1))))).*) == i32(0x4E)))
+                && (
+                  (i32((dec_src.add(usize((dp + i32(2))))).*) == i32(0x2D))
+                  && (i32((dec_src.add(usize((dp + i32(3))))).*) == i32(0x2D))
+                )
+              )
+            )
+          ), {
             has_punycode = true;
           });
         });

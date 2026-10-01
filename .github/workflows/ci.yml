@@ -17,15 +17,13 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install liburing
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y liburing-dev
-
       - name: Install Yo compiler
         run: |
           curl -sSL https://shd101wyy.github.io/Yo/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Format check
+        run: yo fmt --check ./src ./tests ./build.yo
 
       - name: Install JS test dependencies
         run: npm install
@@ -39,6 +37,9 @@ jobs:
         run: |
           yo build
           yo build wasm_exe
+
+      - name: Unit tests
+        run: yo test ./tests --parallel 1
 
       - name: Fixture tests & benchmark
         run: |
