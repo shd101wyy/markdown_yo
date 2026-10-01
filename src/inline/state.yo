@@ -109,6 +109,11 @@ impl(
   )
 );
 
+// The table is constant, so one copy serves every InlineState: building it per
+// state leaked 256 bytes on every markdown_to_html call (nothing frees a raw
+// `*u8` field).
+(_special_table_ptr : Option(*u8)) = .None;
+
 // Initialize a 256-byte lookup table for inline special characters.
 // Returns a *(u8) where table[ch] != 0 means ch is special.
 _init_special_table :: (fn() -> *u8)({
@@ -146,6 +151,18 @@ _init_special_table :: (fn() -> *u8)({
   (ptr.add(usize(0x3E))).* = u8(2);
   ptr
 });
+
+_get_special_table :: (fn() -> *u8)(
+  match(
+    _special_table_ptr,
+    .Some(p) => p,
+    .None => {
+      (p : *u8) = _init_special_table();
+      _special_table_ptr = .Some(p);
+      p
+    }
+  )
+);
 
 InlineState :: struct(
   // inline content string (None for range-based parsing)
@@ -228,7 +245,7 @@ impl(
       env : env,
       renderer : renderer,
       options : options,
-      special_table : _init_special_table()
+      special_table : _get_special_table()
     )
   ),
   // Store a string's bytes in _str_buf and return its index
