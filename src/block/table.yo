@@ -1,7 +1,6 @@
 // markdown_yo — GFM Table rule
 //
 // Matches: pipe-delimited tables with header separator
-
 pragma(Pragma.AllowUnsafe);
 import("std/string");
 { ArrayList } :: import("std/collections/array_list");
@@ -18,7 +17,7 @@ import("std/string");
 
 // Parse cells from a table row line and emit td/th tags.
 // Matches markdown-it's escapedSplit: \| strips the backslash but keeps the pipe in the cell.
-_emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayList(TableAlign)), is_header: bool, cell_buf: *(ArrayList(u8))) -> unit)({
+_emit_table_row_cells :: (fn(state : *(BlockState), line : i32, aligns : *(ArrayList(TableAlign)), is_header : bool, cell_buf : *(ArrayList(u8))) -> unit)({
   (bm : i32) = state.bm(line);
   (ts : i32) = state.ts(line);
   (em : i32) = state.em(line);
@@ -33,7 +32,6 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
 
   // Build cell contents using segments (like markdown-it's escapedSplit)
   // cell_buf accumulates the cell content, stripping \ before |
-
   (col : i32) = i32(0);
   while(col < col_count, {
     cell_buf.*.clear();
@@ -134,15 +132,21 @@ _emit_table_row_cells :: (fn(state: *(BlockState), line: i32, aligns: *(ArrayLis
   });
 });
 
-block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+block_table :: (fn(state : *(BlockState), start_line : i32, end_line : i32, silent : bool) -> bool)({
   // Must have at least 2 lines (header + separator)
-  if(((start_line + i32(1)) >= end_line), { return(false); });
+  if(((start_line + i32(1)) >= end_line), {
+    return(false);
+  });
 
   // Must not be indented >3 spaces
-  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), { return(false); });
+  if(((state.sc(start_line) - state.*.blk_indent) >= i32(4)), {
+    return(false);
+  });
 
   // First line must contain a pipe (pre-computed during line scan — O(1) check)
-  if(!(state.has_pipe(start_line)), { return(false); });
+  if(!(state.has_pipe(start_line)), {
+    return(false);
+  });
 
   (bm : i32) = state.bm(start_line);
   (ts : i32) = state.ts(start_line);
@@ -156,18 +160,30 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   (sep_em : i32) = state.em(sep_line);
   (sep_pos : i32) = (sep_bm + sep_ts);
 
-  if(((state.sc(sep_line) - state.*.blk_indent) >= i32(4)), { return(false); });
+  if(((state.sc(sep_line) - state.*.blk_indent) >= i32(4)), {
+    return(false);
+  });
 
   // Check first two chars of separator line for list ambiguity
   // If first char is '-' and second char is space, reject (list takes precedence)
-  if((sep_pos >= sep_em), { return(false); });
+  if((sep_pos >= sep_em), {
+    return(false);
+  });
   (first_ch : i32) = i32((state.*.src_ptr.add(usize(sep_pos))).*);
-  if(((first_ch != i32(0x7C)) && ((first_ch != i32(0x2D)) && (first_ch != i32(0x3A)))), { return(false); });
-  if(((sep_pos + i32(1)) >= sep_em), { return(false); });
+  if(((first_ch != i32(0x7C)) && ((first_ch != i32(0x2D)) && (first_ch != i32(0x3A)))), {
+    return(false);
+  });
+  if(((sep_pos + i32(1)) >= sep_em), {
+    return(false);
+  });
   (second_ch : i32) = i32((state.*.src_ptr.add(usize((sep_pos + i32(1))))).*);
-  if((((second_ch != i32(0x7C)) && ((second_ch != i32(0x2D)) && (second_ch != i32(0x3A)))) && !(is_space(second_ch))), { return(false); });
+  if((((second_ch != i32(0x7C)) && ((second_ch != i32(0x2D)) && (second_ch != i32(0x3A)))) && !(is_space(second_ch))), {
+    return(false);
+  });
   // If first char is '-' and second is space, reject due to list ambiguity
-  if(((first_ch == i32(0x2D)) && is_space(second_ch)), { return(false); });
+  if(((first_ch == i32(0x2D)) && is_space(second_ch)), {
+    return(false);
+  });
 
   // Parse separator line to extract alignment
   (sep_col_count : i32) = i32(0);
@@ -187,7 +203,9 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
       sp = (sp + i32(1));
     });
 
-    if((sp >= sep_em), { parsing_sep = false; }, {
+    if((sp >= sep_em), {
+      parsing_sep = false;
+    }, {
       (left_colon : bool) = false;
       (right_colon : bool) = false;
 
@@ -235,7 +253,9 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
     });
   });
 
-  if((!(valid_sep) || (sep_col_count == i32(0))), { return(false); });
+  if((!(valid_sep) || (sep_col_count == i32(0))), {
+    return(false);
+  });
 
   // Count header columns — must match separator column count
   // Uses same logic as escapedSplit: only tracks \| escapes, no backticks
@@ -273,9 +293,13 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
   };
 
   // Reject table if header column count doesn't match separator count
-  if((header_cols != col_count), { return(false); });
+  if((header_cols != col_count), {
+    return(false);
+  });
 
-  if(silent, { return(true); });
+  if(silent, {
+    return(true);
+  });
 
   // Non-silent: re-parse separator line to get alignment info
   (aligns : ArrayList(TableAlign)) = ArrayList(TableAlign).new();
@@ -289,14 +313,20 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
       while((rp < sep_em) && is_space(i32((state.*.src_ptr.add(usize(rp))).*)), {
         rp = (rp + i32(1));
       });
-      if((rp >= sep_em), { rp_done = true; }, {
+      if((rp >= sep_em), {
+        rp_done = true;
+      }, {
         (lc : bool) = (i32((state.*.src_ptr.add(usize(rp))).*) == i32(0x3A));
-        if(lc, { rp = (rp + i32(1)); });
+        if(lc, {
+          rp = (rp + i32(1));
+        });
         while((rp < sep_em) && (i32((state.*.src_ptr.add(usize(rp))).*) == i32(0x2D)), {
           rp = (rp + i32(1));
         });
         (rc : bool) = ((rp < sep_em) && (i32((state.*.src_ptr.add(usize(rp))).*) == i32(0x3A)));
-        if(rc, { rp = (rp + i32(1)); });
+        if(rc, {
+          rp = (rp + i32(1));
+        });
         while((rp < sep_em) && is_space(i32((state.*.src_ptr.add(usize(rp))).*)), {
           rp = (rp + i32(1));
         });
@@ -345,12 +375,24 @@ block_table :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent:
       (row_first_ch : i32) = i32((state.*.src_ptr.add(usize((state.bm(row_line) + state.ts(row_line))))).*);
       (is_terminator : bool) = cond(
         (row_first_ch == i32(0x7C)) => false,
-        true => ((((((block_fence(state, row_line, end_line, true)
-          || (block_blockquote(state, row_line, end_line, true) > i32(0)))
-          || block_hr(state, row_line, end_line, true))
-          || block_list(state, row_line, end_line, true))
-          || block_html(state, row_line, end_line, true))
-          || block_heading(state, row_line, end_line, true)))
+        true => (
+          (
+            (
+              (
+                (
+                  (
+                    block_fence(state, row_line, end_line, true)
+                    || (block_blockquote(state, row_line, end_line, true) > i32(0))
+                  )
+                  || block_hr(state, row_line, end_line, true)
+                )
+                || block_list(state, row_line, end_line, true)
+              )
+              || block_html(state, row_line, end_line, true)
+            )
+            || block_heading(state, row_line, end_line, true)
+          )
+        )
       );
       if(is_terminator, {
         table_done = true;

@@ -3,7 +3,6 @@
 // Main dispatch loop for inline content.
 // Called by block rules (paragraph, heading, list items) after they've
 // determined the inline content range.
-
 pragma(Pragma.AllowUnsafe);
 { String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
@@ -29,17 +28,45 @@ pragma(Pragma.AllowUnsafe);
 { inline_render } :: import("./render.yo");
 
 // Check if a byte is a special inline character that could trigger a rule
-_is_inline_special :: (fn(ch: u8) -> bool)(
-  (((ch <= u8(0x60)) && ((ch == u8(0x0A)) || ((ch == u8(0x21)) || ((ch == u8(0x24)) ||
-   ((ch == u8(0x26)) || ((ch == u8(0x2A)) || ((ch == u8(0x3A)) || ((ch == u8(0x3C)) ||
-   ((ch == u8(0x3D)) ||
-   ((ch == u8(0x5B)) || ((ch == u8(0x5C)) || ((ch == u8(0x5D)) || ((ch == u8(0x5E)) ||
-   ((ch == u8(0x5F)) || (ch == u8(0x60))))))))))))))))
-   || ((ch == u8(0x7B)) || (ch == u8(0x7E))))
+_is_inline_special :: (fn(ch : u8) -> bool)(
+  (
+    (
+      (ch <= u8(0x60)) && (
+        (ch == u8(0x0A)) || (
+          (ch == u8(0x21)) || (
+            (ch == u8(0x24)) ||
+              (
+                (ch == u8(0x26)) || (
+                  (ch == u8(0x2A)) || (
+                    (ch == u8(0x3A)) || (
+                      (ch == u8(0x3C)) ||
+                        (
+                          (ch == u8(0x3D)) ||
+                            (
+                              (ch == u8(0x5B)) || (
+                                (ch == u8(0x5C)) || (
+                                  (ch == u8(0x5D)) || (
+                                    (ch == u8(0x5E)) ||
+                                      ((ch == u8(0x5F)) || (ch == u8(0x60)))
+                                  )
+                                )
+                              )
+                            )
+                        )
+                    )
+                  )
+                )
+              )
+          )
+        )
+      )
+    )
+    || ((ch == u8(0x7B)) || (ch == u8(0x7E)))
+  )
 );
 
 // Shared dispatch loop for inline parsing
-_inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
+_inline_dispatch :: (fn(state : *(InlineState)) -> unit)({
   (table : *(u8)) = state.*.special_table;
   // Main dispatch loop: try each inline rule at current position
   while(state.*.pos < state.*.pos_max, {
@@ -166,7 +193,9 @@ _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
         (b7 : u8) = ((table.add(usize(c7))).* & u8(1));
         (any : u8) =
           (((((((b0 | b1) | b2) | b3) | b4) | b5) | b6) | b7);
-        if((any != u8(0)), { break; });
+        if((any != u8(0)), {
+          break;
+        });
         scan = (scan + i32(8));
       });
       // Byte-by-byte for remaining bytes or exact position within batch hit
@@ -187,7 +216,7 @@ _inline_dispatch :: (fn(state: *(InlineState)) -> unit)({
 
 // Parse inline content from a source string and render directly to the HtmlRenderer.
 // Uses the provided reusable InlineState to avoid repeated allocations.
-inline_parse :: (fn(inline_state: *(InlineState), src: String) -> unit)({
+inline_parse :: (fn(inline_state : *(InlineState), src : String) -> unit)({
   inline_state.*.reset_for_string(src);
   _inline_dispatch(inline_state);
 });
@@ -196,8 +225,10 @@ inline_parse :: (fn(inline_state: *(InlineState), src: String) -> unit)({
 // This is the main entry point called by block rules.
 // Zero-copy: directly uses the source pointer without allocating a String copy.
 // Uses the provided reusable InlineState to avoid repeated allocations.
-inline_parse_range :: (fn(inline_state: *(InlineState), src_ptr: *(u8), start: i32, end: i32) -> unit)({
-  if((end <= start), { return(); });
+inline_parse_range :: (fn(inline_state : *(InlineState), src_ptr : *(u8), start : i32, end : i32) -> unit)({
+  if((end <= start), {
+    return();
+  });
 
   // Fast path: pre-scan using combined table (1=inline special, 2=HTML-escape-only).
   // Single table lookup per byte instead of table lookup + 4 comparisons.

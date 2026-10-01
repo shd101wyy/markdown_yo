@@ -1,7 +1,6 @@
 // markdown_yo — Core types and options
 //
 // Enums and structs used throughout the parser, renderer, and CLI.
-
 { String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { HashMap } :: import("std/collections/hash_map");
@@ -9,30 +8,50 @@
 // ---------------------------------------------------------------------------
 // Options
 // ---------------------------------------------------------------------------
-
 Options :: struct(
-  html : bool,              // Allow raw HTML tags in markdown source
-  xhtml_out : bool,         // Self-close tags as <br /> vs <br>
-  breaks : bool,            // Convert \n to <br> in paragraphs
-  lang_prefix : String,     // CSS class prefix for fenced code blocks
-  linkify : bool,           // Auto-detect URLs as links
-  typographer : bool,       // Enable typographic replacements & smart quotes
-  enable_table : bool,      // GFM tables
-  enable_strikethrough : bool, // GFM strikethrough
-  enable_subscript : bool,  // Subscript with ~text~
-  enable_superscript : bool, // Superscript with ^text^
-  enable_mark : bool,       // Highlight with ==text==
-  enable_math : bool,       // Math with $...$ and $$...$$
-  enable_emoji : bool,      // Emoji shortcodes :smile: → 😄
-  enable_wikilink : bool,   // Wiki-style links [[page]] or [[page|text]]
-  enable_critic : bool,     // CriticMarkup {++add++} {--del--} {~~old~>new~~} {==mark==} {>>comment<<}
-  enable_abbr : bool,       // Abbreviations *[abbr]: expansion
-  enable_deflist : bool,    // Definition lists (term + :   definition)
-  enable_admonition : bool, // Admonition blocks !!! type / ??? type / ???+ type
-  enable_callout : bool,    // GitHub/Obsidian callouts > [!type] title
-  enable_footnote : bool,   // Footnotes [^id] and [^id]: content
-  enable_source_map : bool, // Emit data-source-line attributes on block elements
-  max_nesting : i32         // Max nesting depth
+  // Allow raw HTML tags in markdown source
+  html : bool,
+  // Self-close tags as <br /> vs <br>
+  xhtml_out : bool,
+  // Convert \n to <br> in paragraphs
+  breaks : bool,
+  // CSS class prefix for fenced code blocks
+  lang_prefix : String,
+  // Auto-detect URLs as links
+  linkify : bool,
+  // Enable typographic replacements & smart quotes
+  typographer : bool,
+  // GFM tables
+  enable_table : bool,
+  // GFM strikethrough
+  enable_strikethrough : bool,
+  // Subscript with ~text~
+  enable_subscript : bool,
+  // Superscript with ^text^
+  enable_superscript : bool,
+  // Highlight with ==text==
+  enable_mark : bool,
+  // Math with $...$ and $$...$$
+  enable_math : bool,
+  // Emoji shortcodes :smile: → 😄
+  enable_emoji : bool,
+  // Wiki-style links [[page]] or [[page|text]]
+  enable_wikilink : bool,
+  // CriticMarkup {++add++} {--del--} {~~old~>new~~} {==mark==} {>>comment<<}
+  enable_critic : bool,
+  // Abbreviations *[abbr]: expansion
+  enable_abbr : bool,
+  // Definition lists (term + :   definition)
+  enable_deflist : bool,
+  // Admonition blocks !!! type / ??? type / ???+ type
+  enable_admonition : bool,
+  // GitHub/Obsidian callouts > [!type] title
+  enable_callout : bool,
+  // Footnotes [^id] and [^id]: content
+  enable_footnote : bool,
+  // Emit data-source-line attributes on block elements
+  enable_source_map : bool,
+  max_nesting : i32 // Max nesting depth
 );
 
 // An abbreviation entry: byte ranges into the source for pattern and title
@@ -46,62 +65,61 @@ AbbrEntry :: struct(
 
 default_options :: (fn() -> Options)(
   Options(
-    html: false,
-    xhtml_out: false,
-    breaks: false,
-    lang_prefix: `language-`,
-    linkify: false,
-    typographer: false,
-    enable_table: true,
-    enable_strikethrough: true,
-    enable_subscript: false,
-    enable_superscript: false,
-    enable_mark: false,
-    enable_math: false,
-    enable_emoji: false,
-    enable_wikilink: false,
-    enable_critic: false,
-    enable_abbr: false,
-    enable_deflist: false,
-    enable_admonition: false,
-    enable_callout: false,
-    enable_footnote: false,
-    enable_source_map: false,
-    max_nesting: i32(100)
+    html : false,
+    xhtml_out : false,
+    breaks : false,
+    lang_prefix : `language-`,
+    linkify : false,
+    typographer : false,
+    enable_table : true,
+    enable_strikethrough : true,
+    enable_subscript : false,
+    enable_superscript : false,
+    enable_mark : false,
+    enable_math : false,
+    enable_emoji : false,
+    enable_wikilink : false,
+    enable_critic : false,
+    enable_abbr : false,
+    enable_deflist : false,
+    enable_admonition : false,
+    enable_callout : false,
+    enable_footnote : false,
+    enable_source_map : false,
+    max_nesting : i32(100)
   )
 );
 
 commonmark_options :: (fn() -> Options)(
   Options(
-    html: true,
-    xhtml_out: true,
-    breaks: false,
-    lang_prefix: `language-`,
-    linkify: false,
-    typographer: false,
-    enable_table: false,
-    enable_strikethrough: false,
-    enable_subscript: false,
-    enable_superscript: false,
-    enable_mark: false,
-    enable_math: false,
-    enable_emoji: false,
-    enable_wikilink: false,
-    enable_critic: false,
-    enable_abbr: false,
-    enable_deflist: false,
-    enable_admonition: false,
-    enable_callout: false,
-    enable_footnote: false,
-    enable_source_map: false,
-    max_nesting: i32(20)
+    html : true,
+    xhtml_out : true,
+    breaks : false,
+    lang_prefix : `language-`,
+    linkify : false,
+    typographer : false,
+    enable_table : false,
+    enable_strikethrough : false,
+    enable_subscript : false,
+    enable_superscript : false,
+    enable_mark : false,
+    enable_math : false,
+    enable_emoji : false,
+    enable_wikilink : false,
+    enable_critic : false,
+    enable_abbr : false,
+    enable_deflist : false,
+    enable_admonition : false,
+    enable_callout : false,
+    enable_footnote : false,
+    enable_source_map : false,
+    max_nesting : i32(20)
   )
 );
 
 // ---------------------------------------------------------------------------
 // Block-level enums
 // ---------------------------------------------------------------------------
-
 ParentType :: enum(
   Root,
   Blockquote,
@@ -121,23 +139,28 @@ TableAlign :: enum(
 // ---------------------------------------------------------------------------
 // Footnote definition — stores label and content for end-of-document rendering
 // ---------------------------------------------------------------------------
-
 FootnoteDef :: struct(
-  label_start : i32,    // byte offset of label start in source
-  label_end : i32,      // byte offset of label end in source
-  content_start : i32,  // byte offset of content start on first line
-  line_start : i32,     // first content line (after adjusting for [^label]:)
-  line_end : i32,       // line after last content line
+  // byte offset of label start in source
+  label_start : i32,
+  // byte offset of label end in source
+  label_end : i32,
+  // byte offset of content start on first line
+  content_start : i32,
+  // first content line (after adjusting for [^label]:)
+  line_start : i32,
+  // line after last content line
+  line_end : i32,
   // Adjusted first-line state for re-parsing
-  adj_bmark : i32,      // adjusted bMarks for first line
-  adj_tshift : i32,     // adjusted tShift for first line
-  adj_scount : i32      // adjusted sCount for first line
+  // adjusted bMarks for first line
+  adj_bmark : i32,
+  // adjusted tShift for first line
+  adj_tshift : i32,
+  adj_scount : i32 // adjusted sCount for first line
 );
 
 // ---------------------------------------------------------------------------
 // Inline token types
 // ---------------------------------------------------------------------------
-
 InlineType :: enum(
   Text,
   TextSpecial,
@@ -174,7 +197,6 @@ InlineType :: enum(
 // ---------------------------------------------------------------------------
 // Link reference
 // ---------------------------------------------------------------------------
-
 Reference :: struct(
   href : String,
   title : String
@@ -183,19 +205,17 @@ Reference :: struct(
 // ---------------------------------------------------------------------------
 // Environment — stores link references discovered during parsing
 // ---------------------------------------------------------------------------
-
 Env :: newtype(
   references : HashMap(String, Reference)
 );
 
 new_env :: (fn() -> Env)(
-  Env(references: HashMap(String, Reference).new())
+  Env(references : HashMap(String, Reference).new())
 );
 
 // ---------------------------------------------------------------------------
 // StringPair — for HTML attributes
 // ---------------------------------------------------------------------------
-
 StringPair :: struct(
   name : String,
   value : String
@@ -204,39 +224,61 @@ StringPair :: struct(
 // ---------------------------------------------------------------------------
 // Inline token — lightweight, value-type, no RC overhead
 // ---------------------------------------------------------------------------
-
 // Delimiter for emphasis/strikethrough resolution
 Delimiter :: struct(
-  marker : u8,       // Character code: '*', '_', '~'
-  length : i32,      // Number of consecutive markers
-  token_idx : i32,   // Index into inline tokens array
-  end : i32,         // Resolved end (set by balance_pairs)
-  jump : i32,        // Skip count for same-run delimiters (prevents self-matching)
-  open : bool,       // Can open emphasis
-  close : bool       // Can close emphasis
+  // Character code: '*', '_', '~'
+  marker : u8,
+  // Number of consecutive markers
+  length : i32,
+  // Index into inline tokens array
+  token_idx : i32,
+  // Resolved end (set by balance_pairs)
+  end : i32,
+  // Skip count for same-run delimiters (prevents self-matching)
+  jump : i32,
+  // Can open emphasis
+  open : bool,
+  close : bool // Can close emphasis
 );
 
 // Link/image bracket marker — tracks pending [ and ![ positions
 LinkMarker :: struct(
-  pos : i32,               // position of [ in source
-  token_idx : i32,         // index of the [ text token in tokens array
-  is_image : bool,         // true for ![
-  active : bool,           // can still be used as link opener
-  delimiters_count : i32   // delimiter stack depth when [ was pushed
+  // position of [ in source
+  pos : i32,
+  // index of the [ text token in tokens array
+  token_idx : i32,
+  // true for ![
+  is_image : bool,
+  // can still be used as link opener
+  active : bool,
+  delimiters_count : i32 // delimiter stack depth when [ was pushed
 );
 
 // A resolved emphasis/strong/strikethrough pair for rendering
 EmphasisPair :: struct(
-  opener_tok : i32,   // token index of opener text
-  closer_tok : i32,   // token index of closer text
-  consume : i32,      // chars consumed from each side (1=em, 2=strong)
-  pair_type : i32     // 1=em, 2=strong, 3=strikethrough
+  // token index of opener text
+  opener_tok : i32,
+  // token index of closer text
+  closer_tok : i32,
+  // chars consumed from each side (1=em, 2=strong)
+  consume : i32,
+  pair_type : i32 // 1=em, 2=strong, 3=strikethrough
 );
 
-export(Options, default_options, commonmark_options,
-       ParentType, TableAlign,
-       InlineType,
-       Reference, Env, new_env,
-       StringPair,
-       Delimiter, LinkMarker, EmphasisPair,
-       AbbrEntry, FootnoteDef);
+export(
+  Options,
+  default_options,
+  commonmark_options,
+  ParentType,
+  TableAlign,
+  InlineType,
+  Reference,
+  Env,
+  new_env,
+  StringPair,
+  Delimiter,
+  LinkMarker,
+  EmphasisPair,
+  AbbrEntry,
+  FootnoteDef
+);

@@ -30,7 +30,6 @@
 //   const len = Module._wasm_result_len();
 //   const html = UTF8ArrayToString(HEAPU8, ptr, len);
 //   Module._wasm_free(ptr);
-
 pragma(Pragma.AllowUnsafe);
 { String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
@@ -47,7 +46,7 @@ main :: (fn() -> unit)(());
 
 // Render markdown to HTML. Returns a malloc'd pointer to the result bytes.
 // Caller must call wasm_free() on the returned pointer.
-wasm_render :: (fn(input_ptr: *(u8), input_len: i32, flags: i32) -> *(u8))({
+wasm_render :: (fn(input_ptr : *u8, input_len : i32, flags : i32) -> *u8)({
   (ilen : usize) = usize(input_len);
 
   // Build input String from raw bytes
@@ -60,23 +59,57 @@ wasm_render :: (fn(input_ptr: *(u8), input_len: i32, flags: i32) -> *(u8))({
     ((flags & i32(1)) != i32(0)) => commonmark_options(),
     true => default_options()
   );
-  if(((flags & i32(2)) != i32(0)), { opts.html = true; });
-  if(((flags & i32(4)) != i32(0)), { opts.typographer = true; });
-  if(((flags & i32(8)) != i32(0)), { opts.enable_subscript = true; });
-  if(((flags & i32(16)) != i32(0)), { opts.enable_superscript = true; });
-  if(((flags & i32(32)) != i32(0)), { opts.enable_mark = true; });
-  if(((flags & i32(64)) != i32(0)), { opts.enable_math = true; });
-  if(((flags & i32(128)) != i32(0)), { opts.enable_emoji = true; });
-  if(((flags & i32(256)) != i32(0)), { opts.enable_wikilink = true; });
-  if(((flags & i32(512)) != i32(0)), { opts.enable_critic = true; });
-  if(((flags & i32(1024)) != i32(0)), { opts.enable_abbr = true; });
-  if(((flags & i32(2048)) != i32(0)), { opts.enable_deflist = true; });
-  if(((flags & i32(4096)) != i32(0)), { opts.enable_admonition = true; });
-  if(((flags & i32(8192)) != i32(0)), { opts.enable_callout = true; });
-  if(((flags & i32(16384)) != i32(0)), { opts.enable_footnote = true; });
-  if(((flags & i32(32768)) != i32(0)), { opts.enable_source_map = true; });
-  if(((flags & i32(65536)) != i32(0)), { opts.breaks = true; });
-  if(((flags & i32(131072)) != i32(0)), { opts.xhtml_out = true; });
+  if((flags & i32(2)) != i32(0), {
+    opts.html = true;
+  });
+  if((flags & i32(4)) != i32(0), {
+    opts.typographer = true;
+  });
+  if((flags & i32(8)) != i32(0), {
+    opts.enable_subscript = true;
+  });
+  if((flags & i32(16)) != i32(0), {
+    opts.enable_superscript = true;
+  });
+  if((flags & i32(32)) != i32(0), {
+    opts.enable_mark = true;
+  });
+  if((flags & i32(64)) != i32(0), {
+    opts.enable_math = true;
+  });
+  if((flags & i32(128)) != i32(0), {
+    opts.enable_emoji = true;
+  });
+  if((flags & i32(256)) != i32(0), {
+    opts.enable_wikilink = true;
+  });
+  if((flags & i32(512)) != i32(0), {
+    opts.enable_critic = true;
+  });
+  if((flags & i32(1024)) != i32(0), {
+    opts.enable_abbr = true;
+  });
+  if((flags & i32(2048)) != i32(0), {
+    opts.enable_deflist = true;
+  });
+  if((flags & i32(4096)) != i32(0), {
+    opts.enable_admonition = true;
+  });
+  if((flags & i32(8192)) != i32(0), {
+    opts.enable_callout = true;
+  });
+  if((flags & i32(16384)) != i32(0), {
+    opts.enable_footnote = true;
+  });
+  if((flags & i32(32768)) != i32(0), {
+    opts.enable_source_map = true;
+  });
+  if((flags & i32(65536)) != i32(0), {
+    opts.breaks = true;
+  });
+  if((flags & i32(131072)) != i32(0), {
+    opts.xhtml_out = true;
+  });
 
   // Render
   result := markdown_to_html(input, opts);
@@ -87,18 +120,20 @@ wasm_render :: (fn(input_ptr: *(u8), input_len: i32, flags: i32) -> *(u8))({
   g_last_result_len = i32(rlen);
 
   // Allocate output and copy
-  (out_ptr : ?(*(void))) = unsafe(malloc(rlen));
-  match(out_ptr,
+  (out_ptr : ?*void) = unsafe(malloc(rlen));
+  match(
+    out_ptr,
     .Some(p) => {
-      match(result_bytes.ptr(),
+      match(
+        result_bytes.ptr(),
         .Some(src) => {
-          _ := unsafe(memcpy(p, *(void)(src), rlen));
+          _ := unsafe(memcpy(p, (*void)(src), rlen));
         },
         .None => ()
       );
-      *(u8)(p)
+      (*u8)(p)
     },
-    .None => *(u8)("")
+    .None => (*u8)("")
   )
 });
 
@@ -106,8 +141,8 @@ wasm_render :: (fn(input_ptr: *(u8), input_len: i32, flags: i32) -> *(u8))({
 wasm_result_len :: (fn() -> i32)(g_last_result_len);
 
 // Free a pointer returned by wasm_render.
-wasm_free :: (fn(ptr: *(u8)) -> unit)({
-  (p : ?(*(void))) = .Some(*(void)(ptr));
+wasm_free :: (fn(ptr : *u8) -> unit)({
+  (p : ?*void) = .Some((*void)(ptr));
   unsafe(free(p));
 });
 

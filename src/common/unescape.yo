@@ -1,7 +1,6 @@
 // markdown_yo — Backslash escape processing and entity decoding
 //
 // Shared by inline render pass and reference definition parser.
-
 pragma(Pragma.AllowUnsafe);
 { String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
@@ -10,7 +9,7 @@ pragma(Pragma.AllowUnsafe);
 // Check if a numeric entity codepoint is valid for decoding.
 // Matches markdown-it's isValidEntityCode: surrogates, out-of-range, and
 // certain control characters are rejected.
-_is_valid_entity_code :: (fn(code: i32) -> bool)(
+_is_valid_entity_code :: (fn(code : i32) -> bool)(
   cond(
     // Surrogates
     ((code >= i32(0xD800)) && (code <= i32(0xDFFF))) => false,
@@ -21,38 +20,40 @@ _is_valid_entity_code :: (fn(code: i32) -> bool)(
     ((code & i32(0xFFFF)) == i32(0xFFFF)) => false,
     ((code & i32(0xFFFF)) == i32(0xFFFE)) => false,
     // C0 controls (except HT, LF, FF, CR which are ok)
-    (((code >= i32(0x01)) && (code <= i32(0x08))) ||
-     (code == i32(0x0B)) ||
-     ((code >= i32(0x0E)) && (code <= i32(0x1F))) ||
-     ((code >= i32(0x7F)) && (code <= i32(0x9F)))) => false,
+    (
+      ((code >= i32(0x01)) && (code <= i32(0x08))) ||
+        (code == i32(0x0B)) ||
+          ((code >= i32(0x0E)) && (code <= i32(0x1F))) ||
+            ((code >= i32(0x7F)) && (code <= i32(0x9F)))
+    ) => false,
     true => true
   )
 );
 
 // Emit a Unicode codepoint as UTF-8 bytes into an ArrayList(u8)
-emit_codepoint :: (fn(out: *(ArrayList(u8)), code: i32) -> unit)({
+emit_codepoint :: (fn(out : *ArrayList(u8), code : i32) -> unit)({
   // Replace invalid or zero codepoints with U+FFFD
   (cp : i32) = code;
-  if((((cp <= i32(0)) || (cp > i32(0x10FFFF))) ||
-      ((cp >= i32(0xD800)) && (cp <= i32(0xDFFF)))), {
+  if((cp <= i32(0)) || (cp > i32(0x10FFFF)) ||
+    ((cp >= i32(0xD800)) && (cp <= i32(0xDFFF))), {
     cp = i32(0xFFFD);
   });
-  if((cp < i32(0x80)), {
+  if(cp < i32(0x80), {
     _ := out.*.push(u8(cp));
   }, {
-    if((cp < i32(0x800)), {
-      _ := out.*.push(u8(((cp >> i32(6)) | i32(0xC0))));
-      _ := out.*.push(u8(((cp & i32(0x3F)) | i32(0x80))));
+    if(cp < i32(0x800), {
+      _ := out.*.push(u8((cp >> i32(6)) | i32(0xC0)));
+      _ := out.*.push(u8((cp & i32(0x3F)) | i32(0x80)));
     }, {
-      if((cp < i32(0x10000)), {
-        _ := out.*.push(u8(((cp >> i32(12)) | i32(0xE0))));
-        _ := out.*.push(u8((((cp >> i32(6)) & i32(0x3F)) | i32(0x80))));
-        _ := out.*.push(u8(((cp & i32(0x3F)) | i32(0x80))));
+      if(cp < i32(0x10000), {
+        _ := out.*.push(u8((cp >> i32(12)) | i32(0xE0)));
+        _ := out.*.push(u8(((cp >> i32(6)) & i32(0x3F)) | i32(0x80)));
+        _ := out.*.push(u8((cp & i32(0x3F)) | i32(0x80)));
       }, {
-        _ := out.*.push(u8(((cp >> i32(18)) | i32(0xF0))));
-        _ := out.*.push(u8((((cp >> i32(12)) & i32(0x3F)) | i32(0x80))));
-        _ := out.*.push(u8((((cp >> i32(6)) & i32(0x3F)) | i32(0x80))));
-        _ := out.*.push(u8(((cp & i32(0x3F)) | i32(0x80))));
+        _ := out.*.push(u8((cp >> i32(18)) | i32(0xF0)));
+        _ := out.*.push(u8(((cp >> i32(12)) & i32(0x3F)) | i32(0x80)));
+        _ := out.*.push(u8(((cp >> i32(6)) & i32(0x3F)) | i32(0x80)));
+        _ := out.*.push(u8((cp & i32(0x3F)) | i32(0x80)));
       });
     });
   });
@@ -61,38 +62,44 @@ emit_codepoint :: (fn(out: *(ArrayList(u8)), code: i32) -> unit)({
 // Try to decode an HTML entity starting at position i (which is '&').
 // If successful, decoded bytes are appended to out and returns the position
 // after the ';'. If not an entity, returns i32(-1).
-try_decode_entity :: (fn(src: *(u8), i: i32, end: i32, out: *(ArrayList(u8))) -> i32)({
-  if(((i + i32(2)) >= end), { return((i32(0) - i32(1))); });
-  (next : u8) = (src.add(usize((i + i32(1))))).*;
-  if((next == u8(0x23)), {
+try_decode_entity :: (fn(src : *u8, i : i32, end : i32, out : *ArrayList(u8)) -> i32)({
+  if((i + i32(2)) >= end, {
+    return(i32(0) - i32(1));
+  });
+  (next : u8) = (src.add(usize(i + i32(1)))).*;
+  if(next == u8(0x23), {
     // Numeric entity: &#...;
     (p : i32) = (i + i32(2));
     (c2 : u8) = (src.add(usize(p))).*;
-    if(((c2 == u8(0x78)) || (c2 == u8(0x58))), {
+    if((c2 == u8(0x78)) || (c2 == u8(0x58)), {
       // Hex: &#xHHHH;
       p = (p + i32(1));
       (code : i32) = i32(0);
       (digits : i32) = i32(0);
       while((p < end) && (i32((src.add(usize(p))).*) != i32(0x3B)), {
         (hc : u8) = (src.add(usize(p))).*;
-        if(((hc >= u8(0x30)) && (hc <= u8(0x39))), {
+        if((hc >= u8(0x30)) && (hc <= u8(0x39)), {
           code = ((code * i32(16)) + (i32(hc) - i32(0x30)));
         }, {
-          if(((hc >= u8(0x41)) && (hc <= u8(0x46))), {
+          if((hc >= u8(0x41)) && (hc <= u8(0x46)), {
             code = ((code * i32(16)) + (i32(hc) - i32(0x37)));
           }, {
-            if(((hc >= u8(0x61)) && (hc <= u8(0x66))), {
+            if((hc >= u8(0x61)) && (hc <= u8(0x66)), {
               code = ((code * i32(16)) + (i32(hc) - i32(0x57)));
             }, {
-              return((i32(0) - i32(1)));
+              return(i32(0) - i32(1));
             });
           });
         });
         digits = (digits + i32(1));
         p = (p + i32(1));
       });
-      if((((p >= end) || (digits < i32(1))) || (digits > i32(6))), { return((i32(0) - i32(1))); });
-      if(!((_is_valid_entity_code(code))), { return((i32(0) - i32(1))); });
+      if((p >= end) || (digits < i32(1)) || (digits > i32(6)), {
+        return(i32(0) - i32(1));
+      });
+      if(!_is_valid_entity_code(code), {
+        return(i32(0) - i32(1));
+      });
       emit_codepoint(out, code);
       return(p + i32(1));
     }, {
@@ -101,20 +108,24 @@ try_decode_entity :: (fn(src: *(u8), i: i32, end: i32, out: *(ArrayList(u8))) ->
       (digits : i32) = i32(0);
       while((p < end) && (i32((src.add(usize(p))).*) != i32(0x3B)), {
         (dc : u8) = (src.add(usize(p))).*;
-        if(((dc >= u8(0x30)) && (dc <= u8(0x39))), {
+        if((dc >= u8(0x30)) && (dc <= u8(0x39)), {
           code = ((code * i32(10)) + (i32(dc) - i32(0x30)));
         }, {
-          return((i32(0) - i32(1)));
+          return(i32(0) - i32(1));
         });
         digits = (digits + i32(1));
         p = (p + i32(1));
       });
-      if((((p >= end) || (digits < i32(1))) || (digits > i32(7))), { return((i32(0) - i32(1))); });
-      if(!((_is_valid_entity_code(code))), { return((i32(0) - i32(1))); });
+      if((p >= end) || (digits < i32(1)) || (digits > i32(7)), {
+        return(i32(0) - i32(1));
+      });
+      if(!_is_valid_entity_code(code), {
+        return(i32(0) - i32(1));
+      });
       emit_codepoint(out, code);
       return(p + i32(1));
     });
-    return((i32(0) - i32(1)));
+    return(i32(0) - i32(1));
   }, {
     // Named entity: &name;
     (p : i32) = (i + i32(1));
@@ -122,35 +133,41 @@ try_decode_entity :: (fn(src: *(u8), i: i32, end: i32, out: *(ArrayList(u8))) ->
     while((p < end) && (i32((src.add(usize(p))).*) != i32(0x3B)), {
       p = (p + i32(1));
     });
-    if((p >= end), { return((i32(0) - i32(1))); });
+    if(p >= end, {
+      return(i32(0) - i32(1));
+    });
     (name_len : i32) = (p - name_start);
-    if(((name_len < i32(2)) || (name_len > i32(31))), { return((i32(0) - i32(1))); });
-    (decoded : bool) = decode_named_entity((src.add(usize(name_start))), name_len, out);
+    if((name_len < i32(2)) || (name_len > i32(31)), {
+      return(i32(0) - i32(1));
+    });
+    (decoded : bool) = decode_named_entity(src.add(usize(name_start)), name_len, out);
     if(decoded, {
       return(p + i32(1));
     });
-    return((i32(0) - i32(1)));
+    return(i32(0) - i32(1));
   });
-  (i32(0) - i32(1))
+  i32(0) - i32(1)
 });
 
 // Process backslash escapes and entity decoding in a byte range.
 // \X where X is ASCII punctuation becomes just X.
 // &entity; becomes decoded character(s).
-unescaped_slice :: (fn(src: *(u8), start: i32, end: i32) -> String)({
-  if((end <= start), { return(``); });
+unescaped_slice :: (fn(src : *u8, start : i32, end : i32) -> String)({
+  if(end <= start, {
+    return(``);
+  });
   (len : i32) = (end - start);
   (result : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(len));
   (i : i32) = start;
   while(i < end, {
     (b : u8) = (src.add(usize(i))).*;
-    if(((b == u8(0x5C)) && ((i + i32(1)) < end)), {
-      (next : u8) = (src.add(usize((i + i32(1))))).*;
+    if((b == u8(0x5C)) && ((i + i32(1)) < end), {
+      (next : u8) = (src.add(usize(i + i32(1)))).*;
       // Check if next is ASCII punctuation (0x21-0x2F, 0x3A-0x40, 0x5B-0x60, 0x7B-0x7E)
-      if((((next >= u8(0x21)) && (next <= u8(0x2F)))
-       || ((next >= u8(0x3A)) && (next <= u8(0x40)))
-       || ((next >= u8(0x5B)) && (next <= u8(0x60)))
-       || ((next >= u8(0x7B)) && (next <= u8(0x7E)))), {
+      if(((next >= u8(0x21)) && (next <= u8(0x2F)))
+      || ((next >= u8(0x3A)) && (next <= u8(0x40)))
+      || ((next >= u8(0x5B)) && (next <= u8(0x60)))
+      || ((next >= u8(0x7B)) && (next <= u8(0x7E))), {
         _ := result.push(next);
         i = (i + i32(2));
       }, {
@@ -158,10 +175,10 @@ unescaped_slice :: (fn(src: *(u8), start: i32, end: i32) -> String)({
         i = (i + i32(1));
       });
     }, {
-      if((b == u8(0x26)), {
+      if(b == u8(0x26), {
         // Try to decode HTML entity
-        (after : i32) = try_decode_entity(src, i, end, (&(result)));
-        if((after > i32(0)), {
+        (after : i32) = try_decode_entity(src, i, end, &result);
+        if(after > i32(0), {
           i = after;
         }, {
           _ := result.push(b);
@@ -177,18 +194,20 @@ unescaped_slice :: (fn(src: *(u8), start: i32, end: i32) -> String)({
 });
 
 // Buffer-based unescaped_slice — writes to caller-provided buffer, avoiding allocation.
-unescaped_slice_buf :: (fn(src: *(u8), start: i32, end: i32, out: *(ArrayList(u8))) -> unit)({
+unescaped_slice_buf :: (fn(src : *u8, start : i32, end : i32, out : *ArrayList(u8)) -> unit)({
   out.*.clear();
-  if((end <= start), { return(); });
+  if(end <= start, {
+    return();
+  });
   (i : i32) = start;
   while(i < end, {
     (b : u8) = (src.add(usize(i))).*;
-    if(((b == u8(0x5C)) && ((i + i32(1)) < end)), {
-      (next : u8) = (src.add(usize((i + i32(1))))).*;
-      if((((next >= u8(0x21)) && (next <= u8(0x2F)))
-       || ((next >= u8(0x3A)) && (next <= u8(0x40)))
-       || ((next >= u8(0x5B)) && (next <= u8(0x60)))
-       || ((next >= u8(0x7B)) && (next <= u8(0x7E)))), {
+    if((b == u8(0x5C)) && ((i + i32(1)) < end), {
+      (next : u8) = (src.add(usize(i + i32(1)))).*;
+      if(((next >= u8(0x21)) && (next <= u8(0x2F)))
+      || ((next >= u8(0x3A)) && (next <= u8(0x40)))
+      || ((next >= u8(0x5B)) && (next <= u8(0x60)))
+      || ((next >= u8(0x7B)) && (next <= u8(0x7E))), {
         _ := out.*.push(next);
         i = (i + i32(2));
       }, {
@@ -196,9 +215,9 @@ unescaped_slice_buf :: (fn(src: *(u8), start: i32, end: i32, out: *(ArrayList(u8
         i = (i + i32(1));
       });
     }, {
-      if((b == u8(0x26)), {
+      if(b == u8(0x26), {
         (after : i32) = try_decode_entity(src, i, end, out);
-        if((after > i32(0)), {
+        if(after > i32(0), {
           i = after;
         }, {
           _ := out.*.push(b);

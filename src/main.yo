@@ -4,32 +4,46 @@
 //   markdown_yo <file>       — render file to stdout
 //   markdown_yo              — read from stdin, render to stdout
 //   markdown_yo -            — read from stdin explicitly
-
 pragma(Pragma.AllowUnsafe);
 { String } :: import("std/string");
 { println, print } :: import("std/fmt");
 { ArrayList } :: import("std/collections/array_list");
 { args } :: import("std/env");
-{ stdin, stdout, stderr, fopen, fclose, fread, fwrite, fputs,
-  fseek, ftell, SEEK_SET, SEEK_END, FILE } :: import("std/libc/stdio");
+{
+  stdin,
+  stdout,
+  stderr,
+  fopen,
+  fclose,
+  fread,
+  fwrite,
+  fputs,
+  fseek,
+  ftell,
+  SEEK_SET,
+  SEEK_END,
+  FILE
+} :: import("std/libc/stdio");
 { markdown_to_html } :: import("./parser.yo");
 { Options, default_options, commonmark_options } :: import("./types.yo");
 
 // Read entire file into a String
-_read_file :: (fn(path: String) -> Option(String))({
+_read_file :: (fn(path : String) -> Option(String))({
   cstr := path.to_cstr();
-  (fp : ?(*(FILE))) = match(cstr.ptr(),
-    .Some(p) => unsafe(fopen(*(char)(p), *(char)(*(u8)("r")))),
+  (fp : ?*FILE) = match(
+    cstr.ptr(),
+    .Some(p) => unsafe(fopen((*char)(p), (*char)((*u8)("r")))),
     .None => .None
   );
 
-  match(fp,
+  match(
+    fp,
     .None => .None,
     .Some(f) => {
       _ := unsafe(fseek(f, int(0), SEEK_END));
       (size : int) = unsafe(ftell(f));
       _ := unsafe(fseek(f, int(0), SEEK_SET));
-      if((size <= int(0)), {
+      if(size <= int(0), {
         _ := unsafe(fclose(f));
         return(.Some(String.new()));
       });
@@ -37,8 +51,9 @@ _read_file :: (fn(path: String) -> Option(String))({
       buf := ArrayList(u8).with_capacity(usize(size));
       buf.resize_with_byte(usize(size), int(0));
 
-      (n : usize) = match(buf.ptr(),
-        .Some(p) => unsafe(fread(*(void)(p), usize(1), usize(size), f)),
+      (n : usize) = match(
+        buf.ptr(),
+        .Some(p) => unsafe(fread((*void)(p), usize(1), usize(size), f)),
         .None => usize(0)
       );
       _ := unsafe(fclose(f));
@@ -55,14 +70,16 @@ _read_stdin :: (fn() -> String)({
   chunk.resize_with_byte(usize(4096), int(0));
 
   while(runtime(true), {
-    (n : usize) = match(chunk.ptr(),
-      .Some(p) => unsafe(fread(*(void)(p), usize(1), usize(4096), stdin)),
+    (n : usize) = match(
+      chunk.ptr(),
+      .Some(p) => unsafe(fread((*void)(p), usize(1), usize(4096), stdin)),
       .None => usize(0)
     );
-    if((n == usize(0)), {
+    if(n == usize(0), {
       return(String.from_bytes(buf));
     });
-    match(chunk.ptr(),
+    match(
+      chunk.ptr(),
       .Some(p) => buf.extend_from_ptr(p, n),
       .None => ()
     );
@@ -76,8 +93,8 @@ main :: (fn() -> unit)({
   argv := args();
 
   // No arguments — show help
-  if((argv.len() <= usize(1)), {
-    _ := unsafe(fputs(*(char)(*(u8)(_HELP_TEXT)), stdout));
+  if(argv.len() <= usize(1), {
+    _ := unsafe(fputs((*char)((*u8)(_HELP_TEXT)), stdout));
     return();
   });
 
@@ -109,36 +126,76 @@ main :: (fn() -> unit)({
     (arg : String) = argv.get(ai).unwrap();
     cond(
       ((arg == `--help`) || (arg == `-h`)) => {
-        _ := unsafe(fputs(*(char)(*(u8)(_HELP_TEXT)), stdout));
+        _ := unsafe(fputs((*char)((*u8)(_HELP_TEXT)), stdout));
         return();
       },
-      (arg == `-`) => { read_from_stdin = true; },
-      (arg == `--html`) => { html_enabled = true; },
-      (arg == `--typographer`) => { typographer_enabled = true; },
-      (arg == `--no-lang-prefix`) => { no_lang_prefix = true; },
-      (arg == `--commonmark`) => { use_commonmark = true; },
-      (arg == `--subscript`) => { enable_subscript = true; },
-      (arg == `--superscript`) => { enable_superscript = true; },
-      (arg == `--mark`) => { enable_mark = true; },
-      (arg == `--math`) => { enable_math = true; },
-      (arg == `--emoji`) => { enable_emoji = true; },
-      (arg == `--wikilink`) => { enable_wikilink = true; },
-      (arg == `--critic`) => { enable_critic = true; },
-      (arg == `--abbr`) => { enable_abbr = true; },
-      (arg == `--deflist`) => { enable_deflist = true; },
-      (arg == `--admonition`) => { enable_admonition = true; },
-      (arg == `--callout`) => { enable_callout = true; },
-      (arg == `--footnote`) => { enable_footnote = true; },
-      (arg == `--source-map`) => { enable_source_map = true; },
-      (arg == `--full-features`) => { full_features = true; },
+      (arg == `-`) => {
+        read_from_stdin = true;
+      },
+      (arg == `--html`) => {
+        html_enabled = true;
+      },
+      (arg == `--typographer`) => {
+        typographer_enabled = true;
+      },
+      (arg == `--no-lang-prefix`) => {
+        no_lang_prefix = true;
+      },
+      (arg == `--commonmark`) => {
+        use_commonmark = true;
+      },
+      (arg == `--subscript`) => {
+        enable_subscript = true;
+      },
+      (arg == `--superscript`) => {
+        enable_superscript = true;
+      },
+      (arg == `--mark`) => {
+        enable_mark = true;
+      },
+      (arg == `--math`) => {
+        enable_math = true;
+      },
+      (arg == `--emoji`) => {
+        enable_emoji = true;
+      },
+      (arg == `--wikilink`) => {
+        enable_wikilink = true;
+      },
+      (arg == `--critic`) => {
+        enable_critic = true;
+      },
+      (arg == `--abbr`) => {
+        enable_abbr = true;
+      },
+      (arg == `--deflist`) => {
+        enable_deflist = true;
+      },
+      (arg == `--admonition`) => {
+        enable_admonition = true;
+      },
+      (arg == `--callout`) => {
+        enable_callout = true;
+      },
+      (arg == `--footnote`) => {
+        enable_footnote = true;
+      },
+      (arg == `--source-map`) => {
+        enable_source_map = true;
+      },
+      (arg == `--full-features`) => {
+        full_features = true;
+      },
       (arg == `--repeat`) => {
         ai = (ai + usize(1));
-        if((ai < argv.len()), {
+        if(ai < argv.len(), {
           (nstr : String) = argv.get(ai).unwrap();
           repeat_count = nstr.parse_i32().unwrap_or(i32(1));
         });
       },
-      true => { file_path = .Some(arg); }
+      true => {
+        file_path = .Some(arg);
+      }
     );
     ai = (ai + usize(1));
   });
@@ -147,32 +204,64 @@ main :: (fn() -> unit)({
     use_commonmark => commonmark_options(),
     true => default_options()
   );
-  if(html_enabled, { opts.html = true; });
+  if(html_enabled, {
+    opts.html = true;
+  });
   opts.typographer = typographer_enabled;
-  if(no_lang_prefix, { opts.lang_prefix = ``; });
-  if((enable_subscript || full_features), { opts.enable_subscript = true; });
-  if((enable_superscript || full_features), { opts.enable_superscript = true; });
-  if((enable_mark || full_features), { opts.enable_mark = true; });
-  if((enable_math || full_features), { opts.enable_math = true; });
-  if((enable_emoji || full_features), { opts.enable_emoji = true; });
-  if((enable_wikilink || full_features), { opts.enable_wikilink = true; });
-  if((enable_critic || full_features), { opts.enable_critic = true; });
-  if((enable_abbr || full_features), { opts.enable_abbr = true; });
-  if((enable_deflist || full_features), { opts.enable_deflist = true; });
-  if((enable_admonition || full_features), { opts.enable_admonition = true; });
-  if((enable_callout || full_features), { opts.enable_callout = true; });
-  if((enable_footnote || full_features), { opts.enable_footnote = true; });
-  if(enable_source_map, { opts.enable_source_map = true; });
+  if(no_lang_prefix, {
+    opts.lang_prefix = ``;
+  });
+  if(enable_subscript || full_features, {
+    opts.enable_subscript = true;
+  });
+  if(enable_superscript || full_features, {
+    opts.enable_superscript = true;
+  });
+  if(enable_mark || full_features, {
+    opts.enable_mark = true;
+  });
+  if(enable_math || full_features, {
+    opts.enable_math = true;
+  });
+  if(enable_emoji || full_features, {
+    opts.enable_emoji = true;
+  });
+  if(enable_wikilink || full_features, {
+    opts.enable_wikilink = true;
+  });
+  if(enable_critic || full_features, {
+    opts.enable_critic = true;
+  });
+  if(enable_abbr || full_features, {
+    opts.enable_abbr = true;
+  });
+  if(enable_deflist || full_features, {
+    opts.enable_deflist = true;
+  });
+  if(enable_admonition || full_features, {
+    opts.enable_admonition = true;
+  });
+  if(enable_callout || full_features, {
+    opts.enable_callout = true;
+  });
+  if(enable_footnote || full_features, {
+    opts.enable_footnote = true;
+  });
+  if(enable_source_map, {
+    opts.enable_source_map = true;
+  });
   if(full_features, {
     opts.enable_table = true;
     opts.enable_strikethrough = true;
   });
 
-  match(file_path,
+  match(
+    file_path,
     .Some(path) => {
-      match(_read_file(path),
+      match(
+        _read_file(path),
         .Some(content) => {
-          if((repeat_count > i32(1)), {
+          if(repeat_count > i32(1), {
             // Benchmark mode: run N iterations silently (for external timing)
             (ri : i32) = i32(0);
             while(ri < repeat_count, {
@@ -182,23 +271,24 @@ main :: (fn() -> unit)({
           }, {
             result := markdown_to_html(content, opts);
             cstr := result.to_cstr();
-            match(cstr.ptr(),
+            match(
+              cstr.ptr(),
               .Some(p) => {
-                _ := unsafe(fputs(*(char)(p), stdout));
+                _ := unsafe(fputs((*char)(p), stdout));
               },
               .None => ()
             );
           });
         },
         .None => {
-          _ := unsafe(fputs(*(char)(*(u8)("Error: cannot open file\n")), stderr));
+          _ := unsafe(fputs((*char)((*u8)("Error: cannot open file\n")), stderr));
         }
       );
     },
     .None => {
       if(read_from_stdin, {
         content := _read_stdin();
-        if((repeat_count > i32(1)), {
+        if(repeat_count > i32(1), {
           (ri : i32) = i32(0);
           while(ri < repeat_count, {
             result := markdown_to_html(content, opts);
@@ -207,15 +297,16 @@ main :: (fn() -> unit)({
         }, {
           result := markdown_to_html(content, opts);
           cstr := result.to_cstr();
-          match(cstr.ptr(),
+          match(
+            cstr.ptr(),
             .Some(p) => {
-              _ := unsafe(fputs(*(char)(p), stdout));
+              _ := unsafe(fputs((*char)(p), stdout));
             },
             .None => ()
           );
         });
       }, {
-        _ := unsafe(fputs(*(char)(*(u8)(_HELP_TEXT)), stdout));
+        _ := unsafe(fputs((*char)((*u8)(_HELP_TEXT)), stdout));
       });
     }
   );

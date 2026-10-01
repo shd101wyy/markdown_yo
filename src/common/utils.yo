@@ -4,7 +4,6 @@
 // Adapted from markdown_it_yo common/utils.yo for SAX-style:
 //   - Functions that take/return str slices where possible
 //   - Pointer-based hot paths
-
 pragma(Pragma.AllowUnsafe);
 { assert } :: import("std/assert");
 import("std/string");
@@ -15,14 +14,13 @@ import("std/string");
 // ============================================================================
 // Character classification
 // ============================================================================
-
 // Check if byte is markdown space (tab 0x09 or space 0x20)
-is_space :: (fn(code: i32) -> bool)(
+is_space :: (fn(code : i32) -> bool)(
   ((code == i32(0x09)) || (code == i32(0x20)))
 );
 
 // Check if byte is Unicode whitespace (Zs class) or [\t\f\v\r\n]
-is_white_space :: (fn(code: i32) -> bool)(
+is_white_space :: (fn(code : i32) -> bool)(
   cond(
     (code == i32(0x20)) => true,
     ((code >= i32(0x09)) && (code <= i32(0x0D))) => true,
@@ -37,7 +35,7 @@ is_white_space :: (fn(code: i32) -> bool)(
 );
 
 // Markdown ASCII punctuation
-is_md_ascii_punct :: (fn(ch: i32) -> bool)(
+is_md_ascii_punct :: (fn(ch : i32) -> bool)(
   cond(
     ((ch >= i32(0x21)) && (ch <= i32(0x2F))) => true,
     ((ch >= i32(0x3A)) && (ch <= i32(0x40))) => true,
@@ -48,7 +46,7 @@ is_md_ascii_punct :: (fn(ch: i32) -> bool)(
 );
 
 // Unicode punctuation check (Pc, Pd, Pe, Pf, Pi, Po, Ps, Sc, Sk, Sm, So)
-is_punct_char :: (fn(ch: i32) -> bool)(
+is_punct_char :: (fn(ch : i32) -> bool)(
   cond(
     // ASCII punctuation (fast path)
     ((ch >= i32(0x21)) && (ch <= i32(0x2F))) => true,
@@ -110,7 +108,7 @@ is_punct_char :: (fn(ch: i32) -> bool)(
 );
 
 // Check if byte is a markdown escape punctuation character
-is_md_punct_byte :: (fn(ch: u8) -> bool)(
+is_md_punct_byte :: (fn(ch : u8) -> bool)(
   cond(
     ((ch >= u8(0x21)) && (ch <= u8(0x2F))) => true,
     ((ch >= u8(0x3A)) && (ch <= u8(0x40))) => true,
@@ -123,13 +121,14 @@ is_md_punct_byte :: (fn(ch: u8) -> bool)(
 // ============================================================================
 // UTF-8 helpers
 // ============================================================================
-
 // Read a UTF-8 code point starting at src_ptr + offset.
 // Returns (codepoint, byte_length) where byte_length is 1-4.
 // If invalid, returns (0xFFFD, 1).
-read_utf8_codepoint :: (fn(src_ptr: *(u8), offset: i32, src_len: i32) -> i32)({
+read_utf8_codepoint :: (fn(src_ptr : *(u8), offset : i32, src_len : i32) -> i32)({
   (b0 : i32) = i32((src_ptr.add(usize(offset))).*);
-  if((b0 < i32(0x80)), { return(b0); });
+  if((b0 < i32(0x80)), {
+    return(b0);
+  });
 
   if((((b0 >= i32(0xC0)) && (b0 < i32(0xE0))) && ((offset + i32(1)) < src_len)), {
     (b1 : i32) = i32((src_ptr.add(usize((offset + i32(1))))).*);
@@ -153,7 +152,7 @@ read_utf8_codepoint :: (fn(src_ptr: *(u8), offset: i32, src_len: i32) -> i32)({
 });
 
 // Get the byte length of a UTF-8 sequence starting with the given lead byte
-utf8_byte_len :: (fn(lead: u8) -> i32)(
+utf8_byte_len :: (fn(lead : u8) -> i32)(
   cond(
     (lead < u8(0x80)) => i32(1),
     (lead < u8(0xC0)) => i32(1),
@@ -166,30 +165,34 @@ utf8_byte_len :: (fn(lead: u8) -> i32)(
 // ============================================================================
 // HTML escaping — append-to-buffer variant (zero allocation)
 // ============================================================================
-
 // 256-byte lookup table for HTML escape dispatch.
 // 0 = safe (no escape needed), non-zero = index into replacement table.
 // Initialized once, shared across all calls.
 (_html_esc_table_ptr : Option(*(u8))) = .None;
 
 _init_html_esc_table :: (fn() -> *(u8))({
-  (ptr : *(u8)) = match(unsafe(calloc(usize(256), usize(1))),
+  (ptr : *(u8)) = match(
+    unsafe(calloc(usize(256), usize(1))),
     .Some(p) => *(u8)(p),
-    .None => { assert(false, "calloc failed"); *(u8)("") }
+    .None => {
+      assert(false, "calloc failed");
+      *(u8)("")
+    }
   );
   // 1 = &amp;   (5 bytes)
   // 2 = &lt;    (4 bytes)
   // 3 = &gt;    (4 bytes)
   // 4 = &quot;  (6 bytes)
-  (ptr.add(usize(0x26))).* = u8(1);  // &
-  (ptr.add(usize(0x3C))).* = u8(2);  // <
-  (ptr.add(usize(0x3E))).* = u8(3);  // >
-  (ptr.add(usize(0x22))).* = u8(4);  // "
+  (ptr.add(usize(0x26))).* = u8(1); // &
+  (ptr.add(usize(0x3C))).* = u8(2); // <
+  (ptr.add(usize(0x3E))).* = u8(3); // >
+  (ptr.add(usize(0x22))).* = u8(4); // "
   ptr
 });
 
 _get_html_esc_table :: (fn() -> *(u8))(
-  match(_html_esc_table_ptr,
+  match(
+    _html_esc_table_ptr,
     .Some(p) => p,
     .None => {
       (p : *(u8)) = _init_html_esc_table();
@@ -202,9 +205,11 @@ _get_html_esc_table :: (fn() -> *(u8))(
 // Escape HTML special chars (&, <, >, ") from src bytes, append to out buffer.
 // Uses a 256-byte lookup table for single-branch dispatch and copies
 // each run of safe bytes with one `extend_from_ptr`.
-escape_html_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i32) -> unit)({
+escape_html_buf :: (fn(out : *(ArrayList(u8)), src_ptr : *(u8), start : i32, end : i32) -> unit)({
   (input_len : i32) = (end - start);
-  if((input_len <= i32(0)), { return(); });
+  if((input_len <= i32(0)), {
+    return();
+  });
   // Pre-reserve capacity: typical text has <10% escapes, so reserve ~12.5% extra + margin
   (needed : usize) = usize(((input_len + (input_len / i32(8))) + i32(64)));
   (cur_len : usize) = out.*.len();
@@ -227,10 +232,14 @@ escape_html_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i
       (e7 : u8) = (esc_table.add(usize(u8((w >> u64(56)))))).*;
       (any : u8) =
         (((((((e0 | e1) | e2) | e3) | e4) | e5) | e6) | e7);
-      if((any != u8(0)), { break; });
+      if((any != u8(0)), {
+        break;
+      });
       i = (i + i32(8));
     });
-    if((i >= end), { break; });
+    if((i >= end), {
+      break;
+    });
     (ch : u8) = (src_ptr.add(usize(i))).*;
     (esc_idx : u8) = (esc_table.add(usize(ch))).*;
     if((esc_idx != u8(0)), {
@@ -259,17 +268,26 @@ escape_html_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i
 });
 
 // Append raw bytes from source to buffer (no escaping)
-append_raw_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i32) -> unit)(
+append_raw_buf :: (fn(out : *(ArrayList(u8)), src_ptr : *(u8), start : i32, end : i32) -> unit)(
   if((end > start), {
     out.*.extend_from_ptr((src_ptr.add(usize(start))), usize((end - start)));
   })
 );
 
 // Append a literal string to the output buffer
-append_lit :: (fn(out: *(ArrayList(u8)), s: str) -> unit)(
+append_lit :: (fn(out : *(ArrayList(u8)), s : str) -> unit)(
   out.*.extend_from_ptr(s.ptr(), s.len())
 );
 
-export(is_space, is_white_space, is_md_ascii_punct, is_punct_char, is_md_punct_byte,
-       read_utf8_codepoint, utf8_byte_len,
-       escape_html_buf, append_raw_buf, append_lit);
+export(
+  is_space,
+  is_white_space,
+  is_md_ascii_punct,
+  is_punct_char,
+  is_md_punct_byte,
+  read_utf8_codepoint,
+  utf8_byte_len,
+  escape_html_buf,
+  append_raw_buf,
+  append_lit
+);

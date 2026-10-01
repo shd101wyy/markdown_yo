@@ -1,17 +1,18 @@
 // markdown_yo — Indented code block
 //
 // Matches: lines indented by 4+ spaces (not inside a list with deeper indent)
-
 pragma(Pragma.AllowUnsafe);
 { BlockState } :: import("./state.yo");
 
-block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: bool) -> bool)({
+block_code :: (fn(state : *BlockState, start_line : i32, end_line : i32, silent : bool) -> bool)({
   // Must be indented by 4+
-  if(((state.sc(start_line) - state.*.blk_indent) < i32(4)), {
+  if((state.sc(start_line) - state.*.blk_indent) < i32(4), {
     return(false);
   });
 
-  if(silent, { return(true); });
+  if(silent, {
+    return(true);
+  });
 
   (last : i32) = start_line;
   (next_line : i32) = start_line;
@@ -20,7 +21,7 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
     if(state.*.is_empty(next_line), {
       next_line = (next_line + i32(1));
     }, {
-      if(((state.sc(next_line) - state.*.blk_indent) >= i32(4)), {
+      if((state.sc(next_line) - state.*.blk_indent) >= i32(4), {
         last = next_line;
         next_line = (next_line + i32(1));
       }, {
@@ -50,13 +51,13 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
     (line_tshift : i32) = state.ts(line);
     while((first < em) && (col < indent), {
       (ch : u8) = (state.*.src_ptr.add(usize(first))).*;
-      if((ch == u8(0x09)), {
+      if(ch == u8(0x09), {
         col = (col + (i32(4) - ((col + state.bs(line)) % i32(4))));
         first = (first + i32(1));
-      }, if((ch == u8(0x20)), {
+      }, if(ch == u8(0x20), {
         col = (col + i32(1));
         first = (first + i32(1));
-      }, if(((first - bm) < line_tshift), {
+      }, if((first - bm) < line_tshift, {
         // Non-space within tShift (e.g. list marker chars) — count as indent
         col = (col + i32(1));
         first = (first + i32(1));
@@ -66,7 +67,7 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
     });
 
     // Partially consumed tab → emit extra spaces
-    if((col > indent), {
+    if(col > indent, {
       (extra : i32) = (col - indent);
       (sp : i32) = i32(0);
       while(sp < extra, {
@@ -76,7 +77,7 @@ block_code :: (fn(state: *(BlockState), start_line: i32, end_line: i32, silent: 
     });
 
     state.*.renderer.*.escaped(first, em);
-    if((state.em(line) < state.*.src_len), {
+    if(state.em(line) < state.*.src_len, {
       state.*.renderer.*.byte(u8(0x0A));
     });
 
