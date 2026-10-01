@@ -200,9 +200,8 @@ _get_html_esc_table :: (fn() -> *(u8))(
 );
 
 // Escape HTML special chars (&, <, >, ") from src bytes, append to out buffer.
-// Uses 256-byte lookup table for single-branch dispatch + direct pointer writes.
-// After pre-allocating capacity, writes directly to the output buffer
-// to avoid per-segment function call overhead.
+// Uses a 256-byte lookup table for single-branch dispatch and copies
+// each run of safe bytes with one `extend_from_ptr`.
 escape_html_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i32) -> unit)({
   (input_len : i32) = (end - start);
   if((input_len <= i32(0)), { return(); });
@@ -210,9 +209,6 @@ escape_html_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i
   (needed : usize) = usize(((input_len + (input_len / i32(8))) + i32(64)));
   (cur_len : usize) = out.*.len();
   out.*.ensure_total_capacity((needed + cur_len));
-  // Get destination pointer directly — capacity is guaranteed after ensure_total_capacity
-  (dst : *(u8)) = match(out.*.ptr(), .Some(p) => p, .None => *(u8)(""));
-  (wp : usize) = cur_len;
   (esc_table : *(u8)) = _get_html_esc_table();
   (i : i32) = start;
   (run_start : i32) = start;
@@ -242,44 +238,16 @@ escape_html_buf :: (fn(out: *(ArrayList(u8)), src_ptr: *(u8), start: i32, end: i
       if((i > run_start), {
         (run_len : usize) = usize((i - run_start));
         out.*.extend_from_ptr((src_ptr.add(usize(run_start))), run_len);
-        wp = out.*.len();
-        dst = match(out.*.ptr(), .Some(p) => p, .None => *(u8)(""));
       });
-      // Write escape sequence directly to pre-allocated buffer
+      // Append the escape sequence. `extend_from_ptr` grows the buffer
+      // when it must: the reservation above is a performance hint, and
+      // escape-dense text (6 bytes per `"`) outgrows it.
       cond(
-        (esc_idx == u8(1)) => {
-          (dst.add(wp)).* = u8(0x26);       // &
-          (dst.add((wp + usize(1)))).* = u8(0x61); // a
-          (dst.add((wp + usize(2)))).* = u8(0x6D); // m
-          (dst.add((wp + usize(3)))).* = u8(0x70); // p
-          (dst.add((wp + usize(4)))).* = u8(0x3B); // ;
-          wp = (wp + usize(5));
-        },
-        (esc_idx == u8(2)) => {
-          (dst.add(wp)).* = u8(0x26);       // &
-          (dst.add((wp + usize(1)))).* = u8(0x6C); // l
-          (dst.add((wp + usize(2)))).* = u8(0x74); // t
-          (dst.add((wp + usize(3)))).* = u8(0x3B); // ;
-          wp = (wp + usize(4));
-        },
-        (esc_idx == u8(3)) => {
-          (dst.add(wp)).* = u8(0x26);       // &
-          (dst.add((wp + usize(1)))).* = u8(0x67); // g
-          (dst.add((wp + usize(2)))).* = u8(0x74); // t
-          (dst.add((wp + usize(3)))).* = u8(0x3B); // ;
-          wp = (wp + usize(4));
-        },
-        true => {
-          (dst.add(wp)).* = u8(0x26);       // &
-          (dst.add((wp + usize(1)))).* = u8(0x71); // q
-          (dst.add((wp + usize(2)))).* = u8(0x75); // u
-          (dst.add((wp + usize(3)))).* = u8(0x6F); // o
-          (dst.add((wp + usize(4)))).* = u8(0x74); // t
-          (dst.add((wp + usize(5)))).* = u8(0x3B); // ;
-          wp = (wp + usize(6));
-        }
+        (esc_idx == u8(1)) => out.*.extend_from_ptr(*(u8)("&amp;"), usize(5)),
+        (esc_idx == u8(2)) => out.*.extend_from_ptr(*(u8)("&lt;"), usize(4)),
+        (esc_idx == u8(3)) => out.*.extend_from_ptr(*(u8)("&gt;"), usize(4)),
+        true => out.*.extend_from_ptr(*(u8)("&quot;"), usize(6))
       );
-      out.*.set_len(wp);
       run_start = (i + i32(1));
     });
     i = (i + i32(1));

@@ -42,7 +42,7 @@ _read_file :: (fn(path: String) -> Option(String))({
         .None => usize(0)
       );
       _ := unsafe(fclose(f));
-      buf.set_len(n);
+      buf.truncate(n);
       .Some(String.from_bytes(buf))
     }
   )

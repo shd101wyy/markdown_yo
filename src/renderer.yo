@@ -841,7 +841,7 @@ impl(HtmlRenderer,
            ((self.*.buf((bl - usize(2))) == u8(0x3E)) &&
             (self.*.buf((bl - usize(1))) == u8(0x0A))))))), {
       // Truncate the trailing \n after <li>
-      self.*.buf.set_len((bl - usize(1)));
+      self.*.buf.truncate((bl - usize(1)));
     });
     self.*.lit("</li>\n");
   }),
@@ -877,7 +877,7 @@ impl(HtmlRenderer,
           ((self.*.buf((bl - usize(3))) == u8(0x64)) &&
            ((self.*.buf((bl - usize(2))) == u8(0x3E)) &&
             (self.*.buf((bl - usize(1))) == u8(0x0A))))))), {
-      self.*.buf.set_len((bl - usize(1)));
+      self.*.buf.truncate((bl - usize(1)));
     });
     self.*.lit("</dd>\n");
   }),
@@ -1999,7 +1999,7 @@ impl(HtmlRenderer,
     });
 
     // Truncate buffer to compacted size
-    src_buf.*.set_len(wi);
+    src_buf.*.truncate(wi);
   })
 );
 

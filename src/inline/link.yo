@@ -396,7 +396,7 @@ _normalize_label :: (fn(src: *(u8), start: i32, end: i32) -> String)({
   });
   // Trim trailing space
   if(((result.len() > usize(0)) && (result((result.len() - usize(1))) == u8(0x20))), {
-    result.set_len((result.len() - usize(1)));
+    result.truncate((result.len() - usize(1)));
   });
   String.from_bytes(result)
 });
@@ -624,7 +624,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
 
     if(has_earlier_image, {
       // Inside image context: consume inactive marker as text bracket close
-      state.*.link_markers.set_len(usize(marker_idx));
+      state.*.link_markers.truncate(usize(marker_idx));
       return(false);
     }, {
       // Normal case: skip inactive markers and search for active one
@@ -773,7 +773,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
   (delim_end : i32) = i32(state.*.delimiters.len());
   if((delim_end > delim_start), {
     _resolve_scoped_emphasis(state, delim_start, delim_end);
-    state.*.delimiters.set_len(usize(delim_start));
+    state.*.delimiters.truncate(usize(delim_start));
   });
 
   (open_token_idx : i32) = marker.token_idx;
@@ -830,7 +830,7 @@ inline_link_close :: (fn(state: *(InlineState)) -> bool)({
 
   // Remove this marker and all after it
   // (Simply truncate the markers list)
-  state.*.link_markers.set_len(usize(marker_idx));
+  state.*.link_markers.truncate(usize(marker_idx));
 
   state.*.link_level = cond(
     is_image => state.*.link_level,

@@ -165,6 +165,11 @@ jobs:
           cd npm
           npm version ${{ inputs.bump }} --no-git-tag-version
           NEW_VERSION=$(node -p "require('./package.json').version")
+          cd ..
+          # yo.toml carries the same version: Yo resolves this package by
+          # its v<version> tag, and the manifest should agree with the tag.
+          sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" yo.toml
+          grep -q "^version = \"$NEW_VERSION\"" yo.toml
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "New version: $NEW_VERSION"
 
@@ -177,12 +182,14 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Commit version bump
+        id: bump_commit
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add npm/package.json
+          git add npm/package.json yo.toml
           git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
           git push
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -197,6 +204,9 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.version }}
           release_name: Release v${{ steps.version.outputs.version }}
+          # Tag the bump commit, not the dispatch commit: the tag's yo.toml
+          # and npm/package.json must name the version being released.
+          commitish: ${{ steps.bump_commit.outputs.sha }}
           body: |
             ${{ inputs.bump == 'minor' && 'Minor' || 'Patch' }} release v${{ steps.version.outputs.version }}
 

@@ -37,7 +37,7 @@ _build_inline_string_buf :: (fn(state: *(BlockState), start_line: i32, end_line:
 
   // Trim trailing spaces from the final line
   while((state.*._line_buf.len() > usize(0)) && (state.*._line_buf((state.*._line_buf.len() - usize(1))) == u8(0x20)), {
-    state.*._line_buf.set_len((state.*._line_buf.len() - usize(1)));
+    state.*._line_buf.truncate((state.*._line_buf.len() - usize(1)));
   });
 });
 

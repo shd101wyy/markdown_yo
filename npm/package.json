@@ -1,6 +1,6 @@
 {
   "name": "markdown_yo",
-  "version": "0.0.5",
+  "version": "0.0.8",
   "description": "A high-performance Markdown-to-HTML converter compiled to WebAssembly",
   "main": "index.js",
   "types": "index.d.ts",
