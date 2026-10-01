@@ -172,6 +172,6 @@ curl -sSL https://shd101wyy.github.io/Yo/install.sh | sh
 yo build wasm_api
 
 # Output files:
-#   yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.js
-#   yo-out/wasm32-emscripten/bin/markdown_yo_wasm_api.wasm
+#   yo-out/wasm32-unknown-emscripten/bin/markdown_yo_wasm_api.js
+#   yo-out/wasm32-unknown-emscripten/bin/markdown_yo_wasm_api.wasm
 ```
