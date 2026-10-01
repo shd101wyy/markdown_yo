@@ -41,12 +41,6 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install liburing (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y liburing-dev
-
       - name: Install LLVM/Clang (Windows)
         if: runner.os == 'Windows'
         run: |
