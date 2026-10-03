@@ -37,6 +37,7 @@ pragma(Pragma.AllowUnsafe);
 { memcpy } :: import("std/libc/string");
 { markdown_to_html } :: import("./parser.yo");
 { Options, default_options, commonmark_options } :: import("./types.yo");
+{ string_bytes } :: import("./common/utils.yo");
 
 // Thread-local state for last result length
 (g_last_result_len : i32) = i32(0);
@@ -115,7 +116,7 @@ wasm_render :: (fn(input_ptr : *u8, input_len : i32, flags : i32) -> *u8)({
   result := markdown_to_html(input, opts);
 
   // Get result bytes and copy to malloc'd buffer
-  result_bytes := result.as_bytes();
+  result_bytes := string_bytes(result);
   (rlen : usize) = result_bytes.len();
   g_last_result_len = i32(rlen);
 

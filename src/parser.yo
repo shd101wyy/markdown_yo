@@ -10,6 +10,7 @@ pragma(Pragma.AllowUnsafe);
 { HtmlRenderer } :: import("./renderer.yo");
 { BlockState } :: import("./block/state.yo");
 { block_parse } :: import("./block/parser.yo");
+{ string_bytes } :: import("./common/utils.yo");
 
 // Convert markdown source to HTML.
 // `options` is taken BY VALUE, not as `*(Options)`. It is never mutated here —
@@ -24,8 +25,9 @@ markdown_to_html :: (fn(src : String, options : Options) -> String)({
   // 1. Create environment for link references
   (env : Env) = new_env();
 
-  // 2. Get source pointer
-  (src_bytes : ArrayList(u8)) = src.as_bytes();
+  // 2. Get source pointer. The parse reads the source through raw pointers,
+  // so it works on one copy of the bytes, which `state` keeps alive.
+  (src_bytes : ArrayList(u8)) = string_bytes(src);
   (src_len : i32) = i32(src_bytes.len());
   (src_ptr : *u8) = match(
     src_bytes.ptr(),
@@ -37,7 +39,7 @@ markdown_to_html :: (fn(src : String, options : Options) -> String)({
   (renderer : HtmlRenderer) = HtmlRenderer.new(opts_ref, src_ptr, src_len);
 
   // 4. Create block state (includes normalization + line scan in one pass)
-  (state : BlockState) = BlockState.new(src, env, &renderer, opts_ref);
+  (state : BlockState) = BlockState.new(src_bytes, env, &renderer, opts_ref);
   block_parse(&state);
 
   // 5. Return rendered HTML
