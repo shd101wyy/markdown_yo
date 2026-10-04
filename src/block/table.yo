@@ -316,15 +316,15 @@ block_table :: (fn(state : *(BlockState), start_line : i32, end_line : i32, sile
       if((rp >= sep_em), {
         rp_done = true;
       }, {
-        (lc : bool) = (i32((state.*.src_ptr.add(usize(rp))).*) == i32(0x3A));
-        if(lc, {
+        (left_colon : bool) = (i32((state.*.src_ptr.add(usize(rp))).*) == i32(0x3A));
+        if(left_colon, {
           rp = (rp + i32(1));
         });
         while((rp < sep_em) && (i32((state.*.src_ptr.add(usize(rp))).*) == i32(0x2D)), {
           rp = (rp + i32(1));
         });
-        (rc : bool) = ((rp < sep_em) && (i32((state.*.src_ptr.add(usize(rp))).*) == i32(0x3A)));
-        if(rc, {
+        (right_colon : bool) = ((rp < sep_em) && (i32((state.*.src_ptr.add(usize(rp))).*) == i32(0x3A)));
+        if(right_colon, {
           rp = (rp + i32(1));
         });
         while((rp < sep_em) && is_space(i32((state.*.src_ptr.add(usize(rp))).*)), {
@@ -334,9 +334,9 @@ block_table :: (fn(state : *(BlockState), start_line : i32, end_line : i32, sile
           rp = (rp + i32(1));
         });
         (align : TableAlign) = cond(
-          (lc && rc) => .Center,
-          rc => .Right,
-          lc => .Left,
+          (left_colon && right_colon) => .Center,
+          right_colon => .Right,
+          left_colon => .Left,
           true => .None
         );
         _ := aligns.push(align);

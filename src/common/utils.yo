@@ -6,7 +6,7 @@
 //   - Pointer-based hot paths
 pragma(Pragma.AllowUnsafe);
 { assert } :: import("std/assert");
-import("std/string");
+{ String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { GlobalAllocator } :: import("std/allocator");
 { calloc } :: GlobalAllocator;
@@ -279,6 +279,60 @@ append_lit :: (fn(out : *(ArrayList(u8)), s : str) -> unit)(
   out.*.extend_from_ptr(s.ptr(), s.len())
 );
 
+// ============================================================================
+// Reading a String's bytes
+// ============================================================================
+// These use only String APIs that both the pinned Yo std and the
+// copy-on-write ("String S3") std provide: `len`, `byte_at`, `to_cstr`.
+// `String.as_bytes()` (a handle on the string's own buffer) is gone from the
+// S3 std, and its replacements (`to_bytes`, `get_byte`, `ptr`) are not in the
+// pinned one.
+// An independent copy of `s`'s bytes, made with one memcpy. Use it where a
+// stable raw pointer to the bytes is needed; the copy must outlive the pointer.
+string_bytes :: (fn(s : String) -> ArrayList(u8))({
+  // `to_cstr` appends a NUL terminator; drop it.
+  (bytes : ArrayList(u8)) = s.to_cstr();
+  _ := bytes.pop();
+  bytes
+});
+
+// Append `s`'s bytes to `out`, reading the String in place (no copy).
+append_string :: (fn(out : *(ArrayList(u8)), s : String) -> unit)({
+  (n : usize) = s.len();
+  out.*.ensure_total_capacity((out.*.len() + n));
+  (i : usize) = usize(0);
+  while(i < n, {
+    _ := out.*.push(s.byte_at(i));
+    i = (i + usize(1));
+  });
+});
+
+// `escape_html_buf` over a String, reading it in place (no copy).
+escape_html_string :: (fn(out : *(ArrayList(u8)), s : String) -> unit)({
+  (n : usize) = s.len();
+  if((n == usize(0)), {
+    return();
+  });
+  (needed : usize) = ((n + (n / usize(8))) + usize(64));
+  out.*.ensure_total_capacity((needed + out.*.len()));
+  (esc_table : *(u8)) = _get_html_esc_table();
+  (i : usize) = usize(0);
+  while(i < n, {
+    (ch : u8) = s.byte_at(i);
+    (esc_idx : u8) = (esc_table.add(usize(ch))).*;
+    cond(
+      (esc_idx == u8(0)) => {
+        _ := out.*.push(ch);
+      },
+      (esc_idx == u8(1)) => out.*.extend_from_ptr(*(u8)("&amp;"), usize(5)),
+      (esc_idx == u8(2)) => out.*.extend_from_ptr(*(u8)("&lt;"), usize(4)),
+      (esc_idx == u8(3)) => out.*.extend_from_ptr(*(u8)("&gt;"), usize(4)),
+      true => out.*.extend_from_ptr(*(u8)("&quot;"), usize(6))
+    );
+    i = (i + usize(1));
+  });
+});
+
 export(
   is_space,
   is_white_space,
@@ -289,5 +343,8 @@ export(
   utf8_byte_len,
   escape_html_buf,
   append_raw_buf,
-  append_lit
+  append_lit,
+  string_bytes,
+  append_string,
+  escape_html_string
 );

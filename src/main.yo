@@ -75,8 +75,11 @@ _read_stdin :: (fn() -> String)({
       .Some(p) => unsafe(fread((*void)(p), usize(1), usize(4096), stdin)),
       .None => usize(0)
     );
+    // `break`, not `return(String.from_bytes(buf))`: `from_bytes` takes
+    // `buf` by `own` in newer Yo std, and a move inside a returning arm
+    // that the tail moves again is released twice by Yo 0.2.49's codegen.
     if(n == usize(0), {
-      return(String.from_bytes(buf));
+      break;
     });
     match(
       chunk.ptr(),

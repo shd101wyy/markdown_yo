@@ -3,7 +3,6 @@
 // Tracks line positions, indentation, and nesting for block-level parsing.
 // Line markers are precomputed once for O(1) line access.
 pragma(Pragma.AllowUnsafe);
-{ String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
 { HashMap } :: import("std/collections/hash_map");
 { memchr } :: import("std/libc/string");
@@ -13,8 +12,8 @@ pragma(Pragma.AllowUnsafe);
 { is_space } :: import("../common/utils.yo");
 
 BlockState :: struct(
-  // normalized source
-  src : String,
+  // normalized source bytes (owns the buffer src_ptr points into)
+  src : ArrayList(u8),
   // raw pointer for fast byte access
   src_ptr : *u8,
   // total byte length
@@ -73,7 +72,7 @@ BlockState :: struct(
 );
 
 // Normalize source: replace \r\n → \n, lone \r → \n, \0 → U+FFFD (rare path)
-_normalize_source :: (fn(src_p : *u8, len : i32) -> String)({
+_normalize_source :: (fn(src_p : *u8, len : i32) -> ArrayList(u8))({
   (out : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(len));
   (i : i32) = i32(0);
   (run_start : i32) = i32(0);
@@ -111,13 +110,12 @@ _normalize_source :: (fn(src_p : *u8, len : i32) -> String)({
   if(len > run_start, {
     out.extend_from_ptr(src_p.add(usize(run_start)), usize(len - run_start));
   });
-  String.from_bytes(out)
+  out
 });
 
 // Build BlockState from already-normalized source (rare path — only when \r or \0 found)
-_build_block_state_from_normalized :: (fn(src : String, env : Env, renderer : *HtmlRenderer, options : *Options) -> BlockState)({
-  (bytes : ArrayList(u8)) = src.as_bytes();
-  (len : i32) = i32(bytes.len());
+_build_block_state_from_normalized :: (fn(src : ArrayList(u8), env : Env, renderer : *HtmlRenderer, options : *Options) -> BlockState)({
+  (len : i32) = i32(src.len());
   (est_lines : usize) = ((usize(len) / usize(40)) + usize(16));
   (b_marks : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
   (e_marks : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
@@ -127,7 +125,7 @@ _build_block_state_from_normalized :: (fn(src : String, env : Env, renderer : *H
   (pipe_flags : ArrayList(u8)) = ArrayList(u8).with_capacity(est_lines);
 
   (src_p : *u8) = match(
-    bytes.ptr(),
+    src.ptr(),
     .Some(p) => p,
     .None => (*u8)("")
   );
@@ -262,9 +260,8 @@ impl(
   BlockState,
   // Create a new BlockState with integrated normalization and line marker precomputation.
   // Merges normalize + line scan into a single pass over the source.
-  new : (fn(src : String, env : Env, renderer : *HtmlRenderer, options : *Options) -> Self)({
-    (bytes : ArrayList(u8)) = src.as_bytes();
-    (len : i32) = i32(bytes.len());
+  new : (fn(src : ArrayList(u8), env : Env, renderer : *HtmlRenderer, options : *Options) -> Self)({
+    (len : i32) = i32(src.len());
 
     // Estimate line count for pre-allocation (avg ~40 bytes/line)
     (est_lines : usize) = ((usize(len) / usize(40)) + usize(16));
@@ -276,7 +273,7 @@ impl(
     (pipe_flags : ArrayList(u8)) = ArrayList(u8).with_capacity(est_lines);
 
     (src_p : *u8) = match(
-      bytes.ptr(),
+      src.ptr(),
       .Some(p) => p,
       .None => (*u8)("")
     );
@@ -301,7 +298,7 @@ impl(
       );
     });
     if(needs_normalize, {
-      (norm_src : String) = _normalize_source(src_p, len);
+      (norm_src : ArrayList(u8)) = _normalize_source(src_p, len);
       return(_build_block_state_from_normalized(norm_src, env, renderer, options));
     });
 

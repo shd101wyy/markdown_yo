@@ -11,6 +11,7 @@ pragma(Pragma.AllowUnsafe);
 { ArrayList } :: import("std/collections/array_list");
 { String } :: import("std/string");
 { encode_domain, decode_domain } :: import("./punycode.yo");
+{ append_string } :: import("./utils.yo");
 
 _HEX_CHARS :: "0123456789ABCDEF";
 
@@ -260,10 +261,10 @@ normalize_link :: (fn(url : str) -> String)({
     });
   });
 
-  // Post-process: punycode-encode domain if it has non-ASCII
-  (encoded_str : String) = String.from_bytes(out);
-  (enc_src : *(u8)) = match(encoded_str.as_bytes().ptr(), .Some(p_) => p_, .None => *(u8)(""));
-  (enc_len : i32) = i32(encoded_str.as_bytes().len());
+  // Post-process: punycode-encode domain if it has non-ASCII.
+  // Scans `out` in place; it becomes the result String at the end.
+  (enc_src : *(u8)) = match(out.ptr(), .Some(p_) => p_, .None => *(u8)(""));
+  (enc_len : i32) = i32(out.len());
   (auth_start : i32) = _find_domain(enc_src, enc_len);
   if((auth_start >= i32(0)), {
     (domain_start : i32) = _skip_userinfo(enc_src, auth_start, enc_len);
@@ -315,11 +316,10 @@ normalize_link :: (fn(url : str) -> String)({
           _ := final_out.push((enc_src.add(usize(fp))).*);
           fp = (fp + i32(1));
         });
-        (pd_ptr : *(u8)) = match(puny_domain.as_bytes().ptr(), .Some(p_) => p_, .None => *(u8)(""));
-        (pd_len : i32) = i32(puny_domain.as_bytes().len());
+        (pd_len : i32) = i32(puny_domain.len());
         (fp2 : i32) = i32(0);
         while(fp2 < pd_len, {
-          _ := final_out.push((pd_ptr.add(usize(fp2))).*);
+          _ := final_out.push(puny_domain.byte_at(usize(fp2)));
           fp2 = (fp2 + i32(1));
         });
         (fp3 : i32) = domain_end;
@@ -331,7 +331,7 @@ normalize_link :: (fn(url : str) -> String)({
       });
     });
   });
-  encoded_str
+  String.from_bytes(out)
 });
 
 // Buffer-based normalize_link — writes to caller-provided buffer, avoiding allocation.
@@ -464,9 +464,7 @@ normalize_link_buf :: (fn(url_ptr : *(u8), url_len : i32, out : *(ArrayList(u8))
           // Rare path: decode + punycode-encode the domain
           (result : String) = normalize_link(str.from_raw_parts(url_ptr, usize(url_len)));
           out.*.clear();
-          (rp : *(u8)) = match(result.as_bytes().ptr(), .Some(p_) => p_, .None => *(u8)(""));
-          (rl : i32) = i32(result.as_bytes().len());
-          out.*.extend_from_ptr(rp, usize(rl));
+          append_string(out, result);
         });
       });
     });
@@ -620,10 +618,10 @@ normalize_link_text :: (fn(url : str) -> String)({
     });
   });
 
-  // Post-process: punycode-decode domain labels (xn--... → Unicode)
-  (decoded_str : String) = String.from_bytes(out);
-  (dec_src : *(u8)) = match(decoded_str.as_bytes().ptr(), .Some(p_) => p_, .None => *(u8)(""));
-  (dec_len : i32) = i32(decoded_str.as_bytes().len());
+  // Post-process: punycode-decode domain labels (xn--... → Unicode).
+  // Scans `out` in place; it becomes the result String at the end.
+  (dec_src : *(u8)) = match(out.ptr(), .Some(p_) => p_, .None => *(u8)(""));
+  (dec_len : i32) = i32(out.len());
   (auth_start : i32) = _find_domain(dec_src, dec_len);
   if((auth_start >= i32(0)), {
     (domain_start : i32) = _skip_userinfo(dec_src, auth_start, dec_len);
@@ -661,11 +659,10 @@ normalize_link_text :: (fn(url : str) -> String)({
           _ := final_out.push((dec_src.add(usize(fp))).*);
           fp = (fp + i32(1));
         });
-        (ud_ptr : *(u8)) = match(unicode_domain.as_bytes().ptr(), .Some(p_) => p_, .None => *(u8)(""));
-        (ud_len : i32) = i32(unicode_domain.as_bytes().len());
+        (ud_len : i32) = i32(unicode_domain.len());
         (fp2 : i32) = i32(0);
         while(fp2 < ud_len, {
-          _ := final_out.push((ud_ptr.add(usize(fp2))).*);
+          _ := final_out.push(unicode_domain.byte_at(usize(fp2)));
           fp2 = (fp2 + i32(1));
         });
         (fp3 : i32) = domain_end;
@@ -677,7 +674,7 @@ normalize_link_text :: (fn(url : str) -> String)({
       });
     });
   });
-  decoded_str
+  String.from_bytes(out)
 });
 
 export(normalize_link, normalize_link_text, normalize_link_buf);

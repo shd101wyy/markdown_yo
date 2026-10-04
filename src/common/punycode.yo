@@ -304,11 +304,10 @@ encode_domain :: (fn(domain_ptr : *(u8), domain_len : i32) -> String)({
       _ := result.push(u8(0x2D)); // -
       (label : str) = str.from_raw_parts((src.add(usize(start))), usize((end - start)));
       (encoded : String) = punycode_encode(label);
-      (enc_ptr : *(u8)) = match(encoded.as_bytes().ptr(), .Some(p_) => p_, .None => *(u8)(""));
-      (enc_len : i32) = i32(encoded.as_bytes().len());
+      (enc_len : i32) = i32(encoded.len());
       (e : i32) = i32(0);
       while(e < enc_len, {
-        _ := result.push((enc_ptr.add(usize(e))).*);
+        _ := result.push(encoded.byte_at(usize(e)));
         e = (e + i32(1));
       });
     }, {
@@ -371,11 +370,10 @@ decode_domain :: (fn(domain_ptr : *(u8), domain_len : i32) -> String)({
           // Check decoded has no non-ASCII? No, it should have non-ASCII
           // Check if decoded label is valid — it should contain non-ASCII chars
           // If decode succeeds but result is all ASCII, keep xn-- form
-          (dec_ptr : *(u8)) = match(s.as_bytes().ptr(), .Some(p_) => p_, .None => *(u8)(""));
-          (dec_len : i32) = i32(s.as_bytes().len());
+          (dec_len : i32) = i32(s.len());
           (d : i32) = i32(0);
           while(d < dec_len, {
-            _ := result.push((dec_ptr.add(usize(d))).*);
+            _ := result.push(s.byte_at(usize(d)));
             d = (d + i32(1));
           });
         },

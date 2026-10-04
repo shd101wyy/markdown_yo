@@ -17,6 +17,15 @@
 - `str` — for referencing substrings of source input (zero-copy, no allocation)
 - `String` — only for output buffer content and values that must outlive the source
 - Template strings `` ` `` — for constant String values (e.g., HTML tag literals)
+- Read a `String`'s bytes with `len()` / `byte_at(i)`, or with the helpers in
+  `common/utils.yo`: `append_string` and `escape_html_string` read it in place,
+  `string_bytes` makes one copy where a raw pointer is needed. `as_bytes()` is
+  gone from newer Yo std, and `to_bytes()` / `get_byte()` / `ptr()` are not in
+  the pinned one, so the code must use only what both provide.
+- `String.from_bytes(list)` / `from_utf8(list)` take the list by `own` in newer
+  Yo std: do not use the list afterwards, and move it on one path only (bind a
+  field to a local first; `break` out of a loop rather than `return` it from
+  inside one).
 
 ## Module Organization
 - One file per block/inline rule
