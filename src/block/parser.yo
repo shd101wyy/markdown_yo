@@ -1010,13 +1010,13 @@ _render_footnote_section :: (fn(state : *BlockState) -> unit)({
     (content_buf_end : usize) = r.*.buf.len();
     // Build backref HTML: " <a href="#fnrefN[:subId]" class="footnote-backref">↩︎</a>"
     // For multiple references, emit multiple backrefs
-    (ref_count : i32) = cond(
+    (backref_count : i32) = cond(
       (order_val >= i32(0)) => r.*.fn_ref_counts.get(usize(order_val)).unwrap(),
       true => i32(1) // inline footnotes have exactly 1 reference
     );
     (backref_buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(64));
     (sub : i32) = i32(0);
-    while(sub < ref_count, {
+    while(sub < backref_count, {
       append_lit(&backref_buf, " <a href=\"#fnref");
       _write_i32(&backref_buf, fn_num);
       if(sub > i32(0), {

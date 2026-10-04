@@ -5,37 +5,34 @@
 pragma(Pragma.AllowUnsafe);
 { String } :: import("std/string");
 { ArrayList } :: import("std/collections/array_list");
+{ string_bytes } :: import("./common/utils.yo");
 
 // Normalize source: unify line endings, replace NULL chars.
 // Modifies in-place conceptually — returns a new String if needed.
 normalize :: (fn(src : String) -> String)({
-  (bytes : ArrayList(u8)) = src.as_bytes();
-  (len : usize) = bytes.len();
+  (len : usize) = src.len();
 
   if(len == usize(0), {
     return(src);
   });
 
-  // Quick scan: check if normalization is needed
+  // Quick scan: check if normalization is needed (reads the String in place)
   (needs_normalize : bool) = false;
-  match(
-    bytes.ptr(),
-    .Some(p) => {
-      (si : usize) = usize(0);
-      while((si < len) && !needs_normalize, {
-        (b : u8) = (p.add(si)).*;
-        if((b == u8(0x0D)) || (b == u8(0x00)), {
-          needs_normalize = true;
-        });
-        si = (si + usize(1));
-      });
-    },
-    .None => ()
-  );
+  (si : usize) = usize(0);
+  while((si < len) && !needs_normalize, {
+    (b : u8) = src.byte_at(si);
+    if((b == u8(0x0D)) || (b == u8(0x00)), {
+      needs_normalize = true;
+    });
+    si = (si + usize(1));
+  });
 
   if(!needs_normalize, {
     return(src);
   });
+
+  // The replacement pass reads through a raw pointer: copy the bytes once.
+  (bytes : ArrayList(u8)) = string_bytes(src);
 
   // Single-pass replacement
   (out : ArrayList(u8)) = ArrayList(u8).with_capacity(len);

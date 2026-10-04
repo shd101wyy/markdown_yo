@@ -11,7 +11,7 @@ pragma(Pragma.AllowUnsafe);
 { memset } :: import("std/libc/string.yo");
 { Options, Env, Delimiter, InlineType, LinkMarker, EmphasisPair } :: import("../types.yo");
 { HtmlRenderer } :: import("../renderer.yo");
-{ is_space } :: import("../common/utils.yo");
+{ is_space, string_bytes, append_string } :: import("../common/utils.yo");
 
 // Lightweight inline token — pure value type, no RC fields
 // String content (entities, resolved URLs) stored separately in InlineState._str_buf
@@ -165,8 +165,9 @@ _get_special_table :: (fn() -> *u8)(
 );
 
 InlineState :: struct(
-  // inline content string (None for range-based parsing)
-  src : Option(String),
+  // inline content bytes (None for range-based parsing); owns the buffer
+  // src_ptr points into
+  src : Option(ArrayList(u8)),
   // raw pointer for fast access
   src_ptr : *u8,
   // current position in source
@@ -253,12 +254,7 @@ impl(
     (idx : i32) = i32(self.*._str_offsets.len());
     (start : i32) = i32(self.*._str_buf.len());
     _ := self.*._str_offsets.push(start);
-    (sbytes : ArrayList(u8)) = s.as_bytes();
-    match(
-      sbytes.ptr(),
-      .Some(sp) => self.*._str_buf.extend_from_ptr(sp, sbytes.len()),
-      .None => ()
-    );
+    append_string(&(self.*._str_buf), s);
     idx
   }),
   // Get pointer to stored string bytes (zero-copy, no RC)
@@ -309,14 +305,14 @@ impl(
     self.*.resolved_pairs.clear();
     self.*._str_buf.clear();
     self.*._str_offsets.clear();
-    (bytes : ArrayList(u8)) = src.as_bytes();
+    (bytes : ArrayList(u8)) = string_bytes(src);
     (len : i32) = i32(bytes.len());
     (src_p : *u8) = match(
       bytes.ptr(),
       .Some(p) => p,
       .None => (*u8)("")
     );
-    self.*.src = .Some(src);
+    self.*.src = .Some(bytes);
     self.*.src_ptr = src_p;
     self.*.pos = i32(0);
     self.*.pos_max = len;
