@@ -44,6 +44,7 @@ InlineToken :: struct(
   href_idx : i32,
   title_idx : i32
 );
+derive(InlineToken, Copy, Clone);
 
 impl(
   InlineToken,

@@ -62,6 +62,7 @@ AbbrEntry :: struct(
   title_end : i32,
   pattern_len : i32
 );
+derive(AbbrEntry, Copy, Clone);
 
 default_options :: (fn() -> Options)(
   Options(
@@ -128,6 +129,7 @@ ParentType :: enum(
   Admonition,
   Paragraph
 );
+derive(ParentType, Copy, Clone);
 
 TableAlign :: enum(
   None,
@@ -193,6 +195,7 @@ InlineType :: enum(
   ImageClose,
   Entity
 );
+derive(InlineType, Copy, Clone);
 
 // ---------------------------------------------------------------------------
 // Link reference
@@ -240,6 +243,7 @@ Delimiter :: struct(
   open : bool,
   close : bool // Can close emphasis
 );
+derive(Delimiter, Copy, Clone);
 
 // Link/image bracket marker — tracks pending [ and ![ positions
 LinkMarker :: struct(
@@ -253,6 +257,7 @@ LinkMarker :: struct(
   active : bool,
   delimiters_count : i32 // delimiter stack depth when [ was pushed
 );
+derive(LinkMarker, Copy, Clone);
 
 // A resolved emphasis/strong/strikethrough pair for rendering
 EmphasisPair :: struct(
