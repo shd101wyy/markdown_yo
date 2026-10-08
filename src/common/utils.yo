@@ -16,7 +16,7 @@ pragma(Pragma.AllowUnsafe);
 // ============================================================================
 // Check if byte is markdown space (tab 0x09 or space 0x20)
 is_space :: (fn(code : i32) -> bool)(
-  ((code == i32(0x09)) || (code == i32(0x20)))
+  (code == i32(0x09)) || (code == i32(0x20))
 );
 
 // Check if byte is Unicode whitespace (Zs class) or [\t\f\v\r\n]
@@ -124,28 +124,28 @@ is_md_punct_byte :: (fn(ch : u8) -> bool)(
 // Read a UTF-8 code point starting at src_ptr + offset.
 // Returns (codepoint, byte_length) where byte_length is 1-4.
 // If invalid, returns (0xFFFD, 1).
-read_utf8_codepoint :: (fn(src_ptr : *(u8), offset : i32, src_len : i32) -> i32)({
+read_utf8_codepoint :: (fn(src_ptr : *u8, offset : i32, src_len : i32) -> i32)({
   (b0 : i32) = i32((src_ptr.add(usize(offset))).*);
-  if((b0 < i32(0x80)), {
+  if(b0 < i32(0x80), {
     return(b0);
   });
 
-  if((((b0 >= i32(0xC0)) && (b0 < i32(0xE0))) && ((offset + i32(1)) < src_len)), {
-    (b1 : i32) = i32((src_ptr.add(usize((offset + i32(1))))).*);
+  if((b0 >= i32(0xC0)) && (b0 < i32(0xE0)) && ((offset + i32(1)) < src_len), {
+    (b1 : i32) = i32((src_ptr.add(usize(offset + i32(1)))).*);
     return(((b0 - i32(0xC0)) * i32(64)) + (b1 - i32(0x80)));
   });
 
-  if((((b0 >= i32(0xE0)) && (b0 < i32(0xF0))) && ((offset + i32(2)) < src_len)), {
-    (b1 : i32) = i32((src_ptr.add(usize((offset + i32(1))))).*);
-    (b2 : i32) = i32((src_ptr.add(usize((offset + i32(2))))).*);
-    return((((b0 - i32(0xE0)) * i32(4096)) + ((b1 - i32(0x80)) * i32(64))) + (b2 - i32(0x80)));
+  if((b0 >= i32(0xE0)) && (b0 < i32(0xF0)) && ((offset + i32(2)) < src_len), {
+    (b1 : i32) = i32((src_ptr.add(usize(offset + i32(1)))).*);
+    (b2 : i32) = i32((src_ptr.add(usize(offset + i32(2)))).*);
+    return(((b0 - i32(0xE0)) * i32(4096)) + ((b1 - i32(0x80)) * i32(64)) + (b2 - i32(0x80)));
   });
 
-  if((((b0 >= i32(0xF0)) && (b0 < i32(0xF8))) && ((offset + i32(3)) < src_len)), {
-    (b1 : i32) = i32((src_ptr.add(usize((offset + i32(1))))).*);
-    (b2 : i32) = i32((src_ptr.add(usize((offset + i32(2))))).*);
-    (b3 : i32) = i32((src_ptr.add(usize((offset + i32(3))))).*);
-    return(((((b0 - i32(0xF0)) * i32(262144)) + ((b1 - i32(0x80)) * i32(4096))) + ((b2 - i32(0x80)) * i32(64))) + (b3 - i32(0x80)));
+  if((b0 >= i32(0xF0)) && (b0 < i32(0xF8)) && ((offset + i32(3)) < src_len), {
+    (b1 : i32) = i32((src_ptr.add(usize(offset + i32(1)))).*);
+    (b2 : i32) = i32((src_ptr.add(usize(offset + i32(2)))).*);
+    (b3 : i32) = i32((src_ptr.add(usize(offset + i32(3)))).*);
+    return(((b0 - i32(0xF0)) * i32(262144)) + ((b1 - i32(0x80)) * i32(4096)) + ((b2 - i32(0x80)) * i32(64)) + (b3 - i32(0x80)));
   });
 
   i32(0xFFFD)
@@ -168,15 +168,15 @@ utf8_byte_len :: (fn(lead : u8) -> i32)(
 // 256-byte lookup table for HTML escape dispatch.
 // 0 = safe (no escape needed), non-zero = index into replacement table.
 // Initialized once, shared across all calls.
-(_html_esc_table_ptr : Option(*(u8))) = .None;
+(_html_esc_table_ptr : Option(*u8)) = .None;
 
-_init_html_esc_table :: (fn() -> *(u8))({
-  (ptr : *(u8)) = match(
+_init_html_esc_table :: (fn() -> *u8)({
+  (ptr : *u8) = match(
     unsafe(calloc(usize(256), usize(1))),
-    .Some(p) => *(u8)(p),
+    .Some(p) => (*u8)(p),
     .None => {
       assert(false, "calloc failed");
-      *(u8)("")
+      (*u8)("")
     }
   );
   // 1 = &amp;   (5 bytes)
@@ -190,12 +190,12 @@ _init_html_esc_table :: (fn() -> *(u8))({
   ptr
 });
 
-_get_html_esc_table :: (fn() -> *(u8))(
+_get_html_esc_table :: (fn() -> *u8)(
   match(
     _html_esc_table_ptr,
     .Some(p) => p,
     .None => {
-      (p : *(u8)) = _init_html_esc_table();
+      (p : *u8) = _init_html_esc_table();
       _html_esc_table_ptr = .Some(p);
       p
     }
@@ -205,77 +205,77 @@ _get_html_esc_table :: (fn() -> *(u8))(
 // Escape HTML special chars (&, <, >, ") from src bytes, append to out buffer.
 // Uses a 256-byte lookup table for single-branch dispatch and copies
 // each run of safe bytes with one `extend_from_ptr`.
-escape_html_buf :: (fn(out : *(ArrayList(u8)), src_ptr : *(u8), start : i32, end : i32) -> unit)({
+escape_html_buf :: (fn(out : *ArrayList(u8), src_ptr : *u8, start : i32, end : i32) -> unit)({
   (input_len : i32) = (end - start);
-  if((input_len <= i32(0)), {
+  if(input_len <= i32(0), {
     return();
   });
   // Pre-reserve capacity: typical text has <10% escapes, so reserve ~12.5% extra + margin
-  (needed : usize) = usize(((input_len + (input_len / i32(8))) + i32(64)));
+  (needed : usize) = usize(input_len + (input_len / i32(8)) + i32(64));
   (cur_len : usize) = out.*.len();
-  out.*.ensure_total_capacity((needed + cur_len));
-  (esc_table : *(u8)) = _get_html_esc_table();
+  out.*.ensure_total_capacity(needed + cur_len);
+  (esc_table : *u8) = _get_html_esc_table();
   (i : i32) = start;
   (run_start : i32) = start;
 
   while(i < end, {
     // 8-byte batch scan for safe runs: skip 8 bytes at a time when no escapes needed
-    while(((i + i32(7)) < end), {
-      (w : u64) = *(u64)(src_ptr.add(usize(i))).*;
+    while((i + i32(7)) < end, {
+      (w : u64) = (*u64)(src_ptr.add(usize(i))).*;
       (e0 : u8) = (esc_table.add(usize(u8(w)))).*;
-      (e1 : u8) = (esc_table.add(usize(u8((w >> u64(8)))))).*;
-      (e2 : u8) = (esc_table.add(usize(u8((w >> u64(16)))))).*;
-      (e3 : u8) = (esc_table.add(usize(u8((w >> u64(24)))))).*;
-      (e4 : u8) = (esc_table.add(usize(u8((w >> u64(32)))))).*;
-      (e5 : u8) = (esc_table.add(usize(u8((w >> u64(40)))))).*;
-      (e6 : u8) = (esc_table.add(usize(u8((w >> u64(48)))))).*;
-      (e7 : u8) = (esc_table.add(usize(u8((w >> u64(56)))))).*;
+      (e1 : u8) = (esc_table.add(usize(u8(w >> u64(8))))).*;
+      (e2 : u8) = (esc_table.add(usize(u8(w >> u64(16))))).*;
+      (e3 : u8) = (esc_table.add(usize(u8(w >> u64(24))))).*;
+      (e4 : u8) = (esc_table.add(usize(u8(w >> u64(32))))).*;
+      (e5 : u8) = (esc_table.add(usize(u8(w >> u64(40))))).*;
+      (e6 : u8) = (esc_table.add(usize(u8(w >> u64(48))))).*;
+      (e7 : u8) = (esc_table.add(usize(u8(w >> u64(56))))).*;
       (any : u8) =
-        (((((((e0 | e1) | e2) | e3) | e4) | e5) | e6) | e7);
-      if((any != u8(0)), {
+        (e0 | e1 | e2 | e3 | e4 | e5 | e6 | e7);
+      if(any != u8(0), {
         break;
       });
       i = (i + i32(8));
     });
-    if((i >= end), {
+    if(i >= end, {
       break;
     });
     (ch : u8) = (src_ptr.add(usize(i))).*;
     (esc_idx : u8) = (esc_table.add(usize(ch))).*;
-    if((esc_idx != u8(0)), {
+    if(esc_idx != u8(0), {
       // Flush preceding safe run directly via pointer copy
-      if((i > run_start), {
-        (run_len : usize) = usize((i - run_start));
-        out.*.extend_from_ptr((src_ptr.add(usize(run_start))), run_len);
+      if(i > run_start, {
+        (run_len : usize) = usize(i - run_start);
+        out.*.extend_from_ptr(src_ptr.add(usize(run_start)), run_len);
       });
       // Append the escape sequence. `extend_from_ptr` grows the buffer
       // when it must: the reservation above is a performance hint, and
       // escape-dense text (6 bytes per `"`) outgrows it.
       cond(
-        (esc_idx == u8(1)) => out.*.extend_from_ptr(*(u8)("&amp;"), usize(5)),
-        (esc_idx == u8(2)) => out.*.extend_from_ptr(*(u8)("&lt;"), usize(4)),
-        (esc_idx == u8(3)) => out.*.extend_from_ptr(*(u8)("&gt;"), usize(4)),
-        true => out.*.extend_from_ptr(*(u8)("&quot;"), usize(6))
+        (esc_idx == u8(1)) => out.*.extend_from_ptr((*u8)("&amp;"), usize(5)),
+        (esc_idx == u8(2)) => out.*.extend_from_ptr((*u8)("&lt;"), usize(4)),
+        (esc_idx == u8(3)) => out.*.extend_from_ptr((*u8)("&gt;"), usize(4)),
+        true => out.*.extend_from_ptr((*u8)("&quot;"), usize(6))
       );
       run_start = (i + i32(1));
     });
     i = (i + i32(1));
   });
   // Flush remaining
-  if((end > run_start), {
-    out.*.extend_from_ptr((src_ptr.add(usize(run_start))), usize((end - run_start)));
+  if(end > run_start, {
+    out.*.extend_from_ptr(src_ptr.add(usize(run_start)), usize(end - run_start));
   });
 });
 
 // Append raw bytes from source to buffer (no escaping)
-append_raw_buf :: (fn(out : *(ArrayList(u8)), src_ptr : *(u8), start : i32, end : i32) -> unit)(
-  if((end > start), {
-    out.*.extend_from_ptr((src_ptr.add(usize(start))), usize((end - start)));
+append_raw_buf :: (fn(out : *ArrayList(u8), src_ptr : *u8, start : i32, end : i32) -> unit)(
+  if(end > start, {
+    out.*.extend_from_ptr(src_ptr.add(usize(start)), usize(end - start));
   })
 );
 
 // Append a literal string to the output buffer
-append_lit :: (fn(out : *(ArrayList(u8)), s : str) -> unit)(
+append_lit :: (fn(out : *ArrayList(u8), s : str) -> unit)(
   out.*.extend_from_ptr(s.ptr(), s.len())
 );
 
@@ -297,9 +297,9 @@ string_bytes :: (fn(s : String) -> ArrayList(u8))({
 });
 
 // Append `s`'s bytes to `out`, reading the String in place (no copy).
-append_string :: (fn(out : *(ArrayList(u8)), s : String) -> unit)({
+append_string :: (fn(out : *ArrayList(u8), s : String) -> unit)({
   (n : usize) = s.len();
-  out.*.ensure_total_capacity((out.*.len() + n));
+  out.*.ensure_total_capacity(out.*.len() + n);
   (i : usize) = usize(0);
   while(i < n, {
     _ := out.*.push(s.byte_at(i));
@@ -308,14 +308,14 @@ append_string :: (fn(out : *(ArrayList(u8)), s : String) -> unit)({
 });
 
 // `escape_html_buf` over a String, reading it in place (no copy).
-escape_html_string :: (fn(out : *(ArrayList(u8)), s : String) -> unit)({
+escape_html_string :: (fn(out : *ArrayList(u8), s : String) -> unit)({
   (n : usize) = s.len();
-  if((n == usize(0)), {
+  if(n == usize(0), {
     return();
   });
-  (needed : usize) = ((n + (n / usize(8))) + usize(64));
-  out.*.ensure_total_capacity((needed + out.*.len()));
-  (esc_table : *(u8)) = _get_html_esc_table();
+  (needed : usize) = (n + (n / usize(8)) + usize(64));
+  out.*.ensure_total_capacity(needed + out.*.len());
+  (esc_table : *u8) = _get_html_esc_table();
   (i : usize) = usize(0);
   while(i < n, {
     (ch : u8) = s.byte_at(i);
@@ -324,10 +324,10 @@ escape_html_string :: (fn(out : *(ArrayList(u8)), s : String) -> unit)({
       (esc_idx == u8(0)) => {
         _ := out.*.push(ch);
       },
-      (esc_idx == u8(1)) => out.*.extend_from_ptr(*(u8)("&amp;"), usize(5)),
-      (esc_idx == u8(2)) => out.*.extend_from_ptr(*(u8)("&lt;"), usize(4)),
-      (esc_idx == u8(3)) => out.*.extend_from_ptr(*(u8)("&gt;"), usize(4)),
-      true => out.*.extend_from_ptr(*(u8)("&quot;"), usize(6))
+      (esc_idx == u8(1)) => out.*.extend_from_ptr((*u8)("&amp;"), usize(5)),
+      (esc_idx == u8(2)) => out.*.extend_from_ptr((*u8)("&lt;"), usize(4)),
+      (esc_idx == u8(3)) => out.*.extend_from_ptr((*u8)("&gt;"), usize(4)),
+      true => out.*.extend_from_ptr((*u8)("&quot;"), usize(6))
     );
     i = (i + usize(1));
   });

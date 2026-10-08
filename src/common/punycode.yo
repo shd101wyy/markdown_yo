@@ -25,15 +25,15 @@ _adapt :: (fn(delta_in : i32, num_points : i32, first_time : bool) -> i32)({
     delta = (delta / (_PC_BASE - _PC_TMIN));
     k = (k + _PC_BASE);
   });
-  (k + ((((_PC_BASE - _PC_TMIN) + i32(1)) * delta) / (delta + _PC_SKEW)))
+  k + ((((_PC_BASE - _PC_TMIN) + i32(1)) * delta) / (delta + _PC_SKEW))
 });
 
 // Encode a digit value to a basic code point
 _encode_digit :: (fn(d : i32) -> u8)(
   cond(
     // a-z
-    (d < i32(26)) => u8((d + i32(0x61))),
-    true => u8(((d - i32(26)) + i32(0x30))) // 0-9
+    (d < i32(26)) => u8(d + i32(0x61)),
+    true => u8((d - i32(26)) + i32(0x30)) // 0-9
   )
 );
 
@@ -51,14 +51,14 @@ _decode_digit :: (fn(cp : i32) -> i32)(
 // then re-encode as UTF-8 string.
 // Returns .None on decode error.
 punycode_decode :: (fn(input : str) -> Option(String))({
-  (src : *(u8)) = input.ptr();
+  (src : *u8) = input.ptr();
   (len : i32) = i32(input.len());
 
   // Find last '-' separator (basic chars are before it)
   (basic_end : i32) = (i32(0) - i32(1));
   (j : i32) = i32(0);
   while(j < len, {
-    if((i32((src.add(usize(j))).*) == i32(0x2D)), {
+    if(i32((src.add(usize(j))).*) == i32(0x2D), {
       basic_end = j;
     });
     j = (j + i32(1));
@@ -68,11 +68,11 @@ punycode_decode :: (fn(input : str) -> Option(String))({
   (output : ArrayList(i32)) = ArrayList(i32).new();
 
   // Copy basic codepoints
-  if((basic_end > i32(0)), {
+  if(basic_end > i32(0), {
     (b : i32) = i32(0);
     while(b < basic_end, {
       (cp : i32) = i32((src.add(usize(b))).*);
-      if((cp >= i32(0x80)), {
+      if(cp >= i32(0x80), {
         return(.None);
       });
       _ := output.push(cp);
@@ -95,13 +95,13 @@ punycode_decode :: (fn(input : str) -> Option(String))({
     (k : i32) = _PC_BASE;
 
     (decode_done : bool) = false;
-    while(!(decode_done), {
-      if((pos >= len), {
+    while(!decode_done, {
+      if(pos >= len, {
         return(.None);
       });
       (digit : i32) = _decode_digit(i32((src.add(usize(pos))).*));
       pos = (pos + i32(1));
-      if((digit >= _PC_BASE), {
+      if(digit >= _PC_BASE, {
         return(.None);
       });
       i_val = (i_val + (digit * w));
@@ -110,7 +110,7 @@ punycode_decode :: (fn(input : str) -> Option(String))({
         (k >= (bias + _PC_TMAX)) => _PC_TMAX,
         true => (k - bias)
       );
-      if((digit < t), {
+      if(digit < t, {
         decode_done = true;
       }, {
         w = (w * (_PC_BASE - t));
@@ -119,7 +119,7 @@ punycode_decode :: (fn(input : str) -> Option(String))({
     });
 
     (out_len : i32) = (i32(output.len()) + i32(1));
-    bias = _adapt((i_val - old_i), out_len, (old_i == i32(0)));
+    bias = _adapt(i_val - old_i, out_len, old_i == i32(0));
     n = (n + (i_val / out_len));
     i_val = (i_val % out_len);
 
@@ -128,7 +128,7 @@ punycode_decode :: (fn(input : str) -> Option(String))({
     _ := output.push(i32(0));
     (shift : i32) = (i32(output.len()) - i32(1));
     while(shift > i_val, {
-      &(output(usize(shift))).* = output(usize((shift - i32(1))));
+      &(output(usize(shift))).* = output(usize(shift - i32(1)));
       shift = (shift - i32(1));
     });
     &(output(usize(i_val))).* = n;
@@ -140,20 +140,20 @@ punycode_decode :: (fn(input : str) -> Option(String))({
   (r : i32) = i32(0);
   while(r < i32(output.len()), {
     (cp : i32) = output(usize(r));
-    if((cp < i32(0x80)), {
+    if(cp < i32(0x80), {
       _ := result.push(u8(cp));
-    }, if((cp < i32(0x800)), {
-      _ := result.push(u8((i32(0xC0) + (cp / i32(64)))));
-      _ := result.push(u8((i32(0x80) + (cp % i32(64)))));
-    }, if((cp < i32(0x10000)), {
-      _ := result.push(u8((i32(0xE0) + (cp / i32(4096)))));
-      _ := result.push(u8((i32(0x80) + ((cp / i32(64)) % i32(64)))));
-      _ := result.push(u8((i32(0x80) + (cp % i32(64)))));
+    }, if(cp < i32(0x800), {
+      _ := result.push(u8(i32(0xC0) + (cp / i32(64))));
+      _ := result.push(u8(i32(0x80) + (cp % i32(64))));
+    }, if(cp < i32(0x10000), {
+      _ := result.push(u8(i32(0xE0) + (cp / i32(4096))));
+      _ := result.push(u8(i32(0x80) + ((cp / i32(64)) % i32(64))));
+      _ := result.push(u8(i32(0x80) + (cp % i32(64))));
     }, {
-      _ := result.push(u8((i32(0xF0) + (cp / i32(262144)))));
-      _ := result.push(u8((i32(0x80) + ((cp / i32(4096)) % i32(64)))));
-      _ := result.push(u8((i32(0x80) + ((cp / i32(64)) % i32(64)))));
-      _ := result.push(u8((i32(0x80) + (cp % i32(64)))));
+      _ := result.push(u8(i32(0xF0) + (cp / i32(262144))));
+      _ := result.push(u8(i32(0x80) + ((cp / i32(4096)) % i32(64))));
+      _ := result.push(u8(i32(0x80) + ((cp / i32(64)) % i32(64))));
+      _ := result.push(u8(i32(0x80) + (cp % i32(64))));
     })));
     r = (r + i32(1));
   });
@@ -164,7 +164,7 @@ punycode_decode :: (fn(input : str) -> Option(String))({
 // Encode a Unicode string as punycode (without "xn--" prefix).
 // Input is UTF-8 encoded.
 punycode_encode :: (fn(input : str) -> String)({
-  (src : *(u8)) = input.ptr();
+  (src : *u8) = input.ptr();
   (len : i32) = i32(input.len());
 
   // First, decode UTF-8 to codepoints
@@ -173,17 +173,17 @@ punycode_encode :: (fn(input : str) -> String)({
   while(p < len, {
     (b : i32) = i32((src.add(usize(p))).*);
     (cp : i32) = i32(0);
-    if((b < i32(0x80)), {
+    if(b < i32(0x80), {
       cp = b;
       p = (p + i32(1));
-    }, if(((b >= i32(0xC0)) && (b < i32(0xE0))), {
-      cp = (((b - i32(0xC0)) * i32(64)) + (i32((src.add(usize((p + i32(1))))).*) - i32(0x80)));
+    }, if((b >= i32(0xC0)) && (b < i32(0xE0)), {
+      cp = (((b - i32(0xC0)) * i32(64)) + (i32((src.add(usize(p + i32(1)))).*) - i32(0x80)));
       p = (p + i32(2));
-    }, if(((b >= i32(0xE0)) && (b < i32(0xF0))), {
-      cp = ((((b - i32(0xE0)) * i32(4096)) + ((i32((src.add(usize((p + i32(1))))).*) - i32(0x80)) * i32(64))) + (i32((src.add(usize((p + i32(2))))).*) - i32(0x80)));
+    }, if((b >= i32(0xE0)) && (b < i32(0xF0)), {
+      cp = (((b - i32(0xE0)) * i32(4096)) + ((i32((src.add(usize(p + i32(1)))).*) - i32(0x80)) * i32(64)) + (i32((src.add(usize(p + i32(2)))).*) - i32(0x80)));
       p = (p + i32(3));
     }, {
-      cp = (((((b - i32(0xF0)) * i32(262144)) + ((i32((src.add(usize((p + i32(1))))).*) - i32(0x80)) * i32(4096))) + ((i32((src.add(usize((p + i32(2))))).*) - i32(0x80)) * i32(64))) + (i32((src.add(usize((p + i32(3))))).*) - i32(0x80)));
+      cp = (((b - i32(0xF0)) * i32(262144)) + ((i32((src.add(usize(p + i32(1)))).*) - i32(0x80)) * i32(4096)) + ((i32((src.add(usize(p + i32(2)))).*) - i32(0x80)) * i32(64)) + (i32((src.add(usize(p + i32(3)))).*) - i32(0x80)));
       p = (p + i32(4));
     })));
     _ := codepoints.push(cp);
@@ -196,7 +196,7 @@ punycode_encode :: (fn(input : str) -> String)({
   (c : i32) = i32(0);
   while(c < i32(codepoints.len()), {
     (cp : i32) = codepoints(usize(c));
-    if((cp < i32(0x80)), {
+    if(cp < i32(0x80), {
       _ := result.push(u8(cp));
       basic_count = (basic_count + i32(1));
     });
@@ -204,7 +204,7 @@ punycode_encode :: (fn(input : str) -> String)({
   });
 
   // Add separator if there were basic chars
-  if((basic_count > i32(0)), {
+  if(basic_count > i32(0), {
     _ := result.push(u8(0x2D));
   });
 
@@ -220,7 +220,7 @@ punycode_encode :: (fn(input : str) -> String)({
     (s : i32) = i32(0);
     while(s < total, {
       (cp : i32) = codepoints(usize(s));
-      if(((cp >= n) && (cp < m)), {
+      if((cp >= n) && (cp < m), {
         m = cp;
       });
       s = (s + i32(1));
@@ -232,29 +232,29 @@ punycode_encode :: (fn(input : str) -> String)({
     (s2 : i32) = i32(0);
     while(s2 < total, {
       (cp : i32) = codepoints(usize(s2));
-      if((cp < n), {
+      if(cp < n, {
         delta = (delta + i32(1));
       });
-      if((cp == n), {
+      if(cp == n, {
         (q : i32) = delta;
         (k : i32) = _PC_BASE;
         (encode_done : bool) = false;
-        while(!(encode_done), {
+        while(!encode_done, {
           (t : i32) = cond(
             (k <= bias) => _PC_TMIN,
             (k >= (bias + _PC_TMAX)) => _PC_TMAX,
             true => (k - bias)
           );
-          if((q < t), {
+          if(q < t, {
             _ := result.push(_encode_digit(q));
             encode_done = true;
           }, {
-            _ := result.push(_encode_digit((t + ((q - t) % (_PC_BASE - t)))));
+            _ := result.push(_encode_digit(t + ((q - t) % (_PC_BASE - t))));
             q = ((q - t) / (_PC_BASE - t));
             k = (k + _PC_BASE);
           });
         });
-        bias = _adapt(delta, (handled + i32(1)), (handled == basic_count));
+        bias = _adapt(delta, handled + i32(1), handled == basic_count);
         delta = i32(0);
         handled = (handled + i32(1));
       });
@@ -269,11 +269,11 @@ punycode_encode :: (fn(input : str) -> String)({
 });
 
 // Check if a domain label contains any non-ASCII characters
-_has_non_ascii :: (fn(src : *(u8), start : i32, end : i32) -> bool)({
+_has_non_ascii :: (fn(src : *u8, start : i32, end : i32) -> bool)({
   (p : i32) = start;
   (found : bool) = false;
-  while((p < end) && !(found), {
-    if((i32((src.add(usize(p))).*) >= i32(0x80)), {
+  while((p < end) && !found, {
+    if(i32((src.add(usize(p))).*) >= i32(0x80), {
       found = true;
     });
     p = (p + i32(1));
@@ -283,8 +283,8 @@ _has_non_ascii :: (fn(src : *(u8), start : i32, end : i32) -> bool)({
 
 // Encode domain name (Unicode → punycode for each label with non-ASCII)
 // Input: domain like "☃.net", output: "xn--n3h.net"
-encode_domain :: (fn(domain_ptr : *(u8), domain_len : i32) -> String)({
-  (src : *(u8)) = domain_ptr;
+encode_domain :: (fn(domain_ptr : *u8, domain_len : i32) -> String)({
+  (src : *u8) = domain_ptr;
   (len : i32) = domain_len;
   (result : ArrayList(u8)) = ArrayList(u8).new();
 
@@ -302,7 +302,7 @@ encode_domain :: (fn(domain_ptr : *(u8), domain_len : i32) -> String)({
       _ := result.push(u8(0x6E)); // n
       _ := result.push(u8(0x2D)); // -
       _ := result.push(u8(0x2D)); // -
-      (label : str) = str.from_raw_parts((src.add(usize(start))), usize((end - start)));
+      (label : str) = str.from_raw_parts(src.add(usize(start)), usize(end - start));
       (encoded : String) = punycode_encode(label);
       (enc_len : i32) = i32(encoded.len());
       (e : i32) = i32(0);
@@ -320,7 +320,7 @@ encode_domain :: (fn(domain_ptr : *(u8), domain_len : i32) -> String)({
     });
 
     // Add the dot
-    if((end < len), {
+    if(end < len, {
       _ := result.push(u8(0x2E));
       start = (end + i32(1));
     }, {
@@ -333,8 +333,8 @@ encode_domain :: (fn(domain_ptr : *(u8), domain_len : i32) -> String)({
 
 // Decode domain name (punycode → Unicode for each xn-- label)
 // Input: domain like "xn--n3h.net", output: "☃.net"
-decode_domain :: (fn(domain_ptr : *(u8), domain_len : i32) -> String)({
-  (src : *(u8)) = domain_ptr;
+decode_domain :: (fn(domain_ptr : *u8, domain_len : i32) -> String)({
+  (src : *u8) = domain_ptr;
   (len : i32) = domain_len;
   (result : ArrayList(u8)) = ArrayList(u8).new();
 
@@ -348,21 +348,19 @@ decode_domain :: (fn(domain_ptr : *(u8), domain_len : i32) -> String)({
 
     (label_len : i32) = (end - start);
     // Check for "xn--" prefix (case-insensitive)
-    if((
-      (label_len > i32(4))
+    if((label_len > i32(4))
+    && (
+      ((i32((src.add(usize(start))).*) == i32(0x78)) || (i32((src.add(usize(start))).*) == i32(0x58)))
       && (
-        ((i32((src.add(usize(start))).*) == i32(0x78)) || (i32((src.add(usize(start))).*) == i32(0x58)))
+        ((i32((src.add(usize(start + i32(1)))).*) == i32(0x6E)) || (i32((src.add(usize(start + i32(1)))).*) == i32(0x4E)))
         && (
-          ((i32((src.add(usize((start + i32(1))))).*) == i32(0x6E)) || (i32((src.add(usize((start + i32(1))))).*) == i32(0x4E)))
-          && (
-            (i32((src.add(usize((start + i32(2))))).*) == i32(0x2D))
-            && (i32((src.add(usize((start + i32(3))))).*) == i32(0x2D))
-          )
+          (i32((src.add(usize(start + i32(2)))).*) == i32(0x2D))
+          && (i32((src.add(usize(start + i32(3)))).*) == i32(0x2D))
         )
       )
     ), {
       // Decode punycode label
-      (pc_str : str) = str.from_raw_parts((src.add(usize((start + i32(4))))), usize(((end - start) - i32(4))));
+      (pc_str : str) = str.from_raw_parts(src.add(usize(start + i32(4))), usize(end - start - i32(4)));
       (decoded : Option(String)) = punycode_decode(pc_str);
       match(
         decoded,
@@ -396,7 +394,7 @@ decode_domain :: (fn(domain_ptr : *(u8), domain_len : i32) -> String)({
     });
 
     // Add the dot
-    if((end < len), {
+    if(end < len, {
       _ := result.push(u8(0x2E));
       start = (end + i32(1));
     }, {

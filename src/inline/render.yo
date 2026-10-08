@@ -25,6 +25,7 @@ _SQReplace :: struct(
   byte_pos : i32,
   kind : u8 // 0=left_dbl ", 1=right_dbl ", 2=left_sgl ', 3=right_sgl '
 );
+derive(_SQReplace, Copy, Clone);
 
 // Stack entry for tracking potential quote openers
 _SQEntry :: struct(
@@ -36,6 +37,7 @@ _SQEntry :: struct(
   is_single : bool,
   level : i32 // nesting level at this token
 );
+derive(_SQEntry, Copy, Clone);
 
 // Emit a curly quote as UTF-8 bytes directly into the buffer.
 // " = E2 80 9C, " = E2 80 9D, ' = E2 80 98, ' = E2 80 99
