@@ -137,6 +137,7 @@ TableAlign :: enum(
   Center,
   Right
 );
+derive(TableAlign, Copy, Clone);
 
 // ---------------------------------------------------------------------------
 // Footnote definition — stores label and content for end-of-document rendering
@@ -159,6 +160,7 @@ FootnoteDef :: struct(
   adj_tshift : i32,
   adj_scount : i32 // adjusted sCount for first line
 );
+derive(FootnoteDef, Copy, Clone);
 
 // ---------------------------------------------------------------------------
 // Inline token types
@@ -269,6 +271,7 @@ EmphasisPair :: struct(
   consume : i32,
   pair_type : i32 // 1=em, 2=strong, 3=strikethrough
 );
+derive(EmphasisPair, Copy, Clone);
 
 export(
   Options,

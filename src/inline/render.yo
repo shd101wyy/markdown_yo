@@ -25,6 +25,7 @@ _SQReplace :: struct(
   byte_pos : i32,
   kind : u8 // 0=left_dbl ", 1=right_dbl ", 2=left_sgl ', 3=right_sgl '
 );
+derive(_SQReplace, Copy, Clone);
 
 // Stack entry for tracking potential quote openers
 _SQEntry :: struct(
