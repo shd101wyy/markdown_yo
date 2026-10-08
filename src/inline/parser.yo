@@ -30,44 +30,42 @@ pragma(Pragma.AllowUnsafe);
 // Check if a byte is a special inline character that could trigger a rule
 _is_inline_special :: (fn(ch : u8) -> bool)(
   (
-    (
-      (ch <= u8(0x60)) && (
-        (ch == u8(0x0A)) || (
-          (ch == u8(0x21)) || (
-            (ch == u8(0x24)) ||
-              (
-                (ch == u8(0x26)) || (
-                  (ch == u8(0x2A)) || (
-                    (ch == u8(0x3A)) || (
-                      (ch == u8(0x3C)) ||
-                        (
-                          (ch == u8(0x3D)) ||
-                            (
-                              (ch == u8(0x5B)) || (
-                                (ch == u8(0x5C)) || (
-                                  (ch == u8(0x5D)) || (
-                                    (ch == u8(0x5E)) ||
-                                      ((ch == u8(0x5F)) || (ch == u8(0x60)))
-                                  )
+    (ch <= u8(0x60)) && (
+      (ch == u8(0x0A)) || (
+        (ch == u8(0x21)) || (
+          (ch == u8(0x24)) ||
+            (
+              (ch == u8(0x26)) || (
+                (ch == u8(0x2A)) || (
+                  (ch == u8(0x3A)) || (
+                    (ch == u8(0x3C)) ||
+                      (
+                        (ch == u8(0x3D)) ||
+                          (
+                            (ch == u8(0x5B)) || (
+                              (ch == u8(0x5C)) || (
+                                (ch == u8(0x5D)) || (
+                                  (ch == u8(0x5E)) ||
+                                    ((ch == u8(0x5F)) || (ch == u8(0x60)))
                                 )
                               )
                             )
-                        )
-                    )
+                          )
+                      )
                   )
                 )
               )
-          )
+            )
         )
       )
     )
-    || ((ch == u8(0x7B)) || (ch == u8(0x7E)))
   )
+  || ((ch == u8(0x7B)) || (ch == u8(0x7E)))
 );
 
 // Shared dispatch loop for inline parsing
-_inline_dispatch :: (fn(state : *(InlineState)) -> unit)({
-  (table : *(u8)) = state.*.special_table;
+_inline_dispatch :: (fn(state : *InlineState) -> unit)({
+  (table : *u8) = state.*.special_table;
   // Main dispatch loop: try each inline rule at current position
   while(state.*.pos < state.*.pos_max, {
     (matched : bool) = false;
@@ -97,7 +95,7 @@ _inline_dispatch :: (fn(state : *(InlineState)) -> unit)({
         if(state.*.options.*.enable_strikethrough, {
           matched = inline_strikethrough(state);
         });
-        if((!(matched) && state.*.options.*.enable_subscript), {
+        if(!matched && state.*.options.*.enable_subscript, {
           matched = inline_subscript(state);
         });
       },
@@ -106,7 +104,7 @@ _inline_dispatch :: (fn(state : *(InlineState)) -> unit)({
         if(state.*.options.*.enable_footnote, {
           matched = inline_footnote_inline(state);
         });
-        if((!(matched) && state.*.options.*.enable_superscript), {
+        if(!matched && state.*.options.*.enable_superscript, {
           matched = inline_superscript(state);
         });
       },
@@ -130,13 +128,13 @@ _inline_dispatch :: (fn(state : *(InlineState)) -> unit)({
       },
       // [ or ! — wikilink, footnote reference, or link/image open bracket
       ((ch == i32(0x5B)) || (ch == i32(0x21))) => {
-        if((state.*.options.*.enable_wikilink && (ch == i32(0x5B))), {
+        if(state.*.options.*.enable_wikilink && (ch == i32(0x5B)), {
           matched = inline_wikilink(state);
         });
-        if((!(matched) && (state.*.options.*.enable_footnote && (ch == i32(0x5B)))), {
+        if(!matched && (state.*.options.*.enable_footnote && (ch == i32(0x5B))), {
           matched = inline_footnote_ref(state);
         });
-        if(!(matched), {
+        if(!matched, {
           matched = inline_link_open(state);
         });
       },
@@ -147,7 +145,7 @@ _inline_dispatch :: (fn(state : *(InlineState)) -> unit)({
       // < — autolink or html inline
       (ch == i32(0x3C)) => {
         matched = inline_autolink(state);
-        if(!(matched), {
+        if(!matched, {
           if(state.*.options.*.html, {
             matched = inline_html(state);
           });
@@ -167,22 +165,22 @@ _inline_dispatch :: (fn(state : *(InlineState)) -> unit)({
     );
 
     // If no rule matched, scan forward to next special char (lookup table)
-    if(!(matched), {
+    if(!matched, {
       (scan : i32) = (state.*.pos + i32(1));
-      (src : *(u8)) = state.*.src_ptr;
+      (src : *u8) = state.*.src_ptr;
       (scan_max : i32) = state.*.pos_max;
       // 8-byte batch scan: check 8 bytes per iteration using u64 load
       // table[byte] & 1 is 1 only for inline specials (0&1=0, 1&1=1, 2&1=0)
-      while(((scan + i32(7)) < scan_max), {
-        (w : u64) = *(u64)(src.add(usize(scan))).*;
+      while((scan + i32(7)) < scan_max, {
+        (w : u64) = (*u64)(src.add(usize(scan))).*;
         (c0 : u8) = u8(w);
-        (c1 : u8) = u8((w >> u64(8)));
-        (c2 : u8) = u8((w >> u64(16)));
-        (c3 : u8) = u8((w >> u64(24)));
-        (c4 : u8) = u8((w >> u64(32)));
-        (c5 : u8) = u8((w >> u64(40)));
-        (c6 : u8) = u8((w >> u64(48)));
-        (c7 : u8) = u8((w >> u64(56)));
+        (c1 : u8) = u8(w >> u64(8));
+        (c2 : u8) = u8(w >> u64(16));
+        (c3 : u8) = u8(w >> u64(24));
+        (c4 : u8) = u8(w >> u64(32));
+        (c5 : u8) = u8(w >> u64(40));
+        (c6 : u8) = u8(w >> u64(48));
+        (c7 : u8) = u8(w >> u64(56));
         (b0 : u8) = ((table.add(usize(c0))).* & u8(1));
         (b1 : u8) = ((table.add(usize(c1))).* & u8(1));
         (b2 : u8) = ((table.add(usize(c2))).* & u8(1));
@@ -192,8 +190,8 @@ _inline_dispatch :: (fn(state : *(InlineState)) -> unit)({
         (b6 : u8) = ((table.add(usize(c6))).* & u8(1));
         (b7 : u8) = ((table.add(usize(c7))).* & u8(1));
         (any : u8) =
-          (((((((b0 | b1) | b2) | b3) | b4) | b5) | b6) | b7);
-        if((any != u8(0)), {
+          (b0 | b1 | b2 | b3 | b4 | b5 | b6 | b7);
+        if(any != u8(0), {
           break;
         });
         scan = (scan + i32(8));
@@ -216,7 +214,7 @@ _inline_dispatch :: (fn(state : *(InlineState)) -> unit)({
 
 // Parse inline content from a source string and render directly to the HtmlRenderer.
 // Uses the provided reusable InlineState to avoid repeated allocations.
-inline_parse :: (fn(inline_state : *(InlineState), src : String) -> unit)({
+inline_parse :: (fn(inline_state : *InlineState, src : String) -> unit)({
   inline_state.*.reset_for_string(src);
   _inline_dispatch(inline_state);
 });
@@ -225,33 +223,33 @@ inline_parse :: (fn(inline_state : *(InlineState), src : String) -> unit)({
 // This is the main entry point called by block rules.
 // Zero-copy: directly uses the source pointer without allocating a String copy.
 // Uses the provided reusable InlineState to avoid repeated allocations.
-inline_parse_range :: (fn(inline_state : *(InlineState), src_ptr : *(u8), start : i32, end : i32) -> unit)({
-  if((end <= start), {
+inline_parse_range :: (fn(inline_state : *InlineState, src_ptr : *u8, start : i32, end : i32) -> unit)({
+  if(end <= start, {
     return();
   });
 
   // Fast path: pre-scan using combined table (1=inline special, 2=HTML-escape-only).
   // Single table lookup per byte instead of table lookup + 4 comparisons.
-  (table : *(u8)) = inline_state.*.special_table;
+  (table : *u8) = inline_state.*.special_table;
   (p : i32) = start;
   (has_special : bool) = false;
   (has_html_char : bool) = false;
   // 8-byte batch pre-scan: quickly detect inline specials and HTML chars
-  while(((p + i32(7)) < end), {
-    (w : u64) = *(u64)(src_ptr.add(usize(p))).*;
+  while((p + i32(7)) < end, {
+    (w : u64) = (*u64)(src_ptr.add(usize(p))).*;
     (t0 : u8) = (table.add(usize(u8(w)))).*;
-    (t1 : u8) = (table.add(usize(u8((w >> u64(8)))))).*;
-    (t2 : u8) = (table.add(usize(u8((w >> u64(16)))))).*;
-    (t3 : u8) = (table.add(usize(u8((w >> u64(24)))))).*;
-    (t4 : u8) = (table.add(usize(u8((w >> u64(32)))))).*;
-    (t5 : u8) = (table.add(usize(u8((w >> u64(40)))))).*;
-    (t6 : u8) = (table.add(usize(u8((w >> u64(48)))))).*;
-    (t7 : u8) = (table.add(usize(u8((w >> u64(56)))))).*;
-    (any_or : u8) = (((((((t0 | t1) | t2) | t3) | t4) | t5) | t6) | t7);
-    if((any_or == u8(0)), {
+    (t1 : u8) = (table.add(usize(u8(w >> u64(8))))).*;
+    (t2 : u8) = (table.add(usize(u8(w >> u64(16))))).*;
+    (t3 : u8) = (table.add(usize(u8(w >> u64(24))))).*;
+    (t4 : u8) = (table.add(usize(u8(w >> u64(32))))).*;
+    (t5 : u8) = (table.add(usize(u8(w >> u64(40))))).*;
+    (t6 : u8) = (table.add(usize(u8(w >> u64(48))))).*;
+    (t7 : u8) = (table.add(usize(u8(w >> u64(56))))).*;
+    (any_or : u8) = (t0 | t1 | t2 | t3 | t4 | t5 | t6 | t7);
+    if(any_or == u8(0), {
       p = (p + i32(8));
     }, {
-      if(((any_or & u8(1)) != u8(0)), {
+      if((any_or & u8(1)) != u8(0), {
         has_special = true;
         p = end;
       }, {
@@ -263,10 +261,10 @@ inline_parse_range :: (fn(inline_state : *(InlineState), src_ptr : *(u8), start 
   // Byte-by-byte for remaining 0-7 bytes
   while(p < end, {
     (tag : u8) = (table.add(usize((src_ptr.add(usize(p))).*))).*;
-    if((tag == u8(1)), {
+    if(tag == u8(1), {
       has_special = true;
       p = end;
-    }, if((tag == u8(2)), {
+    }, if(tag == u8(2), {
       has_html_char = true;
     }));
     p = (p + i32(1));
@@ -274,20 +272,20 @@ inline_parse_range :: (fn(inline_state : *(InlineState), src_ptr : *(u8), start 
 
   if(has_special, {
     (len : i32) = (end - start);
-    inline_state.*.reset_for_ptr((src_ptr.add(usize(start))), len);
+    inline_state.*.reset_for_ptr(src_ptr.add(usize(start)), len);
     _inline_dispatch(inline_state);
   }, {
     if(inline_state.*.options.*.typographer, {
       (len : i32) = (end - start);
-      inline_state.*.reset_for_ptr((src_ptr.add(usize(start))), len);
+      inline_state.*.reset_for_ptr(src_ptr.add(usize(start)), len);
       _inline_dispatch(inline_state);
     }, {
-      if(((has_html_char) || (inline_state.*.renderer.*.abbrs.len() > usize(0))), {
+      if(has_html_char || (inline_state.*.renderer.*.abbrs.len() > usize(0)), {
         // Has HTML chars or abbreviations — escape/replace via text()
         inline_state.*.renderer.*.text(start, end);
       }, {
         // Pure text, no HTML chars, no abbreviations — direct copy to output buffer
-        inline_state.*.renderer.*.buf.extend_from_ptr((src_ptr.add(usize(start))), usize((end - start)));
+        inline_state.*.renderer.*.buf.extend_from_ptr(src_ptr.add(usize(start)), usize(end - start));
       });
     });
   });
