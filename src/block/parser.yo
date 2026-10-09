@@ -244,7 +244,7 @@ block_tokenize :: (fn(state : *BlockState, start_line : i32, end_line : i32) -> 
           state.*.blk_indent = old_blk_indent;
 
           // Restore state arrays [line, bq_save_end) — only the blockquote range
-          (bq_restore_bytes : usize) = (bq_range * sizeof(i32));
+          (bq_restore_bytes : usize) = (bq_range * size_of(i32));
           match(
             bq_save_bm.*.ptr(),
             .Some(src) => {
