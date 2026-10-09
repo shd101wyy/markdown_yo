@@ -9,7 +9,7 @@ pragma(Pragma.AllowUnsafe);
 
 // Normalize source: unify line endings, replace NULL chars.
 // Modifies in-place conceptually — returns a new String if needed.
-normalize :: (fn(src : String) -> String)({
+normalize :: (fn(imm(src) : String) -> String)({
   (len : usize) = src.len();
 
   if(len == usize(0), {

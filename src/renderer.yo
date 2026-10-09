@@ -508,7 +508,7 @@ impl(
     )
   }),
   // Get the rendered output as a String (transfers ownership of buffer)
-  finish : (fn(self : Self) -> String)({
+  finish : (fn(imm(self) : Self) -> String)({
     // Bind the buffer to a local before handing it over: `from_bytes` takes
     // its list by `own` in newer Yo std, and Yo 0.2.49 does not retain a
     // field passed straight to a `Type.method` `own` parameter.
@@ -766,7 +766,7 @@ impl(
     _ := self.*.buf.push(b);
   }),
   // Append a String (for dynamic content like lang_prefix)
-  push_string : (fn(self : *Self, s : String) -> unit)(
+  push_string : (fn(self : *Self, imm(s) : String) -> unit)(
     append_string(&(self.*.buf), s)
   ),
   // Copy raw source bytes [start, end) to output buffer
@@ -789,7 +789,7 @@ impl(
     });
   }),
   // Append HTML-escaped content from a String
-  escaped_string : (fn(self : *Self, s : String) -> unit)(
+  escaped_string : (fn(self : *Self, imm(s) : String) -> unit)(
     escape_html_string(&(self.*.buf), s)
   ),
   // Write HTML-escaped content from a raw buffer (avoids String wrapper overhead)
@@ -877,7 +877,7 @@ impl(
   open_list_item : (fn(self : *Self) -> unit)(
     self.*.lit("<li>\n")
   ),
-  open_list_item_with_info : (fn(self : *Self, info : String) -> unit)({
+  open_list_item_with_info : (fn(self : *Self, imm(info) : String) -> unit)({
     // info is the marker string, e.g. "1." for ordered lists (used by markdown-it)
     self.*.lit("<li>");
   }),
@@ -1309,7 +1309,7 @@ impl(
       });
     })
   ),
-  text_string : (fn(self : *Self, s : String) -> unit)(
+  text_string : (fn(self : *Self, imm(s) : String) -> unit)(
     self.*.escaped_string(s)
   ),
   code_inline : (fn(self : *Self, start : i32, end : i32) -> unit)({
@@ -1418,7 +1418,7 @@ impl(
     self.*.lit("$$</div>");
   }),
   // Link open: <a href="..." title="...">
-  open_link : (fn(self : *Self, href : String, title : String) -> unit)({
+  open_link : (fn(self : *Self, imm(href) : String, imm(title) : String) -> unit)({
     if(self.*.img_nest > i32(0), {
       return();
     });
@@ -1431,7 +1431,7 @@ impl(
     self.*.lit("\">");
   }),
   // Buffer-based: href from buf, title from String
-  open_link_buf : (fn(self : *Self, href_buf : *ArrayList(u8), title : String) -> unit)({
+  open_link_buf : (fn(self : *Self, href_buf : *ArrayList(u8), imm(title) : String) -> unit)({
     if(self.*.img_nest > i32(0), {
       return();
     });
@@ -1479,7 +1479,7 @@ impl(
   // close_image finishes the tag.
   // When img_nest > 0, we're inside another image's alt text — suppress the tag,
   // but still increment nest so we track depth properly.
-  open_image : (fn(self : *Self, src : String, title : String) -> unit)({
+  open_image : (fn(self : *Self, imm(src) : String, imm(title) : String) -> unit)({
     if(self.*.img_nest > i32(0), {
       self.*.img_nest = (self.*.img_nest + i32(1));
       return();
@@ -1491,7 +1491,7 @@ impl(
     self.*.img_nest = (self.*.img_nest + i32(1));
   }),
   // Buffer-based: src from buf, title from String
-  open_image_buf : (fn(self : *Self, src_buf : *ArrayList(u8), title : String) -> unit)({
+  open_image_buf : (fn(self : *Self, src_buf : *ArrayList(u8), imm(title) : String) -> unit)({
     if(self.*.img_nest > i32(0), {
       self.*.img_nest = (self.*.img_nest + i32(1));
       return();
