@@ -19,7 +19,7 @@ pragma(Pragma.AllowUnsafe);
 // happens below, inside a file that is already `Pragma.AllowUnsafe`; asking
 // every caller to write `&opts` pushed that unsafe out to every consumer for
 // no benefit.
-markdown_to_html :: (fn(src : String, options : Options) -> String)({
+markdown_to_html :: (fn(imm(src) : String, imm(options) : Options) -> String)({
   (opts_ref : *Options) = &options;
 
   // 1. Create environment for link references

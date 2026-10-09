@@ -28,7 +28,7 @@ pragma(Pragma.AllowUnsafe);
 { Options, default_options, commonmark_options } :: import("./types.yo");
 
 // Read entire file into a String
-_read_file :: (fn(path : String) -> Option(String))({
+_read_file :: (fn(imm(path) : String) -> Option(String))({
   cstr := path.to_cstr();
   (fp : ?*FILE) = match(
     cstr.ptr(),

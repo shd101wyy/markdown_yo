@@ -214,7 +214,7 @@ _inline_dispatch :: (fn(state : *InlineState) -> unit)({
 
 // Parse inline content from a source string and render directly to the HtmlRenderer.
 // Uses the provided reusable InlineState to avoid repeated allocations.
-inline_parse :: (fn(inline_state : *InlineState, src : String) -> unit)({
+inline_parse :: (fn(inline_state : *InlineState, imm(src) : String) -> unit)({
   inline_state.*.reset_for_string(src);
   _inline_dispatch(inline_state);
 });
