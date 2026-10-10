@@ -289,7 +289,7 @@ append_lit :: (fn(out : *ArrayList(u8), s : str) -> unit)(
 // pinned one.
 // An independent copy of `s`'s bytes, made with one memcpy. Use it where a
 // stable raw pointer to the bytes is needed; the copy must outlive the pointer.
-string_bytes :: (fn(imm(s) : String) -> ArrayList(u8))({
+string_bytes :: (fn(s : &String) -> ArrayList(u8))({
   // `to_cstr` appends a NUL terminator; drop it.
   (bytes : ArrayList(u8)) = s.to_cstr();
   _ := bytes.pop();
@@ -297,7 +297,7 @@ string_bytes :: (fn(imm(s) : String) -> ArrayList(u8))({
 });
 
 // Append `s`'s bytes to `out`, reading the String in place (no copy).
-append_string :: (fn(out : *ArrayList(u8), imm(s) : String) -> unit)({
+append_string :: (fn(out : *ArrayList(u8), s : &String) -> unit)({
   (n : usize) = s.len();
   out.*.ensure_total_capacity(out.*.len() + n);
   (i : usize) = usize(0);
@@ -308,7 +308,7 @@ append_string :: (fn(out : *ArrayList(u8), imm(s) : String) -> unit)({
 });
 
 // `escape_html_buf` over a String, reading it in place (no copy).
-escape_html_string :: (fn(out : *ArrayList(u8), imm(s) : String) -> unit)({
+escape_html_string :: (fn(out : *ArrayList(u8), s : &String) -> unit)({
   (n : usize) = s.len();
   if(n == usize(0), {
     return();

@@ -219,7 +219,7 @@ InlineState :: struct(
 impl(
   InlineState,
   // Create a reusable state with pre-allocated buffers
-  reusable : (fn(imm(env) : Env, renderer : *HtmlRenderer, options : *Options) -> Self)(
+  reusable : (fn(env : &Env, renderer : *HtmlRenderer, options : *Options) -> Self)(
     Self(
       src : .None,
       src_ptr : (*u8)(""),
@@ -251,7 +251,7 @@ impl(
     )
   ),
   // Store a string's bytes in _str_buf and return its index
-  store_string : (fn(self : *Self, imm(s) : String) -> i32)({
+  store_string : (fn(self : *Self, s : &String) -> i32)({
     (idx : i32) = i32(self.*._str_offsets.len());
     (start : i32) = i32(self.*._str_buf.len());
     _ := self.*._str_offsets.push(start);
@@ -298,7 +298,7 @@ impl(
     self.*.backticks_scanned = false;
   }),
   // Reset for string-based parsing. Clears lists but keeps allocated capacity.
-  reset_for_string : (fn(self : *Self, imm(src) : String) -> unit)({
+  reset_for_string : (fn(self : *Self, src : &String) -> unit)({
     self.*.tokens.clear();
     self.*.delimiters.clear();
     self.*.prev_delimiters.clear();

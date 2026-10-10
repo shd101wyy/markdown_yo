@@ -114,7 +114,7 @@ _normalize_source :: (fn(src_p : *u8, len : i32) -> ArrayList(u8))({
 });
 
 // Build BlockState from already-normalized source (rare path — only when \r or \0 found)
-_build_block_state_from_normalized :: (fn(imm(src) : ArrayList(u8), imm(env) : Env, renderer : *HtmlRenderer, options : *Options) -> BlockState)({
+_build_block_state_from_normalized :: (fn(src : &ArrayList(u8), env : &Env, renderer : *HtmlRenderer, options : *Options) -> BlockState)({
   (len : i32) = i32(src.len());
   (est_lines : usize) = ((usize(len) / usize(40)) + usize(16));
   (b_marks : ArrayList(i32)) = ArrayList(i32).with_capacity(est_lines);
@@ -260,7 +260,7 @@ impl(
   BlockState,
   // Create a new BlockState with integrated normalization and line marker precomputation.
   // Merges normalize + line scan into a single pass over the source.
-  new : (fn(imm(src) : ArrayList(u8), imm(env) : Env, renderer : *HtmlRenderer, options : *Options) -> Self)({
+  new : (fn(src : &ArrayList(u8), env : &Env, renderer : *HtmlRenderer, options : *Options) -> Self)({
     (len : i32) = i32(src.len());
 
     // Estimate line count for pre-allocation (avg ~40 bytes/line)
