@@ -61,7 +61,7 @@ emphasis_post :: (fn(state : *InlineState) -> unit)({
           open : opener.open,
           close : opener.close
         );
-        &(state.*.delimiters(usize(opener_idx))).* = new_opener;
+        addr_of(state.*.delimiters(usize(opener_idx))).* = new_opener;
 
         (new_closer : Delimiter) = Delimiter(
           marker : closer.marker,
@@ -72,7 +72,7 @@ emphasis_post :: (fn(state : *InlineState) -> unit)({
           open : closer.open,
           close : closer.close
         );
-        &(state.*.delimiters(usize(closer_idx))).* = new_closer;
+        addr_of(state.*.delimiters(usize(closer_idx))).* = new_closer;
 
         // Insert open token just after opener's text token
         (open_type : InlineType) = cond(is_strong => .StrongOpen, true => .EmOpen);
@@ -82,7 +82,7 @@ emphasis_post :: (fn(state : *InlineState) -> unit)({
         // For simplicity: modify the text tokens in place
         // Opener text: shrink from end
         (otok : InlineToken) = state.*.tokens(usize(opener.token_idx));
-        &(state.*.tokens(usize(opener.token_idx))).* = InlineToken(
+        addr_of(state.*.tokens(usize(opener.token_idx))).* = InlineToken(
           type_name : otok.type_name,
           start : otok.start,
           end : (otok.end - consume_n),
@@ -103,7 +103,7 @@ emphasis_post :: (fn(state : *InlineState) -> unit)({
 
         // Closer text: shrink from start
         (ctok : InlineToken) = state.*.tokens(usize(closer.token_idx));
-        &(state.*.tokens(usize(closer.token_idx))).* = InlineToken(
+        addr_of(state.*.tokens(usize(closer.token_idx))).* = InlineToken(
           type_name : ctok.type_name,
           start : (ctok.start + consume_n),
           end : ctok.end,
@@ -126,7 +126,7 @@ emphasis_post :: (fn(state : *InlineState) -> unit)({
         // We'll use a separate pass to insert these
         // For now, record the pairing in the delimiter
         (updated_opener : Delimiter) = state.*.delimiters(usize(opener_idx));
-        &(state.*.delimiters(usize(opener_idx))).* = Delimiter(
+        addr_of(state.*.delimiters(usize(opener_idx))).* = Delimiter(
           marker : updated_opener.marker,
           length : updated_opener.length,
           token_idx : updated_opener.token_idx,
@@ -140,7 +140,7 @@ emphasis_post :: (fn(state : *InlineState) -> unit)({
         (mid : i32) = (opener_idx + i32(1));
         while(mid < closer_idx, {
           (d : Delimiter) = state.*.delimiters(usize(mid));
-          &(state.*.delimiters(usize(mid))).* = Delimiter(
+          addr_of(state.*.delimiters(usize(mid))).* = Delimiter(
             marker : d.marker,
             length : i32(0),
             token_idx : d.token_idx,
@@ -155,7 +155,7 @@ emphasis_post :: (fn(state : *InlineState) -> unit)({
         // If opener is fully consumed, clear it
         (updated_opener2 : Delimiter) = state.*.delimiters(usize(opener_idx));
         if(updated_opener2.length == i32(0), {
-          &(state.*.delimiters(usize(opener_idx))).* = Delimiter(
+          addr_of(state.*.delimiters(usize(opener_idx))).* = Delimiter(
             marker : updated_opener2.marker,
             length : i32(0),
             token_idx : updated_opener2.token_idx,

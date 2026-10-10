@@ -113,9 +113,9 @@ _emit_table_row_cells :: (fn(state : *(BlockState), line : i32, aligns : *(Array
       (cell_len_i32 : i32) = i32(cell_len);
 
       if(has_special, {
-        inline_parse_range((&(state.*._inline_state)), cell_ptr, i32(0), cell_len_i32);
+        inline_parse_range((addr_of(state.*._inline_state)), cell_ptr, i32(0), cell_len_i32);
       }, if(has_html_char, {
-        escape_html_buf((&(state.*.renderer.*.buf)), cell_ptr, i32(0), cell_len_i32);
+        escape_html_buf((addr_of(state.*.renderer.*.buf)), cell_ptr, i32(0), cell_len_i32);
       }, {
         // Pure text — direct copy to output
         state.*.renderer.*.buf.extend_from_ptr(cell_ptr, cell_len);
@@ -356,7 +356,7 @@ block_table :: (fn(state : *(BlockState), start_line : i32, end_line : i32, sile
   state.*.renderer.*.open_tr();
 
   // Parse header cells from first line
-  _emit_table_row_cells(state, start_line, (&(aligns)), true, (&(cell_buf)));
+  _emit_table_row_cells(state, start_line, (addr_of(aligns)), true, (addr_of(cell_buf)));
 
   state.*.renderer.*.close_tr();
   state.*.renderer.*.close_thead();
@@ -402,7 +402,7 @@ block_table :: (fn(state : *(BlockState), start_line : i32, end_line : i32, sile
           has_body = true;
         });
         state.*.renderer.*.open_tr();
-        _emit_table_row_cells(state, row_line, (&(aligns)), false, (&(cell_buf)));
+        _emit_table_row_cells(state, row_line, (addr_of(aligns)), false, (addr_of(cell_buf)));
         state.*.renderer.*.close_tr();
         row_line = (row_line + i32(1));
       });

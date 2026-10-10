@@ -191,7 +191,7 @@ validate_link_url :: (fn(src : *(u8), start : i32, end_pos : i32, decoded : *(Ar
 
   cond(
     (decoded.*.len() == usize(0)) => true,
-    true => _check_protocol(&(decoded.*(usize(0))), i32(decoded.*.len()))
+    true => _check_protocol(addr_of(decoded.*(usize(0))), i32(decoded.*.len()))
   )
 });
 
@@ -541,7 +541,7 @@ _resolve_scoped_emphasis :: (fn(state : *(InlineState), start_idx : i32, end_idx
 
           // Shrink opener text token from end
           (otok : InlineToken) = state.*.tokens(usize(opener.token_idx));
-          &(state.*.tokens(usize(opener.token_idx))).* = InlineToken(
+          addr_of(state.*.tokens(usize(opener.token_idx))).* = InlineToken(
             type_name : otok.type_name,
             start : otok.start,
             end : (otok.end - consume_n),
@@ -562,7 +562,7 @@ _resolve_scoped_emphasis :: (fn(state : *(InlineState), start_idx : i32, end_idx
 
           // Shrink closer text token from start
           (ctok : InlineToken) = state.*.tokens(usize(closer.token_idx));
-          &(state.*.tokens(usize(closer.token_idx))).* = InlineToken(
+          addr_of(state.*.tokens(usize(closer.token_idx))).* = InlineToken(
             type_name : ctok.type_name,
             start : (ctok.start + consume_n),
             end : ctok.end,
@@ -582,7 +582,7 @@ _resolve_scoped_emphasis :: (fn(state : *(InlineState), start_idx : i32, end_idx
           );
 
           // Update delimiter lengths
-          &(state.*.delimiters(usize(opener_idx))).* = Delimiter(
+          addr_of(state.*.delimiters(usize(opener_idx))).* = Delimiter(
             marker : opener.marker,
             length : (opener.length - consume_n),
             token_idx : opener.token_idx,
@@ -592,7 +592,7 @@ _resolve_scoped_emphasis :: (fn(state : *(InlineState), start_idx : i32, end_idx
             close : opener.close
           );
           (new_closer_len : i32) = (closer.length - consume_n);
-          &(state.*.delimiters(usize(closer_idx))).* = Delimiter(
+          addr_of(state.*.delimiters(usize(closer_idx))).* = Delimiter(
             marker : closer.marker,
             length : new_closer_len,
             token_idx : closer.token_idx,
@@ -607,7 +607,7 @@ _resolve_scoped_emphasis :: (fn(state : *(InlineState), start_idx : i32, end_idx
           (mid : i32) = (opener_idx + i32(1));
           while(mid < closer_idx, {
             (d : Delimiter) = state.*.delimiters(usize(mid));
-            &(state.*.delimiters(usize(mid))).* = Delimiter(
+            addr_of(state.*.delimiters(usize(mid))).* = Delimiter(
               marker : d.marker,
               length : i32(0),
               token_idx : d.token_idx,
@@ -852,14 +852,14 @@ inline_link_close :: (fn(state : *(InlineState)) -> bool)({
 
     if(!(is_ref), {
       // Could not resolve — deactivate this marker
-      &(state.*.link_markers(usize(marker_idx))).*.active = false;
+      addr_of(state.*.link_markers(usize(marker_idx))).*.active = false;
       return(false);
     });
   });
 
   if(!(is_ref), {
-    if(!(validate_link_url(state.*.src_ptr, href_start, href_end, (&(state.*._validate_buf)))), {
-      &(state.*.link_markers(usize(marker_idx))).*.active = false;
+    if(!(validate_link_url(state.*.src_ptr, href_start, href_end, (addr_of(state.*._validate_buf)))), {
+      addr_of(state.*.link_markers(usize(marker_idx))).*.active = false;
       return(false);
     });
   });
@@ -887,7 +887,7 @@ inline_link_close :: (fn(state : *(InlineState)) -> bool)({
   );
 
   if(is_ref, {
-    (tok_ptr : *(InlineToken)) = &(state.*.tokens(usize(open_token_idx)));
+    (tok_ptr : *(InlineToken)) = addr_of(state.*.tokens(usize(open_token_idx)));
     tok_ptr.* = InlineToken(
       type_name : open_type,
       start : i32(0),
@@ -907,7 +907,7 @@ inline_link_close :: (fn(state : *(InlineState)) -> bool)({
       hidden : false
     );
   }, {
-    (tok_ptr : *(InlineToken)) = &(state.*.tokens(usize(open_token_idx)));
+    (tok_ptr : *(InlineToken)) = addr_of(state.*.tokens(usize(open_token_idx)));
     tok_ptr.* = InlineToken(
       type_name : open_type,
       start : href_start,
@@ -940,7 +940,7 @@ inline_link_close :: (fn(state : *(InlineState)) -> bool)({
     (i : i32) = i32(0);
     while(i < marker_idx, {
       if(!(state.*.link_markers(usize(i)).is_image), {
-        &(state.*.link_markers(usize(i))).*.active = false;
+        addr_of(state.*.link_markers(usize(i))).*.active = false;
       });
       i = (i + i32(1));
     });

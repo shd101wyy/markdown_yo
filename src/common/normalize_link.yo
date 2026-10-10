@@ -201,7 +201,7 @@ normalize_link :: (fn(url : str) -> String)({
         i = (i + i32(3));
       }, {
         // Invalid percent sequence — encode the %
-        _emit_pct(&out, b);
+        _emit_pct(addr_of(out), b);
         i = (i + i32(1));
       });
     }, {
@@ -210,7 +210,7 @@ normalize_link :: (fn(url : str) -> String)({
         if(_is_alnum(b) || _is_default_exclude(b), {
           _ := out.push(b);
         }, {
-          _emit_pct(&out, b);
+          _emit_pct(addr_of(out), b);
         });
         i = (i + i32(1));
       }, {
@@ -218,41 +218,41 @@ normalize_link :: (fn(url : str) -> String)({
         // Determine UTF-8 sequence length
         if((b & u8(0xE0)) == u8(0xC0), {
           // 2-byte UTF-8
-          _emit_pct(&out, b);
+          _emit_pct(addr_of(out), b);
           if((i + i32(1)) < len, {
-            _emit_pct(&out, (src.add(usize(i + i32(1)))).*);
+            _emit_pct(addr_of(out), (src.add(usize(i + i32(1)))).*);
           });
           i = (i + i32(2));
         }, {
           if((b & u8(0xF0)) == u8(0xE0), {
             // 3-byte UTF-8
-            _emit_pct(&out, b);
+            _emit_pct(addr_of(out), b);
             if((i + i32(1)) < len, {
-              _emit_pct(&out, (src.add(usize(i + i32(1)))).*);
+              _emit_pct(addr_of(out), (src.add(usize(i + i32(1)))).*);
             });
             if((i + i32(2)) < len, {
-              _emit_pct(&out, (src.add(usize(i + i32(2)))).*);
+              _emit_pct(addr_of(out), (src.add(usize(i + i32(2)))).*);
             });
             i = (i + i32(3));
           }, {
             if((b & u8(0xF8)) == u8(0xF0), {
               // 4-byte UTF-8
-              _emit_pct(&out, b);
+              _emit_pct(addr_of(out), b);
               if((i + i32(1)) < len, {
-                _emit_pct(&out, (src.add(usize(i + i32(1)))).*);
+                _emit_pct(addr_of(out), (src.add(usize(i + i32(1)))).*);
               });
               if((i + i32(2)) < len, {
-                _emit_pct(&out, (src.add(usize(i + i32(2)))).*);
+                _emit_pct(addr_of(out), (src.add(usize(i + i32(2)))).*);
               });
               if((i + i32(3)) < len, {
-                _emit_pct(&out, (src.add(usize(i + i32(3)))).*);
+                _emit_pct(addr_of(out), (src.add(usize(i + i32(3)))).*);
               });
               i = (i + i32(4));
             }, {
               // Invalid byte — emit replacement char U+FFFD
-              _emit_pct(&out, u8(0xEF));
-              _emit_pct(&out, u8(0xBF));
-              _emit_pct(&out, u8(0xBD));
+              _emit_pct(addr_of(out), u8(0xEF));
+              _emit_pct(addr_of(out), u8(0xBF));
+              _emit_pct(addr_of(out), u8(0xBD));
               i = (i + i32(1));
             });
           });

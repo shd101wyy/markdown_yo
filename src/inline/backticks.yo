@@ -94,7 +94,7 @@ inline_backticks :: (fn(state : *InlineState) -> bool)({
   });
 
   // Update token with content range
-  &(state.*.tokens(usize(tok_idx))).* = InlineToken(
+  addr_of(state.*.tokens(usize(tok_idx))).* = InlineToken(
     type_name : .CodeInline,
     start : content_start,
     end : content_end,

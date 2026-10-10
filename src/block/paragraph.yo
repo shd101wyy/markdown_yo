@@ -87,13 +87,13 @@ block_paragraph :: (fn(state : *BlockState, start_line : i32, end_line : i32, si
     while((content_end > content_start) && ((state.*.src_ptr.add(usize(content_end - i32(1)))).* == u8(0x20)), {
       content_end = (content_end - i32(1));
     });
-    inline_parse_range(&(state.*._inline_state), state.*.src_ptr, content_start, content_end);
+    inline_parse_range(addr_of(state.*._inline_state), state.*.src_ptr, content_start, content_end);
   }, {
     // Multi-line: build joined string into reusable buffer, parse zero-copy
     _build_inline_string_buf(state, start_line, next_line);
     (buf_ptr : *u8) = state.*._line_buf.ptr().unwrap();
     (buf_len : i32) = i32(state.*._line_buf.len());
-    inline_parse_range(&(state.*._inline_state), buf_ptr, i32(0), buf_len);
+    inline_parse_range(addr_of(state.*._inline_state), buf_ptr, i32(0), buf_len);
   });
 
   state.*.renderer.*.close_paragraph();

@@ -255,7 +255,7 @@ impl(
     (idx : i32) = i32(self.*._str_offsets.len());
     (start : i32) = i32(self.*._str_buf.len());
     _ := self.*._str_offsets.push(start);
-    append_string(&(self.*._str_buf), s);
+    append_string(addr_of(self.*._str_buf), s);
     idx
   }),
   // Get pointer to stored string bytes (zero-copy, no RC)

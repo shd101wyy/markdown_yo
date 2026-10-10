@@ -32,7 +32,7 @@ strikethrough_post :: (fn(state : *InlineState) -> unit)({
 
         // Mark the text tokens as zero-length (consumed by ~~)
         (otok : InlineToken) = state.*.tokens(usize(opener.token_idx));
-        &(state.*.tokens(usize(opener.token_idx))).* = InlineToken(
+        addr_of(state.*.tokens(usize(opener.token_idx))).* = InlineToken(
           type_name : otok.type_name,
           start : otok.start,
           end : otok.start,
@@ -52,7 +52,7 @@ strikethrough_post :: (fn(state : *InlineState) -> unit)({
         );
 
         (ctok : InlineToken) = state.*.tokens(usize(closer.token_idx));
-        &(state.*.tokens(usize(closer.token_idx))).* = InlineToken(
+        addr_of(state.*.tokens(usize(closer.token_idx))).* = InlineToken(
           type_name : ctok.type_name,
           start : ctok.end,
           end : ctok.end,
@@ -72,7 +72,7 @@ strikethrough_post :: (fn(state : *InlineState) -> unit)({
         );
 
         // Record pairing
-        &(state.*.delimiters(usize(opener_idx))).* = Delimiter(
+        addr_of(state.*.delimiters(usize(opener_idx))).* = Delimiter(
           marker : opener.marker,
           length : i32(0),
           token_idx : opener.token_idx,
@@ -86,7 +86,7 @@ strikethrough_post :: (fn(state : *InlineState) -> unit)({
         (mid : i32) = (opener_idx + i32(1));
         while(mid < closer_idx, {
           (d : Delimiter) = state.*.delimiters(usize(mid));
-          &(state.*.delimiters(usize(mid))).* = Delimiter(
+          addr_of(state.*.delimiters(usize(mid))).* = Delimiter(
             marker : d.marker,
             length : i32(0),
             token_idx : d.token_idx,
@@ -99,7 +99,7 @@ strikethrough_post :: (fn(state : *InlineState) -> unit)({
         });
 
         // Clear closer
-        &(state.*.delimiters(usize(closer_idx))).* = Delimiter(
+        addr_of(state.*.delimiters(usize(closer_idx))).* = Delimiter(
           marker : closer.marker,
           length : i32(0),
           token_idx : closer.token_idx,

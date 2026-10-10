@@ -133,7 +133,7 @@ inline_entity :: (fn(state : *InlineState) -> bool)({
         // Validate: check if entity name is known
         state.*.entity_buf.clear();
         (name_ptr : *u8) = (state.*.src_ptr.add(usize(pos + i32(1))));
-        if(decode_named_entity(name_ptr, name_len, &(state.*.entity_buf)), {
+        if(decode_named_entity(name_ptr, name_len, addr_of(state.*.entity_buf)), {
           state.*.push_pending();
           _ := state.*.tokens.push(
             InlineToken(

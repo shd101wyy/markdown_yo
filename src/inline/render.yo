@@ -100,7 +100,7 @@ _process_smartquotes :: (
     (p : EmphasisPair) = pairs.*(usize(pi));
     (ti : i32) = (p.opener_tok + i32(1));
     while(ti < p.closer_tok, {
-      &(levels(usize(ti))).* = (levels(usize(ti)) + i32(1));
+      addr_of(levels(usize(ti))).* = (levels(usize(ti)) + i32(1));
       ti = (ti + i32(1));
     });
     pi = (pi + i32(1));
@@ -354,7 +354,7 @@ _emit_text_with_sq :: (
         renderer.*.text(cur, next_pos);
       });
       // Emit curly quote UTF-8 bytes directly into buffer
-      _emit_quote_utf8((&(renderer.*.buf)), next_kind);
+      _emit_quote_utf8((addr_of(renderer.*.buf)), next_kind);
       cur = (next_pos + i32(1));
     });
   });
@@ -460,7 +460,7 @@ _resolve_pairs :: (fn(state : *(InlineState), pairs : *(ArrayList(EmphasisPair))
             );
 
             // Update opener
-            &(state.*.delimiters(usize(opener_idx))).* = Delimiter(
+            addr_of(state.*.delimiters(usize(opener_idx))).* = Delimiter(
               marker : opener.marker,
               length : (opener.length - consume_n),
               token_idx : opener.token_idx,
@@ -472,7 +472,7 @@ _resolve_pairs :: (fn(state : *(InlineState), pairs : *(ArrayList(EmphasisPair))
 
             // Update closer
             (new_closer_len : i32) = (closer.length - consume_n);
-            &(state.*.delimiters(usize(closer_idx))).* = Delimiter(
+            addr_of(state.*.delimiters(usize(closer_idx))).* = Delimiter(
               marker : closer.marker,
               length : new_closer_len,
               token_idx : closer.token_idx,
@@ -487,7 +487,7 @@ _resolve_pairs :: (fn(state : *(InlineState), pairs : *(ArrayList(EmphasisPair))
             (mid : i32) = (opener_idx + i32(1));
             while(mid < closer_idx, {
               (d : Delimiter) = state.*.delimiters(usize(mid));
-              &(state.*.delimiters(usize(mid))).* = Delimiter(
+              addr_of(state.*.delimiters(usize(mid))).* = Delimiter(
                 marker : d.marker,
                 length : i32(0),
                 token_idx : d.token_idx,
@@ -523,7 +523,7 @@ _emit_inline_token :: (fn(renderer : *(HtmlRenderer), tok : *(InlineToken), src 
       if((tok.*.content_idx >= i32(0)), {
         (cp : *(u8)) = state.*.stored_ptr(tok.*.content_idx);
         (cl : i32) = state.*.stored_len(tok.*.content_idx);
-        escape_html_buf((&(renderer.*.buf)), cp, i32(0), cl);
+        escape_html_buf((addr_of(renderer.*.buf)), cp, i32(0), cl);
       }, {
         if((tok.*.end > tok.*.start), {
           renderer.*.text(tok.*.start, tok.*.end);
@@ -564,20 +564,20 @@ _emit_inline_token :: (fn(renderer : *(HtmlRenderer), tok : *(InlineToken), src 
         // Reference link: href stored as bytes
         (hp : *(u8)) = state.*.stored_ptr(tok.*.href_idx);
         (hl : i32) = state.*.stored_len(tok.*.href_idx);
-        normalize_link_buf(hp, hl, (&(state.*._link_buf2)));
+        normalize_link_buf(hp, hl, (addr_of(state.*._link_buf2)));
       }, {
         // Inline link: unescape byte range, then normalize
-        unescaped_slice_buf(src, tok.*.start, tok.*.end, (&(state.*._link_buf1)));
+        unescaped_slice_buf(src, tok.*.start, tok.*.end, (addr_of(state.*._link_buf1)));
         (ub_ptr : *(u8)) = match(state.*._link_buf1.ptr(), .Some(p) => p, .None => *(u8)(""));
-        normalize_link_buf(ub_ptr, i32(state.*._link_buf1.len()), (&(state.*._link_buf2)));
+        normalize_link_buf(ub_ptr, i32(state.*._link_buf1.len()), (addr_of(state.*._link_buf2)));
       });
       if((tok.*.title_idx >= i32(0)), {
         (tp : *(u8)) = state.*.stored_ptr(tok.*.title_idx);
         (tl : i32) = state.*.stored_len(tok.*.title_idx);
-        renderer.*.open_link_buf_raw((&(state.*._link_buf2)), tp, tl);
+        renderer.*.open_link_buf_raw((addr_of(state.*._link_buf2)), tp, tl);
       }, {
-        unescaped_slice_buf(src, tok.*.title_start, tok.*.title_end, (&(state.*._link_buf1)));
-        renderer.*.open_link_raw((&(state.*._link_buf2)), (&(state.*._link_buf1)));
+        unescaped_slice_buf(src, tok.*.title_start, tok.*.title_end, (addr_of(state.*._link_buf1)));
+        renderer.*.open_link_raw((addr_of(state.*._link_buf2)), (addr_of(state.*._link_buf1)));
       });
     },
     (t == i32(InlineType.LinkClose)) => renderer.*.close_link(),
@@ -585,19 +585,19 @@ _emit_inline_token :: (fn(renderer : *(HtmlRenderer), tok : *(InlineToken), src 
       if((tok.*.href_idx >= i32(0)), {
         (sp : *(u8)) = state.*.stored_ptr(tok.*.href_idx);
         (sl : i32) = state.*.stored_len(tok.*.href_idx);
-        normalize_link_buf(sp, sl, (&(state.*._link_buf2)));
+        normalize_link_buf(sp, sl, (addr_of(state.*._link_buf2)));
       }, {
-        unescaped_slice_buf(src, tok.*.start, tok.*.end, (&(state.*._link_buf1)));
+        unescaped_slice_buf(src, tok.*.start, tok.*.end, (addr_of(state.*._link_buf1)));
         (ub_ptr2 : *(u8)) = match(state.*._link_buf1.ptr(), .Some(p) => p, .None => *(u8)(""));
-        normalize_link_buf(ub_ptr2, i32(state.*._link_buf1.len()), (&(state.*._link_buf2)));
+        normalize_link_buf(ub_ptr2, i32(state.*._link_buf1.len()), (addr_of(state.*._link_buf2)));
       });
       if((tok.*.title_idx >= i32(0)), {
         (tp2 : *(u8)) = state.*.stored_ptr(tok.*.title_idx);
         (tl2 : i32) = state.*.stored_len(tok.*.title_idx);
-        renderer.*.open_image_buf_raw((&(state.*._link_buf2)), tp2, tl2);
+        renderer.*.open_image_buf_raw((addr_of(state.*._link_buf2)), tp2, tl2);
       }, {
-        unescaped_slice_buf(src, tok.*.title_start, tok.*.title_end, (&(state.*._link_buf1)));
-        renderer.*.open_image_raw((&(state.*._link_buf2)), (&(state.*._link_buf1)));
+        unescaped_slice_buf(src, tok.*.title_start, tok.*.title_end, (addr_of(state.*._link_buf1)));
+        renderer.*.open_image_raw((addr_of(state.*._link_buf2)), (addr_of(state.*._link_buf1)));
       });
     },
     (t == i32(InlineType.ImageClose)) => {
@@ -634,7 +634,7 @@ inline_render :: (fn(state : *(InlineState)) -> unit)({
   // Phase 1: Resolve delimiter pairs (for text outside links)
   // Reuse the pre-allocated pairs buffer to avoid per-call allocation
   state.*._render_pairs.clear();
-  _resolve_pairs(state, (&(state.*._render_pairs)));
+  _resolve_pairs(state, (addr_of(state.*._render_pairs)));
 
   // Merge emphasis pairs that were resolved inside link scopes
   (rp_count : i32) = i32(state.*.resolved_pairs.len());
@@ -654,7 +654,7 @@ inline_render :: (fn(state : *(InlineState)) -> unit)({
 
   (renderer : *(HtmlRenderer)) = state.*.renderer;
   (tok_count : i32) = i32(state.*.tokens.len());
-  (pairs : *(ArrayList(EmphasisPair))) = (&(state.*._render_pairs));
+  (pairs : *(ArrayList(EmphasisPair))) = (addr_of(state.*._render_pairs));
   (pair_count : i32) = i32(pairs.*.len());
 
   // Phase 1a: Swap lone tilde markers past subsequent strikethrough closers.
@@ -688,8 +688,8 @@ inline_render :: (fn(state : *(InlineState)) -> unit)({
       if((sj_last > si), {
         // Swap tokens[si] and tokens[sj_last]
         (tmp_tok : InlineToken) = state.*.tokens(usize(si));
-        &(state.*.tokens(usize(si))).* = state.*.tokens(usize(sj_last));
-        &(state.*.tokens(usize(sj_last))).* = tmp_tok;
+        addr_of(state.*.tokens(usize(si))).* = state.*.tokens(usize(sj_last));
+        addr_of(state.*.tokens(usize(sj_last))).* = tmp_tok;
         // Update pair references for swapped positions
         (ui : i32) = i32(0);
         while(ui < pair_count, {
@@ -707,7 +707,7 @@ inline_render :: (fn(state : *(InlineState)) -> unit)({
             new_closer = si;
           }));
           if(((new_opener != pp.opener_tok) || (new_closer != pp.closer_tok)), {
-            &(pairs.*(usize(ui))).* = EmphasisPair(
+            addr_of(pairs.*(usize(ui))).* = EmphasisPair(
               opener_tok : new_opener,
               closer_tok : new_closer,
               consume : pp.consume,
@@ -726,7 +726,7 @@ inline_render :: (fn(state : *(InlineState)) -> unit)({
   // sq_replaces is only used when typographer is enabled — avoid allocation otherwise
   if(renderer.*.options.*.typographer, {
     (sq_replaces : ArrayList(_SQReplace)) = ArrayList(_SQReplace).new();
-    _process_smartquotes((&(state.*.tokens)), pairs, state.*.src_ptr, (&(sq_replaces)));
+    _process_smartquotes((addr_of(state.*.tokens)), pairs, state.*.src_ptr, (addr_of(sq_replaces)));
     has_sq = (i32(sq_replaces.len()) > i32(0));
 
     // Swap renderer's source pointer to the inline content's bytes.
@@ -771,7 +771,7 @@ inline_render :: (fn(state : *(InlineState)) -> unit)({
         (new_end : i32) = (tok.end - opener_consumed);
         if((new_end > new_start), {
           if(has_sq, {
-            _emit_text_with_sq(renderer, new_start, new_end, (&(sq_replaces)));
+            _emit_text_with_sq(renderer, new_start, new_end, (addr_of(sq_replaces)));
           }, {
             renderer.*.text(new_start, new_end);
           });
@@ -779,10 +779,10 @@ inline_render :: (fn(state : *(InlineState)) -> unit)({
       }, {
         if((has_sq && (i32(tok.type_name) == i32(InlineType.Text))), {
           if((tok.end > tok.start), {
-            _emit_text_with_sq(renderer, tok.start, tok.end, (&(sq_replaces)));
+            _emit_text_with_sq(renderer, tok.start, tok.end, (addr_of(sq_replaces)));
           });
         }, {
-          _emit_inline_token(renderer, (&(tok)), state.*.src_ptr, state);
+          _emit_inline_token(renderer, (addr_of(tok)), state.*.src_ptr, state);
         });
       });
 
@@ -814,7 +814,7 @@ inline_render :: (fn(state : *(InlineState)) -> unit)({
       (tok_base : *(InlineToken)) = state.*.tokens.ptr().unwrap();
       while(tok_idx < tok_count, {
         (tok : InlineToken) = (tok_base.add(usize(tok_idx))).*;
-        _emit_inline_token(renderer, (&(tok)), state.*.src_ptr, state);
+        _emit_inline_token(renderer, (addr_of(tok)), state.*.src_ptr, state);
         tok_idx = (tok_idx + i32(1));
       });
     }, {
@@ -856,7 +856,7 @@ inline_render :: (fn(state : *(InlineState)) -> unit)({
             renderer.*.text(new_start, new_end);
           });
         }, {
-          _emit_inline_token(renderer, (&(tok)), state.*.src_ptr, state);
+          _emit_inline_token(renderer, (addr_of(tok)), state.*.src_ptr, state);
         });
 
         (oi : i32) = (pair_count - i32(1));

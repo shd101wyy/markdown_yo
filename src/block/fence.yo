@@ -72,7 +72,7 @@ block_fence :: (fn(state : *BlockState, start_line : i32, end_line : i32, silent
     if(b == u8(0x26), {
       // Try to decode entity and check if it's whitespace
       tmp.clear();
-      (entity_end : i32) = try_decode_entity(state.*.src_ptr, lang_end, em, &tmp);
+      (entity_end : i32) = try_decode_entity(state.*.src_ptr, lang_end, em, addr_of(tmp));
       if(entity_end > i32(0), {
         // Check if the decoded character is whitespace (<=0x20 covers space, tab, ff, etc.)
         if((tmp.len() == usize(1)) && (i32(tmp(usize(0))) <= i32(0x20)), {
@@ -176,7 +176,7 @@ block_fence :: (fn(state : *BlockState, start_line : i32, end_line : i32, silent
     // Source is normalized (LF only), so bytes between em(cl) and bm(cl+1) are newlines
     (batch_start : i32) = state.bm(content_first_line);
     (batch_end : i32) = state.em(content_last_line - i32(1));
-    escape_html_buf(&(r.*.buf), state.*.src_ptr, batch_start, batch_end);
+    escape_html_buf(addr_of(r.*.buf), state.*.src_ptr, batch_start, batch_end);
     if(batch_end < state.*.src_len, {
       r.*.byte(u8(0x0A));
     });

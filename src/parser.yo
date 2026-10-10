@@ -20,7 +20,7 @@ pragma(Pragma.AllowUnsafe);
 // every caller to write `&opts` pushed that unsafe out to every consumer for
 // no benefit.
 markdown_to_html :: (fn(imm(src) : String, imm(options) : Options) -> String)({
-  (opts_ref : *Options) = &options;
+  (opts_ref : *Options) = addr_of(options);
 
   // 1. Create environment for link references
   (env : Env) = new_env();
@@ -39,8 +39,8 @@ markdown_to_html :: (fn(imm(src) : String, imm(options) : Options) -> String)({
   (renderer : HtmlRenderer) = HtmlRenderer.new(opts_ref, src_ptr, src_len);
 
   // 4. Create block state (includes normalization + line scan in one pass)
-  (state : BlockState) = BlockState.new(src_bytes, env, &renderer, opts_ref);
-  block_parse(&state);
+  (state : BlockState) = BlockState.new(src_bytes, env, addr_of(renderer), opts_ref);
+  block_parse(addr_of(state));
 
   // 5. Return rendered HTML
   renderer.finish()

@@ -128,10 +128,10 @@ punycode_decode :: (fn(input : str) -> Option(String))({
     _ := output.push(i32(0));
     (shift : i32) = (i32(output.len()) - i32(1));
     while(shift > i_val, {
-      &(output(usize(shift))).* = output(usize(shift - i32(1)));
+      addr_of(output(usize(shift))).* = output(usize(shift - i32(1)));
       shift = (shift - i32(1));
     });
-    &(output(usize(i_val))).* = n;
+    addr_of(output(usize(i_val))).* = n;
     i_val = (i_val + i32(1));
   });
 

@@ -177,7 +177,7 @@ unescaped_slice :: (fn(src : *u8, start : i32, end : i32) -> String)({
     }, {
       if(b == u8(0x26), {
         // Try to decode HTML entity
-        (after : i32) = try_decode_entity(src, i, end, &result);
+        (after : i32) = try_decode_entity(src, i, end, addr_of(result));
         if(after > i32(0), {
           i = after;
         }, {

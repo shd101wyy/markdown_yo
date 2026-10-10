@@ -520,7 +520,7 @@ impl(
   // -------------------------------------------------------------------
   // Append literal string
   lit : (fn(self : *Self, s : str) -> unit)(
-    append_lit(&(self.*.buf), s)
+    append_lit(addr_of(self.*.buf), s)
   ),
   // Set source line for next block element (used by block rules before open calls)
   set_source_line : (fn(self : *Self, line : i32) -> unit)(
@@ -534,14 +534,14 @@ impl(
   source_attr : (fn(self : *Self) -> unit)(
     if(self.*.options.*.enable_source_map && (self.*._source_line >= i32(0)), {
       self.*.lit(" data-source-line=\"");
-      _write_i32(&(self.*.buf), self.*._source_line + i32(1));
+      _write_i32(addr_of(self.*.buf), self.*._source_line + i32(1));
       _ := self.*.buf.push(u8(0x22)); // "
       self.*._source_line = (i32(0) - i32(1));
     })
   ),
   // Append HTML-escaped source bytes [start, end)
   escaped : (fn(self : *Self, start : i32, end : i32) -> unit)(
-    escape_html_buf(&(self.*.buf), self.*.src_ptr, start, end)
+    escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, start, end)
   ),
   // Append HTML-escaped source bytes with abbreviation replacement
   // Scans text for abbreviation matches, wraps them in <abbr title="...">
@@ -549,7 +549,7 @@ impl(
   escaped_abbr : (fn(self : *Self, start : i32, end : i32) -> unit)({
     (src : *u8) = self.*.src_ptr;
     (orig : *u8) = self.*._orig_src;
-    (abbr_list : *ArrayList(AbbrEntry)) = &(self.*.abbrs);
+    (abbr_list : *ArrayList(AbbrEntry)) = addr_of(self.*.abbrs);
     (n_abbrs : usize) = abbr_list.*.len();
     (pos : i32) = start;
     (text_start : i32) = start;
@@ -559,7 +559,7 @@ impl(
       (found : bool) = false;
       (ai : usize) = usize(0);
       while(ai < n_abbrs, {
-        (entry : *AbbrEntry) = &(abbr_list.*.get(ai).unwrap());
+        (entry : *AbbrEntry) = addr_of(abbr_list.*.get(ai).unwrap());
         (plen : i32) = entry.*.pattern_len;
 
         // Check if pattern fits
@@ -600,16 +600,16 @@ impl(
                 // Emit text before match (with typographer if enabled)
                 if(pos > text_start, {
                   if(use_typo, {
-                    _typographer_text(&(self.*.buf), src, text_start, pos);
+                    _typographer_text(addr_of(self.*.buf), src, text_start, pos);
                   }, {
-                    escape_html_buf(&(self.*.buf), src, text_start, pos);
+                    escape_html_buf(addr_of(self.*.buf), src, text_start, pos);
                   });
                 });
                 // Emit <abbr title="expansion">pattern</abbr>
                 self.*.lit("<abbr title=\"");
-                escape_html_buf(&(self.*.buf), orig, entry.*.title_start, entry.*.title_end);
+                escape_html_buf(addr_of(self.*.buf), orig, entry.*.title_start, entry.*.title_end);
                 self.*.lit("\">");
-                escape_html_buf(&(self.*.buf), src, pos, after_pos);
+                escape_html_buf(addr_of(self.*.buf), src, pos, after_pos);
                 self.*.lit("</abbr>");
                 pos = after_pos;
                 text_start = pos;
@@ -630,9 +630,9 @@ impl(
     // Emit remaining text (with typographer if enabled)
     if(text_start < end, {
       if(use_typo, {
-        _typographer_text(&(self.*.buf), src, text_start, end);
+        _typographer_text(addr_of(self.*.buf), src, text_start, end);
       }, {
-        escape_html_buf(&(self.*.buf), src, text_start, end);
+        escape_html_buf(addr_of(self.*.buf), src, text_start, end);
       });
     });
   }),
@@ -651,10 +651,10 @@ impl(
           || ((next >= u8(0x5B)) && (next <= u8(0x60)))
           || ((next >= u8(0x7B)) && (next <= u8(0x7E))), {
             // Emit the unescaped char (HTML-escaped)
-            _emit_code_point(&(self.*.buf), i32(next));
+            _emit_code_point(addr_of(self.*.buf), i32(next));
             i = (i + i32(2));
           }, {
-            escape_html_buf(&(self.*.buf), self.*.src_ptr, i, i + i32(1));
+            escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, i, i + i32(1));
             i = (i + i32(1));
           });
         },
@@ -691,10 +691,10 @@ impl(
                   );
                   dp = (dp + i32(1));
                 });
-                _emit_code_point(&(self.*.buf), code);
+                _emit_code_point(addr_of(self.*.buf), code);
                 i = (hp + i32(1));
               }, {
-                escape_html_buf(&(self.*.buf), self.*.src_ptr, i, i + i32(1));
+                escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, i, i + i32(1));
                 i = (i + i32(1));
               });
             }, {
@@ -710,10 +710,10 @@ impl(
                   code = ((code * i32(10)) + (i32((self.*.src_ptr.add(usize(np))).*) - i32(0x30)));
                   np = (np + i32(1));
                 });
-                _emit_code_point(&(self.*.buf), code);
+                _emit_code_point(addr_of(self.*.buf), code);
                 i = (dp + i32(1));
               }, {
-                escape_html_buf(&(self.*.buf), self.*.src_ptr, i, i + i32(1));
+                escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, i, i + i32(1));
                 i = (i + i32(1));
               });
             });
@@ -729,29 +729,29 @@ impl(
               if((np < end) && (i32((self.*.src_ptr.add(usize(np))).*) == i32(0x3B)), {
                 (name_ptr : *u8) = (self.*.src_ptr.add(usize(i + i32(1))));
                 self.*.entity_buf.clear();
-                if(decode_named_entity(name_ptr, nlen, &(self.*.entity_buf)), {
+                if(decode_named_entity(name_ptr, nlen, addr_of(self.*.entity_buf)), {
                   match(
                     self.*.entity_buf.ptr(),
-                    .Some(p) => escape_html_buf(&(self.*.buf), p, i32(0), i32(self.*.entity_buf.len())),
+                    .Some(p) => escape_html_buf(addr_of(self.*.buf), p, i32(0), i32(self.*.entity_buf.len())),
                     .None => ()
                   );
                   i = (np + i32(1));
                 }, {
-                  escape_html_buf(&(self.*.buf), self.*.src_ptr, i, i + i32(1));
+                  escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, i, i + i32(1));
                   i = (i + i32(1));
                 });
               }, {
-                escape_html_buf(&(self.*.buf), self.*.src_ptr, i, i + i32(1));
+                escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, i, i + i32(1));
                 i = (i + i32(1));
               });
             }, {
-              escape_html_buf(&(self.*.buf), self.*.src_ptr, i, i + i32(1));
+              escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, i, i + i32(1));
               i = (i + i32(1));
             });
           });
         },
         true => {
-          escape_html_buf(&(self.*.buf), self.*.src_ptr, i, i + i32(1));
+          escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, i, i + i32(1));
           i = (i + i32(1));
         }
       );
@@ -759,7 +759,7 @@ impl(
   }),
   // Append raw source bytes [start, end) (no escaping)
   raw : (fn(self : *Self, start : i32, end : i32) -> unit)(
-    append_raw_buf(&(self.*.buf), self.*.src_ptr, start, end)
+    append_raw_buf(addr_of(self.*.buf), self.*.src_ptr, start, end)
   ),
   // Append a single byte
   byte : (fn(self : *Self, b : u8) -> unit)({
@@ -767,7 +767,7 @@ impl(
   }),
   // Append a String (for dynamic content like lang_prefix)
   push_string : (fn(self : *Self, imm(s) : String) -> unit)(
-    append_string(&(self.*.buf), s)
+    append_string(addr_of(self.*.buf), s)
   ),
   // Copy raw source bytes [start, end) to output buffer
   push_range : (fn(self : *Self, start : i32, end : i32) -> unit)({
@@ -790,13 +790,13 @@ impl(
   }),
   // Append HTML-escaped content from a String
   escaped_string : (fn(self : *Self, imm(s) : String) -> unit)(
-    escape_html_string(&(self.*.buf), s)
+    escape_html_string(addr_of(self.*.buf), s)
   ),
   // Write HTML-escaped content from a raw buffer (avoids String wrapper overhead)
   escaped_raw : (fn(self : *Self, buf : *ArrayList(u8)) -> unit)(
     match(
       buf.*.ptr(),
-      .Some(p) => escape_html_buf(&(self.*.buf), p, i32(0), i32(buf.*.len())),
+      .Some(p) => escape_html_buf(addr_of(self.*.buf), p, i32(0), i32(buf.*.len())),
       .None => ()
     )
   ),
@@ -867,7 +867,7 @@ impl(
       self.*.lit("<ol");
       self.*.source_attr();
       self.*.lit(" start=\"");
-      _write_i32(&(self.*.buf), start);
+      _write_i32(addr_of(self.*.buf), start);
       self.*.lit("\">\n");
     })
   ),
@@ -1161,18 +1161,18 @@ impl(
 
     // Emit: <sup class="footnote-ref"><a href="#fnN" id="fnrefN[:subId]">[N[:subId]]</a></sup>
     self.*.lit("<sup class=\"footnote-ref\"><a href=\"#fn");
-    _write_i32(&(self.*.buf), fn_num);
+    _write_i32(addr_of(self.*.buf), fn_num);
     self.*.lit("\" id=\"fnref");
-    _write_i32(&(self.*.buf), fn_num);
+    _write_i32(addr_of(self.*.buf), fn_num);
     if(sub_id > i32(0), {
       self.*.byte(u8(0x3A)); // :
-      _write_i32(&(self.*.buf), sub_id);
+      _write_i32(addr_of(self.*.buf), sub_id);
     });
     self.*.lit("\">[");
-    _write_i32(&(self.*.buf), fn_num);
+    _write_i32(addr_of(self.*.buf), fn_num);
     if(sub_id > i32(0), {
       self.*.byte(u8(0x3A)); // :
-      _write_i32(&(self.*.buf), sub_id);
+      _write_i32(addr_of(self.*.buf), sub_id);
     });
     self.*.lit("]</a></sup>");
   }),
@@ -1189,11 +1189,11 @@ impl(
 
     // Emit reference
     self.*.lit("<sup class=\"footnote-ref\"><a href=\"#fn");
-    _write_i32(&(self.*.buf), fn_num);
+    _write_i32(addr_of(self.*.buf), fn_num);
     self.*.lit("\" id=\"fnref");
-    _write_i32(&(self.*.buf), fn_num);
+    _write_i32(addr_of(self.*.buf), fn_num);
     self.*.lit("\">[");
-    _write_i32(&(self.*.buf), fn_num);
+    _write_i32(addr_of(self.*.buf), fn_num);
     self.*.lit("]</a></sup>");
   }),
   // Check if any footnotes were referenced
@@ -1303,7 +1303,7 @@ impl(
       self.*.escaped_abbr(start, end);
     }, {
       if(self.*.options.*.typographer, {
-        _typographer_text(&(self.*.buf), self.*.src_ptr, start, end);
+        _typographer_text(addr_of(self.*.buf), self.*.src_ptr, start, end);
       }, {
         self.*.escaped(start, end);
       });
@@ -1325,7 +1325,7 @@ impl(
       if(ch == u8(0x0A), {
         // Flush preceding run with HTML escaping
         if(i > run_start, {
-          escape_html_buf(&(self.*.buf), self.*.src_ptr, run_start, i);
+          escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, run_start, i);
         });
         // Emit space instead of newline
         self.*.lit(" ");
@@ -1335,7 +1335,7 @@ impl(
     });
     // Flush remaining
     if(end > run_start, {
-      escape_html_buf(&(self.*.buf), self.*.src_ptr, run_start, end);
+      escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, run_start, end);
     });
     self.*.lit("</code>");
   }),
@@ -1405,7 +1405,7 @@ impl(
       return();
     });
     self.*.lit("<span class=\"mathjax-exps\">$");
-    escape_html_buf(&(self.*.buf), self.*.src_ptr, start, end);
+    escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, start, end);
     self.*.lit("$</span>");
   }),
   // Math block (inline context): <div class="mathjax-exps">$$content$$</div>
@@ -1414,7 +1414,7 @@ impl(
       return();
     });
     self.*.lit("<div class=\"mathjax-exps\">$$");
-    escape_html_buf(&(self.*.buf), self.*.src_ptr, start, end);
+    escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, start, end);
     self.*.lit("$$</div>");
   }),
   // Link open: <a href="..." title="...">
@@ -1452,7 +1452,7 @@ impl(
     self.*.escaped_raw(href_buf);
     if(title_len > i32(0), {
       self.*.lit("\" title=\"");
-      escape_html_buf(&(self.*.buf), title_ptr, i32(0), title_len);
+      escape_html_buf(addr_of(self.*.buf), title_ptr, i32(0), title_len);
     });
     self.*.lit("\">");
   }),
@@ -1575,7 +1575,7 @@ impl(
   html_inline : (fn(self : *Self, start : i32, end : i32) -> unit)(
     if(self.*.img_nest > i32(0), {
       // Inside image alt text — render HTML tags as escaped text
-      escape_html_buf(&(self.*.buf), self.*.src_ptr, start, end);
+      escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, start, end);
     }, {
       self.*.raw(start, end);
     })
@@ -1608,7 +1608,7 @@ impl(
             );
             p = (p + i32(1));
           });
-          _emit_code_point(&(self.*.buf), code);
+          _emit_code_point(addr_of(self.*.buf), code);
           return();
         }, {
           // Decimal: &#DDD;
@@ -1619,7 +1619,7 @@ impl(
             code = ((code * i32(10)) + (d - i32(0x30)));
             p = (p + i32(1));
           });
-          _emit_code_point(&(self.*.buf), code);
+          _emit_code_point(addr_of(self.*.buf), code);
           return();
         });
       });
@@ -1629,11 +1629,11 @@ impl(
     (name_ptr : *u8) = (self.*.src_ptr.add(usize(start + i32(1))));
     (name_len : i32) = (end - start - i32(2));
     self.*.entity_buf.clear();
-    if(decode_named_entity(name_ptr, name_len, &(self.*.entity_buf)), {
+    if(decode_named_entity(name_ptr, name_len, addr_of(self.*.entity_buf)), {
       // HTML-escape the decoded bytes
       match(
         self.*.entity_buf.ptr(),
-        .Some(p) => escape_html_buf(&(self.*.buf), p, i32(0), i32(self.*.entity_buf.len())),
+        .Some(p) => escape_html_buf(addr_of(self.*.buf), p, i32(0), i32(self.*.entity_buf.len())),
         .None => ()
       );
     }, {
@@ -1648,7 +1648,7 @@ impl(
     (name_ptr : *u8) = (self.*.src_ptr.add(usize(start + i32(1))));
     (name_len : i32) = (end - start - i32(2));
     self.*.entity_buf.clear();
-    if(lookup_emoji(name_ptr, name_len, &(self.*.entity_buf)), {
+    if(lookup_emoji(name_ptr, name_len, addr_of(self.*.entity_buf)), {
       // Output emoji bytes directly (no HTML escaping needed for Unicode chars)
       match(
         self.*.entity_buf.ptr(),
@@ -1663,9 +1663,9 @@ impl(
   // Wikilink — [[target]] or [[target|display text]]
   wikilink : (fn(self : *Self, href_start : i32, href_end : i32, display_start : i32, display_end : i32) -> unit)({
     self.*.lit("<a href=\"");
-    escape_html_buf(&(self.*.buf), self.*.src_ptr, href_start, href_end);
+    escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, href_start, href_end);
     self.*.lit("\" class=\"wikilink\">");
-    escape_html_buf(&(self.*.buf), self.*.src_ptr, display_start, display_end);
+    escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, display_start, display_end);
     self.*.lit("</a>");
   }),
   critic_markup : (fn(self : *Self, markup_char : u8, info_start : i32, info_end : i32, title_start : i32, title_end : i32) -> unit)({
@@ -1674,33 +1674,33 @@ impl(
       // {++text++} → <ins>text</ins>
       (m == i32(0x2B)) => {
         self.*.lit("<ins>");
-        escape_html_buf(&(self.*.buf), self.*.src_ptr, info_start, info_end);
+        escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, info_start, info_end);
         self.*.lit("</ins>");
       },
       // {--text--} → <del>text</del>
       (m == i32(0x2D)) => {
         self.*.lit("<del>");
-        escape_html_buf(&(self.*.buf), self.*.src_ptr, info_start, info_end);
+        escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, info_start, info_end);
         self.*.lit("</del>");
       },
       // {~~old~>new~~} → <del>old</del><ins>new</ins>
       (m == i32(0x7E)) => {
         self.*.lit("<del>");
-        escape_html_buf(&(self.*.buf), self.*.src_ptr, info_start, info_end);
+        escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, info_start, info_end);
         self.*.lit("</del><ins>");
-        escape_html_buf(&(self.*.buf), self.*.src_ptr, title_start, title_end);
+        escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, title_start, title_end);
         self.*.lit("</ins>");
       },
       // {==text==} → <mark>text</mark>
       (m == i32(0x3D)) => {
         self.*.lit("<mark>");
-        escape_html_buf(&(self.*.buf), self.*.src_ptr, info_start, info_end);
+        escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, info_start, info_end);
         self.*.lit("</mark>");
       },
       // {>>text<<} → <span style="display:none">text</span>
       (m == i32(0x3E)) => {
         self.*.lit("<span style=\"display:none\">");
-        escape_html_buf(&(self.*.buf), self.*.src_ptr, info_start, info_end);
+        escape_html_buf(addr_of(self.*.buf), self.*.src_ptr, info_start, info_end);
         self.*.lit("</span>");
       },
       true => ()
@@ -1722,7 +1722,7 @@ impl(
   // Tracks nesting depth so paragraphs inside blockquotes/sublists are preserved.
   // Uses in-place compaction: two-pointer scan over [from_pos, end) only.
   mark_tight_paragraphs : (fn(self : *Self, from_pos : usize) -> unit)({
-    (src_buf : *ArrayList(u8)) = &(self.*.buf);
+    (src_buf : *ArrayList(u8)) = addr_of(self.*.buf);
     (total : usize) = src_buf.*.len();
     if(total <= from_pos, {
       return();

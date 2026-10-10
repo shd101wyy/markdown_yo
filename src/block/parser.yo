@@ -41,10 +41,10 @@ block_tokenize :: (fn(state : *BlockState, start_line : i32, end_line : i32) -> 
   (has_empty_lines : bool) = false;
 
   // Use BlockState's reusable blockquote save buffers (avoids per-call allocation)
-  (bq_save_bm : *ArrayList(i32)) = &(state.*._bq_save_bm);
-  (bq_save_ts : *ArrayList(i32)) = &(state.*._bq_save_ts);
-  (bq_save_sc : *ArrayList(i32)) = &(state.*._bq_save_sc);
-  (bq_save_bs : *ArrayList(i32)) = &(state.*._bq_save_bs);
+  (bq_save_bm : *ArrayList(i32)) = addr_of(state.*._bq_save_bm);
+  (bq_save_ts : *ArrayList(i32)) = addr_of(state.*._bq_save_ts);
+  (bq_save_sc : *ArrayList(i32)) = addr_of(state.*._bq_save_sc);
+  (bq_save_bs : *ArrayList(i32)) = addr_of(state.*._bq_save_bs);
 
   (tokenize_done : bool) = false;
   while(!tokenize_done, {
@@ -103,11 +103,11 @@ block_tokenize :: (fn(state : *BlockState, start_line : i32, end_line : i32) -> 
           if(check_admonition_marker(
             state,
             line,
-            &adm_type_start,
-            &adm_type_end,
-            &adm_title_start,
-            &adm_title_end,
-            &adm_collapsible
+            addr_of(adm_type_start),
+            addr_of(adm_type_end),
+            addr_of(adm_title_start),
+            addr_of(adm_title_end),
+            addr_of(adm_collapsible)
           ), {
             // ── Begin inline admonition handling ──
             (adm_old_parent : ParentType) = state.*.parent_type;
@@ -194,11 +194,11 @@ block_tokenize :: (fn(state : *BlockState, start_line : i32, end_line : i32) -> 
             if(check_callout_marker(
               state,
               line,
-              &co_type_start,
-              &co_type_end,
-              &co_title_start,
-              &co_title_end,
-              &co_foldable
+              addr_of(co_type_start),
+              addr_of(co_type_end),
+              addr_of(co_title_start),
+              addr_of(co_title_end),
+              addr_of(co_foldable)
             ), {
               // Validate type against known callout types
               if(is_known_callout_type(state.*.src_ptr, co_type_start, co_type_end), {
@@ -485,7 +485,7 @@ block_tokenize :: (fn(state : *BlockState, start_line : i32, end_line : i32) -> 
         (fn_ls : i32) = i32(0);
         (fn_le : i32) = i32(0);
         (fn_cs : i32) = i32(0);
-        if(check_footnote_def(state, line, &fn_ls, &fn_le, &fn_cs), {
+        if(check_footnote_def(state, line, addr_of(fn_ls), addr_of(fn_le), addr_of(fn_cs)), {
           // Find the matching def to get its line_end
           (fn_def_idx : i32) = state.*.renderer.*.fn_find_def(fn_ls, fn_le, state.*.src_ptr);
           if(fn_def_idx >= i32(0), {
@@ -558,7 +558,7 @@ block_tokenize :: (fn(state : *BlockState, start_line : i32, end_line : i32) -> 
                   while((dt_content_end > dt_content_start) && ((state.*.src_ptr.add(usize(dt_content_end - i32(1)))).* == u8(0x20)), {
                     dt_content_end = (dt_content_end - i32(1));
                   });
-                  inline_parse_range(&(state.*._inline_state), state.*.src_ptr, dt_content_start, dt_content_end);
+                  inline_parse_range(addr_of(state.*._inline_state), state.*.src_ptr, dt_content_start, dt_content_end);
                   state.*.renderer.*.dt_close();
 
                   // Inner loop: consume all <dd> definitions for this term
@@ -867,7 +867,7 @@ _prescan_footnotes :: (fn(state : *BlockState) -> unit)({
         (label_start : i32) = i32(0);
         (label_end : i32) = i32(0);
         (content_start : i32) = i32(0);
-        if(check_footnote_def(state, line, &label_start, &label_end, &content_start), {
+        if(check_footnote_def(state, line, addr_of(label_start), addr_of(label_end), addr_of(content_start)), {
           // Found a footnote definition — compute adjusted state for first line
           (start : i32) = (state.bm(line) + state.ts(line));
           (pos_after_colon : i32) = content_start;
@@ -950,7 +950,7 @@ _render_footnote_section :: (fn(state : *BlockState) -> unit)({
 
     // Emit <li id="fnN" class="footnote-item">
     r.*.lit("<li id=\"fn");
-    _write_i32(&(r.*.buf), fn_num);
+    _write_i32(addr_of(r.*.buf), fn_num);
     r.*.lit("\" class=\"footnote-item\">");
 
     // Record buffer position before content
@@ -1002,7 +1002,7 @@ _render_footnote_section :: (fn(state : *BlockState) -> unit)({
       (cs : i32) = r.*.fn_inline_starts.get(usize(inline_idx)).unwrap();
       (ce : i32) = r.*.fn_inline_ends.get(usize(inline_idx)).unwrap();
       r.*.lit("<p>");
-      inline_parse_range(&(state.*._inline_state), state.*.src_ptr, cs, ce);
+      inline_parse_range(addr_of(state.*._inline_state), state.*.src_ptr, cs, ce);
       r.*.lit("</p>\n");
     });
 
@@ -1017,21 +1017,21 @@ _render_footnote_section :: (fn(state : *BlockState) -> unit)({
     (backref_buf : ArrayList(u8)) = ArrayList(u8).with_capacity(usize(64));
     (sub : i32) = i32(0);
     while(sub < backref_count, {
-      append_lit(&backref_buf, " <a href=\"#fnref");
-      _write_i32(&backref_buf, fn_num);
+      append_lit(addr_of(backref_buf), " <a href=\"#fnref");
+      _write_i32(addr_of(backref_buf), fn_num);
       if(sub > i32(0), {
         _ := backref_buf.push(u8(0x3A)); // :
-        _write_i32(&backref_buf, sub);
+        _write_i32(addr_of(backref_buf), sub);
       });
       // ↩︎ = U+21A9 U+FE0E = UTF-8: E2 86 A9 EF B8 8E
-      append_lit(&backref_buf, "\" class=\"footnote-backref\">");
+      append_lit(addr_of(backref_buf), "\" class=\"footnote-backref\">");
       _ := backref_buf.push(u8(0xE2));
       _ := backref_buf.push(u8(0x86));
       _ := backref_buf.push(u8(0xA9));
       _ := backref_buf.push(u8(0xEF));
       _ := backref_buf.push(u8(0xB8));
       _ := backref_buf.push(u8(0x8E));
-      append_lit(&backref_buf, "</a>");
+      append_lit(addr_of(backref_buf), "</a>");
       sub = (sub + i32(1));
     });
 

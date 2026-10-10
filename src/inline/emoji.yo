@@ -50,7 +50,7 @@ inline_emoji :: (fn(state : *InlineState) -> bool)({
   (name_len : i32) = (p - pos - i32(1));
 
   state.*.entity_buf.clear();
-  if(!lookup_emoji(name_ptr, name_len, &(state.*.entity_buf)), {
+  if(!lookup_emoji(name_ptr, name_len, addr_of(state.*.entity_buf)), {
     return(false);
   });
 
